@@ -274,7 +274,7 @@ CONFIG_STATUS_DEPS := \
 	$(wildcard $(CONFIGURES)) \
 	$(wildcard $(TOPSRCDIR)/mozilla/nsprpub/configure) \
 	$(wildcard $(TOPSRCDIR)/mozilla/config/milestone.txt) \
-	$(wildcard $(TOPSRCDIR)/ldap/sdks/c-sdk/configure) \
+	$(wildcard $(TOPSRCDIR)/ldap/sdk/configure) \
 	$(wildcard $(addsuffix confvars.sh,$(wildcard $(TOPSRCDIR)/*/))) \
 	$(NULL)
 
