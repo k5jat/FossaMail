@@ -64,9 +64,6 @@ public:
 private:
   nsresult AlertFinished();
   nsresult AlertClicked();
-#ifdef MOZ_SUITE
-  nsresult AlertClickedSimple();
-#endif
 
   void InitializeBiffStatusIcon(); 
   void FillToolTipInfo();
