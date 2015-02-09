@@ -22,25 +22,23 @@ XPI_EM_ID = {5f369bc8-d4ab-454d-bfc5-fc555c87dbc4}
 DIST_FILES = install.rdf application.ini
 PREF_JS_EXPORTS = $(srcdir)/content/lightning.js
 
-# Lighting version number
-LIGHTNING_VERSION := $(shell cat $(srcdir)/../sunbird/config/version.txt)
+# Lightning version number
+ifdef MOZ_THUNDERBIRD
+LIGHTNING_VERSION := $(THUNDERBIRD_VERSION)
+else
 THUNDERBIRD_VERSION := $(shell cat $(topsrcdir)/mail/config/version.txt)
-SEAMONKEY_VERSION := $(shell cat $(topsrcdir)/mail/config/version.txt)
+LIGHTNING_VERSION := $(shell cat $(srcdir)/config/version.txt)
+endif
+
 GDATA_VERSION := $(shell $(PYTHON) $(topsrcdir)/calendar/providers/gdata/makeversion.py $(LIGHTNING_VERSION))
 
 # For extensions we require a max version that is compatible across security releases.
-# THUNDERBIRD_MAXVERSION and SEAMONKEY_MAXVERSION is our method for doing that.
+# THUNDERBIRD_MAXVERSION is our method for doing that.
 # Alpha versions 10.0a1 and 10.0a2 aren't affected
-# For Seamonkey, 2.17 becomes 2.17.*, 2.17.1 becomes 2.17.*
 # For Thunderbird, 10.0 becomes 10.*, 10.0.1 becomes 10.*
 THUNDERBIRD_MAXVERSION := $(THUNDERBIRD_VERSION)
 ifneq (a,$(findstring a,$(THUNDERBIRD_VERSION)))
 THUNDERBIRD_MAXVERSION := $(shell echo $(THUNDERBIRD_VERSION) | sed "s|\(^[0-9]*\)\.\([0-9]*\).*|\1|" ).*
-endif
-
-SEAMONKEY_MAXVERSION := $(SEAMONKEY_VERSION)
-ifneq (a,$(findstring a,$(SEAMONKEY_VERSION)))
-SEAMONKEY_MAXVERSION := $(shell echo $(SEAMONKEY_VERSION) | sed "s|\(^[0-9]*.[0-9]*\).*|\1|" ).*
 endif
 
 ifneq (,$(findstring a,$(LIGHTNING_VERSION)))
@@ -101,12 +99,10 @@ THEME=windows
 endif
 endif
 
-DEFINES += -DTHUNDERBIRD_VERSION=$(THUNDERBIRD_VERSION) \
-           -DTHUNDERBIRD_MAXVERSION=$(THUNDERBIRD_MAXVERSION) \
-           -DAB_CD=$(AB_CD) \
-           -DSEAMONKEY_VERSION=$(SEAMONKEY_VERSION) \
-           -DSEAMONKEY_MAXVERSION=$(SEAMONKEY_MAXVERSION) \
+DEFINES += -DAB_CD=$(AB_CD) \
            -DLIGHTNING_VERSION=$(LIGHTNING_VERSION) \
+           -DTHUNDERBIRD_VERSION=$(THUNDERBIRD_VERSION) \
+           -DTHUNDERBIRD_MAXVERSION=$(THUNDERBIRD_MAXVERSION) \
            -DTARGET_PLATFORM=$(OS_TARGET)_$(TARGET_XPCOM_ABI) \
            -DXPI_EM_ID=$(XPI_EM_ID) \
            -DTHEME=$(THEME) \

@@ -17,8 +17,12 @@ DEPTH = $(OBJDIR)
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/mozilla/toolkit/mozapps/installer/package-name.mk
 
-# Sync version with FossaMail app version
-LIGHTNING_VERSION := $(shell cat $(topsrcdir)/mail/config/version.txt)
+# Lightning version number
+ifdef MOZ_THUNDERBIRD
+LIGHTNING_VERSION := $(THUNDERBIRD_VERSION)
+else
+LIGHTNING_VERSION := $(shell cat $(srcdir)/config/version.txt)
+endif
 XPI_PKGNAME = lightning-$(LIGHTNING_VERSION).$(AB_CD).$(MOZ_PKG_PLATFORM)
 
 include $(TOPSRCDIR)/config/config.mk

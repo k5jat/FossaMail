@@ -102,15 +102,6 @@ static void openMailWindow(const nsCString& aUri)
         if (NS_FAILED(rv))
           return;
 
-        // SeaMonkey only supports message uris, whereas Thunderbird only
-        // supports message headers. This should be simplified/removed when
-        // bug 507593 is implemented.
-#ifdef MOZ_SUITE
-        nsCOMPtr<nsIDOMWindow> newWindow;
-        wwatch->OpenWindow(0, "chrome://messenger/content/messageWindow.xul",
-                           "_blank", "all,chrome,dialog=no,status,toolbar", msgUri,
-                           getter_AddRefs(newWindow));
-#else
         nsCOMPtr<nsIMessenger> messenger(do_CreateInstance(NS_MESSENGER_CONTRACTID, &rv));
         if (NS_FAILED(rv))
           return;
@@ -124,7 +115,6 @@ static void openMailWindow(const nsCString& aUri)
                              "_blank", "all,chrome,dialog=no,status,toolbar", msgHdr,
                              getter_AddRefs(newWindow));
         }
-#endif
       }
       else
       {

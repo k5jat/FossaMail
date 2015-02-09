@@ -637,14 +637,6 @@ nsresult nsMessengerWinIntegration::AlertClicked()
   return NS_OK;
 }
 
-#ifdef MOZ_SUITE
-nsresult nsMessengerWinIntegration::AlertClickedSimple()
-{
-  mSuppressBiffIcon = true;
-  return NS_OK;
-}
-#endif MOZ_SUITE
-
 NS_IMETHODIMP
 nsMessengerWinIntegration::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* aData)
 {
@@ -653,13 +645,6 @@ nsMessengerWinIntegration::Observe(nsISupports* aSubject, const char* aTopic, co
 
   if (strcmp(aTopic, "alertclickcallback") == 0)
       return AlertClicked();
-
-#ifdef MOZ_SUITE
-  // SeaMonkey does most of the GUI work in JS code when clicking on a mail
-  // notification, so it needs an extra function here
-  if (strcmp(aTopic, "alertclicksimplecallback") == 0)
-      return AlertClickedSimple();
-#endif
 
   return NS_OK;
 }
