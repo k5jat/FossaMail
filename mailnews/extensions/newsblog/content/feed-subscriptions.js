@@ -138,7 +138,6 @@ var FeedSubscriptions = {
     isSelectable: function(aRow, aColumn)  { return false; },
     isEditable: function (aRow, aColumn)   { return false; },
 
-    getImageSrc: function(aRow, aCol)      { return null; },
     getProgressMode : function(aRow, aCol) {},
     cycleHeader: function(aCol)            {},
     cycleCell: function(aRow, aCol)        {},
@@ -266,6 +265,58 @@ var FeedSubscriptions = {
     {
       let item = this.getItemAtIndex(aRow);
       return (item && aColumn.id == "folderNameCol") ? item.name : "";
+    },
+
+    getImageSrc: function(aRow, aCol)
+    {
+      let item = this.getItemAtIndex(aRow);
+      if (item.favicon == "")
+        return item.favicon;
+
+      if (item.folder)
+      {
+        if (item.open || item.folder.isServer)
+          return "";
+        if (item.closed && item.favicon)
+          return item.favicon;
+      }
+
+      let iconUrl, favicon;
+      let tree = this.selection.tree;
+
+      function callback(iconUrl, domain, arg) {
+        item.favicon = iconUrl || "";
+        if (item.folder)
+        {
+          for (let child of item.children)
+            if (!child.container)
+            {
+              child.favicon = iconUrl || "";
+              break;
+            }
+        }
+        if (iconUrl != "")
+          tree.invalidateRow(aRow);
+      }
+
+      // A closed non-server folder.
+      if (item.folder)
+      {
+        for (let child of item.children)
+        {
+          if (!child.container)
+            return item.favicon = child.favicon =
+              FeedUtils.getFavicon(child.parentFolder, child.url, child.favicon,
+                                   window, callback);
+        }
+
+        return item.favicon = "";
+      }
+
+      // A feed.
+      return item.favicon =
+        FeedUtils.getFavicon(item.parentFolder, item.url, item.favicon,
+                             window, callback);
     },
 
     canDrop: function (aRow, aOrientation)
@@ -506,7 +557,8 @@ var FeedSubscriptions = {
                           url      : aFolder.URI,
                           quickMode: defaultQuickMode,
                           open     : open,
-                          container: true };
+                          container: true,
+                          favicon  : null };
 
     // If a feed has any sub folders, add them to the list of children.
     let folderEnumerator = aFolder.subFolders;
@@ -580,7 +632,8 @@ var FeedSubscriptions = {
                  quickMode   : aFeed.quickMode,
                  level       : aLevel,
                  open        : false,
-                 container   : false };
+                 container   : false,
+                 favicon     : null };
     return feed;
   },
 
@@ -1299,6 +1352,11 @@ var FeedSubscriptions = {
       ds.Change(resource, FeedUtils.FZ_DESTFOLDER,
                 currentParentResource, newParentResource);
       ds.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
+      
+      // Update folderpane favicons.
+      FeedUtils.setFolderPaneProperty(currentFolder, "_favicon", null);
+      FeedUtils.setFolderPaneProperty(newFolder, "_favicon", null);
+      
       // Update the feed url attributes on the databases for each folder:
       // Remove our feed url property from the current folder.
       FeedUtils.updateFolderFeedUrl(currentFolder, currentItem.url, true);
@@ -1323,6 +1381,9 @@ var FeedSubscriptions = {
                              currentItem.parentFolder.server,
                              currentItem.parentFolder);
     }
+    
+    // Update local favicons.
+    currentParentItem.favicon = newParentItem.favicon = null;
 
     // Finally, update our view layer.  Update old parent folder's quickMode
     // and remove the old row, if move.  Otherwise no change to the view.
@@ -1468,6 +1529,7 @@ var FeedSubscriptions = {
           }
           else
           {
+            // Adding a feed.
             parentIndex = win.mView.getParentIndex(curIndex);
             parentItem = win.mView.getItemAtIndex(parentIndex);
             level = curItem.level;
@@ -1477,7 +1539,8 @@ var FeedSubscriptions = {
           if (!newItem.container)
             win.updateFolderQuickModeInView(newItem, parentItem, false);
           parentItem.children.push(newItem);
-          parentItem.children = win.folderItemSorter(parentItem.children)
+          parentItem.children = win.folderItemSorter(parentItem.children);
+          parentItem.favicon = null;
 
           if (win.mActionMode == win.kSubscribeMode)
             message = FeedUtils.strings.GetStringFromName(
