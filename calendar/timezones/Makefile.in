@@ -40,15 +40,18 @@ ifndef DISABLE_LIGHTNING_INSTALL
 INSTALL_EXTENSION_ID = calendar-timezones@mozilla.org
 endif
 
-CALENDAR_VERSION := $(shell cat $(topsrcdir)/calendar/sunbird/config/version.txt)
+# Lightning version number
+ifdef MOZ_THUNDERBIRD
+CALENDAR_VERSION := $(THUNDERBIRD_VERSION)
+else
 THUNDERBIRD_VERSION := $(shell cat $(topsrcdir)/mail/config/version.txt)
-SEAMONKEY_VERSION := $(shell cat $(topsrcdir)/suite/config/version.txt)
+CALENDAR_VERSION := $(shell cat $(topsrcdir)/calendar/lightning/config/version.txt)
+endif
 TIMEZONES_VERSION := $(shell cat $(srcdir)/config/version.txt)
 
 DEFINES += -DAB_CD=$(AB_CD) \
-           -DTHUNDERBIRD_VERSION=$(THUNDERBIRD_VERSION) \
-           -DSEAMONKEY_VERSION=$(SEAMONKEY_VERSION) \
            -DCALENDAR_VERSION=$(CALENDAR_VERSION) \
+           -DTHUNDERBIRD_VERSION=$(THUNDERBIRD_VERSION) \
            -DTIMEZONES_VERSION=$(TIMEZONES_VERSION) \
            $(NULL)
 

@@ -40,36 +40,8 @@ endif
 SYM_STORE_SOURCE_DIRS := $(topsrcdir)
 
 buildsymbols:
-ifdef MOZ_CRASHREPORTER
-ifdef USE_ELF_HACK
-	$(MAKE) -C $(MOZ_BUILD_APP)/installer elfhack
-endif
-	echo building symbol store
-	$(RM) -r $(DIST)/crashreporter-symbols
-	$(RM) "$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip"
-	$(NSINSTALL) -D $(DIST)/crashreporter-symbols
-	$(PYTHON) $(MOZILLA_SRCDIR)/toolkit/crashreporter/tools/symbolstore.py \
-	  $(MAKE_SYM_STORE_ARGS)                                          \
-	  $(foreach dir,$(SYM_STORE_SOURCE_DIRS),-s $(dir))               \
-	  $(DUMP_SYMS_BIN)                                                \
-	  $(DIST)/crashreporter-symbols                                   \
-	  $(MAKE_SYM_STORE_PATH) >                                        \
-	  $(DIST)/crashreporter-symbols/$(SYMBOL_INDEX_NAME)
-	echo packing symbols
-	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
-	cd $(DIST)/crashreporter-symbols && \
-	  zip -r9D "../$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip" .
-	cd $(DIST)/crashreporter-symbols && \
-	  grep "sym" $(SYMBOL_INDEX_NAME) > $(SYMBOL_INDEX_NAME).tmp && \
-	  mv $(SYMBOL_INDEX_NAME).tmp $(SYMBOL_INDEX_NAME)
-	cd $(DIST)/crashreporter-symbols && \
-          zip -r9D "../$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip" . -i "*.sym" -i "*.txt"
-endif # MOZ_CRASHREPORTER
 
 uploadsymbols:
-ifdef MOZ_CRASHREPORTER
-	$(SHELL) $(MOZILLA_SRCDIR)/toolkit/crashreporter/tools/upload_symbols.sh $(SYMBOL_INDEX_NAME) "$(DIST)/$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip"
-endif
 
 ###################################
 # END Warning

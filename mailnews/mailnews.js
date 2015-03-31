@@ -128,15 +128,6 @@ pref("mail.file_attach_binary",             false);
 pref("mail.show_headers",                   1); // some
 pref("mail.pane_config.dynamic",            0);
 pref("mail.addr_book.mapit_url.format", "chrome://messenger-region/locale/region.properties");
-#ifdef MOZ_SUITE
-pref("mailnews.start_page.url", "chrome://messenger-region/locale/region.properties");
-pref("messenger.throbber.url", "chrome://messenger-region/locale/region.properties");
-pref("compose.throbber.url", "chrome://messenger-region/locale/region.properties");
-pref("addressbook.throbber.url", "chrome://messenger-region/locale/region.properties");
-pref("mail.accountwizard.deferstorage", false);
-// |false|: Show both name and address, even for people in my addressbook.
-pref("mail.showCondensedAddresses", false);
-#endif
 
 // the format for "mail.addr_book.quicksearchquery.format" is:
 // @V == the escaped value typed in the quick search bar in the addressbook
@@ -305,10 +296,6 @@ pref("mailnews.customDBHeaders", "");
 // close standalone message window when deleting the displayed message
 pref("mail.close_message_window.on_delete", false);
 
-#ifdef MOZ_SUITE
-pref("mailnews.reuse_message_window", true);
-#endif
-
 pref("mailnews.open_window_warning", 10); // warn user if they attempt to open more than this many messages at once
 
 pref("mailnews.start_page.enabled", true);
@@ -365,10 +352,6 @@ pref("mail.identity.default.headers", "");
 
 // by default, only collect addresses the user sends to (outgoing)
 // incoming is all spam anyways
-#ifdef MOZ_SUITE
-pref("mail.collect_email_address_incoming", false);
-pref("mail.collect_email_address_newsgroup", false);
-#endif
 pref("mail.collect_email_address_outgoing", true);
 
 // by default, use the Collected Addressbook for collection
@@ -631,11 +614,6 @@ pref("mail.biff.animate_dock_icon", false);
 // add jitter to biff interval
 pref("mail.biff.add_interval_jitter", true);
 
-#ifdef MOZ_SUITE
-// if true, check for new mail even when opening non-mail windows
-pref("mail.biff.on_new_window", true);
-#endif
-
 // If true, the number used in the Mac OS X dock notification will be the
 // the number of "new" messages, as per the classic Thunderbird definition.
 // Defaults to false, which notifies about the number of unread messages.
@@ -661,12 +639,9 @@ pref("mailnews.ui.junk.manualMarkAsJunkMarksRead", true);
 pref("mail.ui.folderpane.version", 1);
 
 // for manual upgrades of certain UI features.
-#ifdef MOZ_SUITE
-pref("mailnews.ui.threadpane.version", 5);
-#else
 // Thunderbird uses this pref in msgMail3PaneWindow.js for bad reasons.
 pref("mailnews.ui.threadpane.version", 7);
-#endif
+
 // for manual upgrades of certain UI features.
 // 1 -> 2 is for the ab results pane tree landing
 // to hide the non default columns in the addressbook dialog
@@ -750,23 +725,6 @@ pref("mailnews.import.text.skipfirstrecord", true);
 
 // automatically scale attached images that are displayed inline
 pref("mail.enable_automatic_image_resizing", true);
-
-#ifdef MOZ_SUITE
-#ifdef XP_WIN
-pref("ldap_2.servers.oe.uri", "moz-aboutlookdirectory://oe/");
-pref("ldap_2.servers.oe.description", "chrome://messenger/locale/addressbook/addressBook.properties");
-pref("ldap_2.servers.oe.dirType", 3);
-#endif
-#endif
-#ifdef XP_MACOSX
-pref("ldap_2.servers.osx.uri", "moz-abosxdirectory:///");
-pref("ldap_2.servers.osx.description", "chrome://messenger/locale/addressbook/addressBook.properties");
-pref("ldap_2.servers.osx.dirType", 3);
-pref("mail.notification.sound",             "");
-pref("mail.notification.count.inbox_only", true);
-// Work around bug 482811 by disabling slow script warning for chrome scripts on Mac
-pref("dom.max_chrome_script_run_time", 0);
-#endif
 
 // gtk2 (*nix) lacks transparent/translucent drag support (bug 376238), so we
 // want to disable it so people can see where they are dragging things.

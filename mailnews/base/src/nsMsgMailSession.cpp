@@ -368,7 +368,7 @@ NS_IMETHODIMP nsMsgMailSession::RemoveMsgWindow(nsIMsgWindow *msgWindow)
   // the last window is closed. So don't shutdown the account manager in that
   // case. Similarly, for suite, we don't want to disable mailnews when the
   // last mail window is closed.
-#if !defined(XP_MACOSX) && !defined(MOZ_SUITE)
+#if !defined(XP_MACOSX)
   if (!mWindows.Count())
   {
     nsresult rv;
