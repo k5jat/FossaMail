@@ -68,7 +68,6 @@ XRE_FreeAppDataType XRE_FreeAppData;
 #ifdef XRE_HAS_DLL_BLOCKLIST
 XRE_SetupDllBlocklistType XRE_SetupDllBlocklist;
 #endif
-XRE_TelemetryAccumulateType XRE_TelemetryAccumulate;
 XRE_mainType XRE_main;
 
 static const nsDynamicFunctionLoad kXULFuncs[] = {
@@ -78,7 +77,6 @@ static const nsDynamicFunctionLoad kXULFuncs[] = {
 #ifdef XRE_HAS_DLL_BLOCKLIST
     { "XRE_SetupDllBlocklist", (NSFuncPtr*) &XRE_SetupDllBlocklist },
 #endif
-    { "XRE_TelemetryAccumulate", (NSFuncPtr*) &XRE_TelemetryAccumulate },
     { "XRE_main", (NSFuncPtr*) &XRE_main },
     { nullptr, nullptr }
 };
@@ -151,7 +149,6 @@ int main(int argc, char* argv[])
       XPCOMGlueEnablePreload();
   }
 
-
   rv = XPCOMGlueStartup(exePath);
   if (NS_FAILED(rv)) {
     Output("Couldn't load XPCOM.\n");
@@ -169,30 +166,6 @@ int main(int argc, char* argv[])
 #ifdef XRE_HAS_DLL_BLOCKLIST
   XRE_SetupDllBlocklist();
 #endif
-
-  if (gotCounters) {
-#if defined(XP_WIN)
-    XRE_TelemetryAccumulate(mozilla::Telemetry::EARLY_GLUESTARTUP_READ_OPS,
-                            int(ioCounters.ReadOperationCount));
-    XRE_TelemetryAccumulate(mozilla::Telemetry::EARLY_GLUESTARTUP_READ_TRANSFER,
-                            int(ioCounters.ReadTransferCount / 1024));
-    IO_COUNTERS newIoCounters;
-    if (GetProcessIoCounters(GetCurrentProcess(), &newIoCounters)) {
-      XRE_TelemetryAccumulate(mozilla::Telemetry::GLUESTARTUP_READ_OPS,
-                              int(newIoCounters.ReadOperationCount - ioCounters.ReadOperationCount));
-      XRE_TelemetryAccumulate(mozilla::Telemetry::GLUESTARTUP_READ_TRANSFER,
-                              int((newIoCounters.ReadTransferCount - ioCounters.ReadTransferCount) / 1024));
-    }
-#elif defined(XP_UNIX)
-    XRE_TelemetryAccumulate(mozilla::Telemetry::EARLY_GLUESTARTUP_HARD_FAULTS,
-                            int(initialRUsage.ru_majflt));
-    struct rusage newRUsage;
-    if (!getrusage(RUSAGE_SELF, &newRUsage)) {
-      XRE_TelemetryAccumulate(mozilla::Telemetry::GLUESTARTUP_HARD_FAULTS,
-                              int(newRUsage.ru_majflt - initialRUsage.ru_majflt));
-    }
-#endif
-  }
 
   int result;
   {
