@@ -281,7 +281,4 @@ function openDictionaryList(where) {
  *        'window'). See openContentTab for more details.
  */
 function openPrivacyPolicy(where) {
-  const kTelemetryInfoUrl = "toolkit.telemetry.infoURL";
-  let url = Services.prefs.getCharPref(kTelemetryInfoUrl);
-  openContentTab(url, where, "^http://www.mozilla.org/");
 }

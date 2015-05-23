@@ -1151,21 +1151,6 @@ var GlodaIndexer = {
         }
       }
 
-      // All pauses have been taken, how effective were we? Report!
-      // XXX: there's possibly a lot of fluctuation since we go through here
-      // every 5 messages or even less
-      if (this._indexedMessageCount > 0) {
-        let delta = (Date.now() - t0)/1000; // in seconds
-        let v = Math.round(this._indexedMessageCount/delta);
-        try {
-          let h = Services.telemetry
-            .getHistogramById("THUNDERBIRD_INDEXING_RATE_MSG_PER_S");
-          h.add(v);
-        } catch (e) {
-          this._log.warn("Couldn't report telemetry", e, v);
-        }
-      }
-
       if (batchCount > 0) {
         let totalTime = this._perfIndexStopwatch.realTimeSeconds * 1000;
         let timePerToken = totalTime / batchCount;
