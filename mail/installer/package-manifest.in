@@ -512,8 +512,6 @@
 @BINPATH@/components/PeerConnection.js
 @BINPATH@/components/PeerConnection.manifest
 #endif
-@BINPATH@/components/TelemetryPing.js
-@BINPATH@/components/TelemetryPing.manifest
 @BINPATH@/components/toolkitplaces.manifest
 @BINPATH@/components/toolkitsearch.manifest
 #ifdef UNIX_BUT_NOT_MAC
@@ -715,7 +713,6 @@
 @BINPATH@/components/satchel.manifest
 @BINPATH@/components/satchel.xpt
 @BINPATH@/components/shistory.xpt
-@BINPATH@/components/telemetry.xpt
 @BINPATH@/components/zipwriter.xpt
 @BINPATH@/components/cookie.xpt
 @BINPATH@/components/places.xpt
