@@ -34,8 +34,6 @@
 
 #include "nsXPCOMPrivate.h" // for MAXPATHLEN and XPCOM_DLL
 
-#include "mozilla/Telemetry.h"
-
 static void Output(const char *fmt, ... )
 {
   va_list ap;

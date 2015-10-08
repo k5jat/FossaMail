@@ -43,8 +43,6 @@ user_pref("mailnews.database.global.indexer.enabled", false);
 // Ensure OS X and Outlook/OE books are disabled
 user_pref("ldap_2.servers.osx.position", 0);
 user_pref("ldap_2.servers.oe.position", 0);
-// Suppress Telemetry opt-in prompt
-user_pref("toolkit.telemetry.prompted", 999);
 
 //
 // SeaMonkey preferences.
