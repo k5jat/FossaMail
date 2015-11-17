@@ -142,7 +142,7 @@ pref("app.update.service.enabled", true);
 pref("app.releaseNotesURL", "http://www.fossamail.org/releasenotes.shtml");
 
 // Base URL for web-based support pages.
-pref("app.support.baseURL", "http://forum.palemoon.org/viewforum.php?f=34");
+pref("app.support.baseURL", "http://support.live.mozillamessaging.com/%LOCALE%/%APP%/%APPBUILDID%/");
 
 // Controls enabling of the extension system logging (can reduce performance)
 pref("extensions.logging.enabled", false);
