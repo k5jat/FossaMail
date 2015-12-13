@@ -43,12 +43,6 @@ toolbar:only-of-type {
   color: -moz-FieldText;
 }
 
-@media (-moz-windows-default-theme) {
-  #folderTree {
-    background-image: url("chrome://messenger/skin/grain.png");
-  }
-}
-
 #messengerBox {
   background-color: -moz-Dialog;
 }
