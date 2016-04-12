@@ -541,6 +541,9 @@ nsLDAPConnection::OnLookupComplete(nsICancelable *aRequest,
             ldap_set_option(mConnectionHandle, LDAP_OPT_DEBUG_LEVEL, &lDebug);
 #endif
 
+            // See https://github.com/MoonchildProductions/FossaMail/issues/18
+            ldap_set_option(mConnectionHandle, LDAP_OPT_REFERRALS, 0);
+            
             // the C SDK currently defaults to v2.  if we're to use v3,
             // tell it so.
             //
