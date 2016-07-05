@@ -70,9 +70,13 @@ if CONFIG['MOZ_LDAP_XPCOM']:
         'nsAbLDAPReplicationService.cpp',
     ]
 
-    EXTRA_COMPONENTS += [
-        'nsAbLDAPAutoCompleteSearch.js',
-    ]
+    if CONFIG['MOZ_INCOMPLETE_TOOLKIT_LDAP_AUTOCOMPLETE']:
+        EXTRA_COMPONENTS += ['nsAbLDAPAutoCompleteSearch.js']
+    else:
+        CPP_SOURCES += [
+            'nsAbLDAPAutoCompFormatter.cpp',
+            'nsLDAPAutoCompleteSession.cpp',
+        ]
 
 EXTRA_COMPONENTS += [
     'nsAbAutoCompleteMyDomain.js',
