@@ -15,7 +15,7 @@
 #include "mozilla/Services.h"
 
 nsresult
-nsMsgGetMessageByID(nsresult aMsgID, nsString& aResult)
+nsMsgGetMessageByName(const char16_t* aName, nsString& aResult)
 {
   nsresult rv;
   nsCOMPtr<nsIStringBundleService> bundleService =
@@ -23,31 +23,16 @@ nsMsgGetMessageByID(nsresult aMsgID, nsString& aResult)
   NS_ENSURE_TRUE(bundleService, NS_ERROR_UNEXPECTED);
 
   nsCOMPtr<nsIStringBundle> bundle;
-  rv = bundleService->CreateBundle("chrome://messenger/locale/messengercompose/composeMsgs.properties", getter_AddRefs(bundle));
+  rv = bundleService->CreateBundle(
+    "chrome://messenger/locale/messengercompose/composeMsgs.properties",
+    getter_AddRefs(bundle));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return bundle->GetStringFromID(NS_ERROR_GET_CODE(aMsgID),
-                                 getter_Copies(aResult));
-}
-
-nsresult
-nsMsgGetMessageByName(const nsString &aName, nsString& aResult)
-{
-  nsresult rv;
-  nsCOMPtr<nsIStringBundleService> bundleService =
-    mozilla::services::GetStringBundleService();
-  NS_ENSURE_TRUE(bundleService, NS_ERROR_UNEXPECTED);
-
-  nsCOMPtr<nsIStringBundle> bundle;
-  rv = bundleService->CreateBundle("chrome://messenger/locale/messengercompose/composeMsgs.properties", getter_AddRefs(bundle));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return bundle->GetStringFromName(aName.get(),
-                                   getter_Copies(aResult));
+  return bundle->GetStringFromName(aName, getter_Copies(aResult));
 }
 
 static nsresult
-nsMsgBuildMessageByName(const PRUnichar *aName, nsIFile *aFile, nsString& aResult)
+nsMsgBuildMessageByName(const char16_t *aName, nsIFile *aFile, nsString& aResult)
 {
   NS_ENSURE_ARG_POINTER(aFile);
   nsresult rv;
@@ -62,32 +47,24 @@ nsMsgBuildMessageByName(const PRUnichar *aName, nsIFile *aFile, nsString& aResul
   nsString path;
   aFile->GetPath(path);
 
-  const PRUnichar *params[1] = {path.get()};
+  const char16_t *params[1] = {path.get()};
   return bundle->FormatStringFromName(aName, params, 1, getter_Copies(aResult));
 }
 
 nsresult
 nsMsgBuildMessageWithFile(nsIFile *aFile, nsString& aResult)
 {
-  return nsMsgBuildMessageByName(NS_LITERAL_STRING("unableToOpenFile").get(), aFile, aResult);
+  return nsMsgBuildMessageByName(MOZ_UTF16("unableToOpenFile"), aFile, aResult);
 }
 
 nsresult
 nsMsgBuildMessageWithTmpFile(nsIFile *aFile, nsString& aResult)
 {
-  return nsMsgBuildMessageByName(NS_LITERAL_STRING("unableToOpenTmpFile").get(), aFile, aResult);
+  return nsMsgBuildMessageByName(MOZ_UTF16("unableToOpenTmpFile"), aFile, aResult);
 }
 
 nsresult
-nsMsgDisplayMessageByID(nsIPrompt * aPrompt, nsresult msgID, const PRUnichar * windowTitle)
-{
-  nsString msg;
-  nsMsgGetMessageByID(msgID, msg);
-  return nsMsgDisplayMessageByString(aPrompt, msg.get(), windowTitle);
-}
-
-nsresult
-nsMsgDisplayMessageByName(nsIPrompt *aPrompt, const nsString &aName, const PRUnichar *windowTitle)
+nsMsgDisplayMessageByName(nsIPrompt *aPrompt, const char16_t* aName, const char16_t *windowTitle)
 {
   nsString msg;
   nsMsgGetMessageByName(aName, msg);
@@ -95,7 +72,7 @@ nsMsgDisplayMessageByName(nsIPrompt *aPrompt, const nsString &aName, const PRUni
 }
 
 nsresult
-nsMsgDisplayMessageByString(nsIPrompt * aPrompt, const PRUnichar * msg, const PRUnichar * windowTitle)
+nsMsgDisplayMessageByString(nsIPrompt * aPrompt, const char16_t * msg, const char16_t * windowTitle)
 {
   NS_ENSURE_ARG_POINTER(msg);
 
@@ -116,7 +93,7 @@ nsMsgDisplayMessageByString(nsIPrompt * aPrompt, const PRUnichar * msg, const PR
 }
 
 nsresult
-nsMsgAskBooleanQuestionByString(nsIPrompt * aPrompt, const PRUnichar * msg, bool *answer, const PRUnichar * windowTitle)
+nsMsgAskBooleanQuestionByString(nsIPrompt * aPrompt, const char16_t * msg, bool *answer, const char16_t * windowTitle)
 {
   NS_ENSURE_TRUE(msg && *msg, NS_ERROR_INVALID_ARG);
 

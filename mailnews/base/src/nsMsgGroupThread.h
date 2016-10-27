@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Attributes.h"
 #include "msgCore.h"
 #include "nsCOMArray.h"
 #include "nsIMsgThread.h"
@@ -21,12 +22,13 @@ public:
 
   nsMsgGroupThread();
   nsMsgGroupThread(nsIMsgDatabase *db);
-  virtual ~nsMsgGroupThread();
 
   NS_DECL_NSIMSGTHREAD
   NS_DECL_ISUPPORTS
 
 protected:
+  virtual ~nsMsgGroupThread();
+
   void      Init();
   nsMsgViewIndex AddChildFromGroupView(nsIMsgDBHdr *child, nsMsgDBView *view);
   nsresult  RemoveChild(nsMsgKey msgKey);
@@ -61,20 +63,24 @@ class nsMsgXFGroupThread : public nsMsgGroupThread
 {
 public:
   nsMsgXFGroupThread();
+
+  NS_IMETHOD GetNumChildren(uint32_t *aNumChildren) override;
+  NS_IMETHOD GetChildKeyAt(uint32_t aIndex, nsMsgKey *aResult) override;
+  NS_IMETHOD GetChildHdrAt(uint32_t aIndex, nsIMsgDBHdr **aResult) override;
+  NS_IMETHOD RemoveChildAt(uint32_t aIndex) override;
+protected:
   virtual ~nsMsgXFGroupThread();
 
-  NS_IMETHOD GetNumChildren(uint32_t *aNumChildren);
-  NS_IMETHOD GetChildKeyAt(int32_t aIndex, nsMsgKey *aResult);
-  NS_IMETHOD GetChildHdrAt(int32_t aIndex, nsIMsgDBHdr **aResult);
-  NS_IMETHOD RemoveChildAt(int32_t aIndex);
-protected:
-  virtual void InsertMsgHdrAt(nsMsgViewIndex index, nsIMsgDBHdr *hdr);
-  virtual void SetMsgHdrAt(nsMsgViewIndex index, nsIMsgDBHdr *hdr);
-  virtual nsMsgViewIndex FindMsgHdr(nsIMsgDBHdr *hdr);
-  virtual nsMsgViewIndex AddMsgHdrInDateOrder(nsIMsgDBHdr *child, nsMsgDBView *view);
+  virtual void InsertMsgHdrAt(nsMsgViewIndex index,
+                              nsIMsgDBHdr *hdr) override;
+  virtual void SetMsgHdrAt(nsMsgViewIndex index, nsIMsgDBHdr *hdr) override;
+  virtual nsMsgViewIndex FindMsgHdr(nsIMsgDBHdr *hdr) override;
+  virtual nsMsgViewIndex AddMsgHdrInDateOrder(nsIMsgDBHdr *child, 
+                                              nsMsgDBView *view) override;
   virtual nsMsgViewIndex GetInsertIndexFromView(nsMsgDBView *view, 
                                           nsIMsgDBHdr *child, 
-                                          nsMsgViewSortOrderValue threadSortOrder);
+                                          nsMsgViewSortOrderValue threadSortOrder
+                                                ) override;
 
   nsCOMArray<nsIMsgFolder> m_folders;
 };

@@ -47,7 +47,6 @@ public:
     NS_DECL_NSITREEVIEW
 
     nsNntpIncomingServer();
-    virtual ~nsNntpIncomingServer();
 
     NS_IMETHOD GetLocalStoreType(nsACString& type);
     NS_IMETHOD CloseCachedConnections();
@@ -75,6 +74,7 @@ public:
     NS_IMETHOD GetSortOrder(int32_t* aSortOrder);
 
 protected:
+    virtual ~nsNntpIncomingServer();
    virtual nsresult CreateRootFolderFromUri(const nsCString &serverUri,
                                             nsIMsgFolder **rootFolder);
     nsresult GetNntpConnection(nsIURI *url, nsIMsgWindow *window,
@@ -108,7 +108,6 @@ private:
     nsCOMPtr<nsIAtom> mSubscribedAtom;
     nsCOMPtr<nsIAtom> mNntpAtom;
 
-    nsString mSearchValue;
     nsCOMPtr<nsITreeBoxObject> mTree;
     nsCOMPtr<nsITreeSelection> mTreeSelection;
 
@@ -122,10 +121,9 @@ private:
     bool mHostInfoLoaded;
     bool mHostInfoHasChanged;
     nsCOMPtr <nsIFile> mHostInfoFile;
-    
+
     uint32_t mLastGroupDate;
-    PRTime mFirstNewDate;
-    int32_t mUniqueId;    
+    int32_t mUniqueId;
     uint32_t mLastUpdatedTime;
     int32_t mVersion;
     bool mPostingAllowed;

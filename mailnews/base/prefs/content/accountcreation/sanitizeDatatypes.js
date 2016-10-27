@@ -118,7 +118,7 @@ var sanitize =
 
     var uri;
     try {
-      uri = ioService().newURI(str, null, null);
+      uri = Services.io.newURI(str, null, null);
       uri = uri.QueryInterface(Ci.nsIURL);
     } catch (e) {
       throw new MalformedException("url_parsing.error", unchecked);
@@ -202,4 +202,6 @@ function MalformedException(msgID, uncheckedBadValue)
     msg += " (bad value: " + new String(uncheckedBadValue) + ")";
   Exception.call(this, msg);
 }
-extend(MalformedException, Exception);
+MalformedException.prototype = Object.create(Exception.prototype);
+MalformedException.prototype.constructor = MalformedException;
+

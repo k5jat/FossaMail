@@ -27,7 +27,7 @@ nsMsgQuickSearchDBView::~nsMsgQuickSearchDBView()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED2(nsMsgQuickSearchDBView, nsMsgDBView, nsIMsgDBView, nsIMsgSearchNotify)
+NS_IMPL_ISUPPORTS_INHERITED(nsMsgQuickSearchDBView, nsMsgDBView, nsIMsgDBView, nsIMsgSearchNotify)
 
 NS_IMETHODIMP nsMsgQuickSearchDBView::Open(nsIMsgFolder *folder, nsMsgViewSortTypeValue sortType, nsMsgViewSortOrderValue sortOrder, nsMsgViewFlagsTypeValue viewFlags, int32_t *pCount)
 {
@@ -339,9 +339,9 @@ nsMsgQuickSearchDBView::OnSearchDone(nsresult status)
     nsresult rv = m_viewFolder->GetDBFolderInfoAndDB(getter_AddRefs(dbFolderInfo), getter_AddRefs(virtDatabase));
     NS_ENSURE_SUCCESS(rv, rv);
     uint32_t numUnread = 0;
-    uint32_t numTotal = m_origKeys.Length();
+    size_t numTotal = m_origKeys.Length();
 
-    for (uint32_t i = 0; i < m_origKeys.Length(); i++)
+    for (size_t i = 0; i < m_origKeys.Length(); i++)
     {
       bool isRead;
       m_db->IsRead(m_origKeys[i], &isRead);
@@ -399,9 +399,10 @@ nsMsgQuickSearchDBView::OnNewSearch()
         mTree->BeginUpdateBatch();
       while (hasMore)
       {
-        nsCOMPtr <nsIMsgDBHdr> pHeader;
-        nsresult rv = cachedHits->GetNext(getter_AddRefs(pHeader));
+        nsCOMPtr <nsISupports> supports;
+        nsresult rv = cachedHits->GetNext(getter_AddRefs(supports));
         NS_ASSERTION(NS_SUCCEEDED(rv), "nsMsgDBEnumerator broken");
+        nsCOMPtr <nsIMsgDBHdr> pHeader = do_QueryInterface(supports);
         if (pHeader && NS_SUCCEEDED(rv))
           AddHdr(pHeader);
         else
@@ -429,9 +430,6 @@ nsresult nsMsgQuickSearchDBView::GetFirstMessageHdrToDisplayInThread(nsIMsgThrea
     rootParent->GetMessageKey(&threadRootKey);
   else
     threadHdr->GetThreadKey(&threadRootKey);
-
-  if ((int32_t) numChildren < 0)
-    numChildren = 0;
 
   nsCOMPtr <nsIMsgDBHdr> retHdr;
 
@@ -837,7 +835,7 @@ NS_IMETHODIMP nsMsgQuickSearchDBView::SetViewFlags(nsMsgViewFlagsTypeValue aView
 {
   nsresult rv = NS_OK;
   // if the grouping has changed, rebuild the view
-  if (m_viewFlags & nsMsgViewFlagsType::kGroupBySort ^
+  if ((m_viewFlags & nsMsgViewFlagsType::kGroupBySort) ^
       (aViewFlags & nsMsgViewFlagsType::kGroupBySort))
     rv = RebuildView(aViewFlags);
   nsMsgDBView::SetViewFlags(aViewFlags);
@@ -860,8 +858,8 @@ nsMsgQuickSearchDBView::OnHdrDeleted(nsIMsgDBHdr *aHdrDeleted,
   NS_ENSURE_ARG_POINTER(aHdrDeleted);
   nsMsgKey msgKey;
   aHdrDeleted->GetMessageKey(&msgKey);
-  int32_t keyIndex = m_origKeys.BinaryIndexOf(msgKey);
-  if (keyIndex != -1)
+  size_t keyIndex = m_origKeys.BinaryIndexOf(msgKey);
+  if (keyIndex != m_origKeys.NoIndex)
     m_origKeys.RemoveElementAt(keyIndex);
   return nsMsgThreadedDBView::OnHdrDeleted(aHdrDeleted, aParentKey, aFlags,
                                            aInstigator);

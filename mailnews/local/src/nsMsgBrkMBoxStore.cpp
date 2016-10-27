@@ -40,14 +40,13 @@
 
 nsMsgBrkMBoxStore::nsMsgBrkMBoxStore()
 {
-  m_outputStreams.Init();
 }
 
 nsMsgBrkMBoxStore::~nsMsgBrkMBoxStore()
 {
 }
 
-NS_IMPL_ISUPPORTS1(nsMsgBrkMBoxStore, nsIMsgPluggableStore)
+NS_IMPL_ISUPPORTS(nsMsgBrkMBoxStore, nsIMsgPluggableStore)
 
 NS_IMETHODIMP nsMsgBrkMBoxStore::DiscoverSubFolders(nsIMsgFolder *aParentFolder,
                                                     bool aDeep)
@@ -71,6 +70,11 @@ NS_IMETHODIMP nsMsgBrkMBoxStore::CreateFolder(nsIMsgFolder *aParent,
                                               const nsAString &aFolderName,
                                               nsIMsgFolder **aResult)
 {
+  NS_ENSURE_ARG_POINTER(aParent);
+  NS_ENSURE_ARG_POINTER(aResult);
+  if (aFolderName.IsEmpty())
+    return NS_MSG_ERROR_INVALID_FOLDER_NAME;
+
   nsCOMPtr<nsIFile> path;
   nsCOMPtr<nsIMsgFolder> child;
   nsresult rv = aParent->GetFilePath(getter_AddRefs(path));
@@ -135,31 +139,6 @@ NS_IMETHODIMP nsMsgBrkMBoxStore::CreateFolder(nsIMsgFolder *aParent,
   return rv;
 }
 
-NS_IMETHODIMP nsMsgBrkMBoxStore::GetSummaryFile(nsIMsgFolder *aFolder,
-                                                nsIFile **aSummaryFile)
-{
-  NS_ENSURE_ARG_POINTER(aFolder);
-  NS_ENSURE_ARG_POINTER(aSummaryFile);
-
-  nsresult rv;
-  nsCOMPtr<nsIFile> newSummaryLocation;
-  rv = aFolder->GetFilePath(getter_AddRefs(newSummaryLocation));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsString fileName;
-
-  rv = newSummaryLocation->GetLeafName(fileName);
-  if (NS_FAILED(rv))
-    return rv;
-
-  fileName.Append(NS_LITERAL_STRING(SUMMARY_SUFFIX));
-  rv = newSummaryLocation->SetLeafName(fileName);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  newSummaryLocation.forget(aSummaryFile);
-  return NS_OK;
-}
-
 // Get the current attributes of the mbox file, corrected for caching
 void nsMsgBrkMBoxStore::GetMailboxModProperties(nsIMsgFolder *aFolder,
                                                 int64_t *aSize, uint32_t *aDate)
@@ -172,7 +151,8 @@ void nsMsgBrkMBoxStore::GetMailboxModProperties(nsIMsgFolder *aFolder,
   NS_ENSURE_SUCCESS_VOID(rv);
 
   rv = pathFile->GetFileSize(aSize);
-  NS_ENSURE_SUCCESS_VOID(rv);
+  if (NS_FAILED(rv))
+    return; // expected result for virtual folders
 
   PRTime lastModTime;
   rv = pathFile->GetLastModifiedTime(&lastModTime);
@@ -192,13 +172,18 @@ NS_IMETHODIMP nsMsgBrkMBoxStore::HasSpaceAvailable(nsIMsgFolder *aFolder,
   nsresult rv = aFolder->GetFilePath(getter_AddRefs(pathFile));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // Allow the mbox to only reach 0xFFC00000 = 4 GiB - 4 MiB for now.
+  // This limit can be increased after bug 789679 is fixed.
   int64_t fileSize;
   rv = pathFile->GetFileSize(&fileSize);
   NS_ENSURE_SUCCESS(rv, rv);
+  *aResult = ((fileSize + aSpaceRequested) < 0xFFC00000LL);
+  if (!*aResult)
+    return NS_ERROR_FILE_TOO_BIG;
 
-  // Allow the mbox to only reach 0xFFC00000 = 4 GiB - 4 MiB for now.
-  *aResult = ((fileSize + aSpaceRequested) < 0xFFC00000) &&
-              DiskSpaceAvailableInStore(pathFile, aSpaceRequested);
+  *aResult = DiskSpaceAvailableInStore(pathFile, aSpaceRequested);
+  if (!*aResult)
+    return NS_ERROR_FILE_DISK_FULL;
 
   return NS_OK;
 }
@@ -354,7 +339,7 @@ NS_IMETHODIMP nsMsgBrkMBoxStore::RenameFolder(nsIMsgFolder *aFolder,
   nsCOMPtr<nsISupports> parentSupport = do_QueryInterface(parentFolder);
 
   nsCOMPtr<nsIFile> oldSummaryFile;
-  rv = GetSummaryFile(aFolder, getter_AddRefs(oldSummaryFile));
+  rv = aFolder->GetSummaryFile(getter_AddRefs(oldSummaryFile));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIFile> dirFile;
@@ -412,12 +397,18 @@ NS_IMETHODIMP nsMsgBrkMBoxStore::CopyFolder(nsIMsgFolder *aSrcFolder,
                                             nsIMsgFolder *aDstFolder,
                                             bool aIsMoveFolder,
                                             nsIMsgWindow *aMsgWindow,
-                                            nsIMsgCopyServiceListener *aListener)
+                                            nsIMsgCopyServiceListener *aListener,
+                                            const nsAString &aNewName)
 {
   NS_ENSURE_ARG_POINTER(aSrcFolder);
   NS_ENSURE_ARG_POINTER(aDstFolder);
-  nsString folderName;
-  aSrcFolder->GetName(folderName);
+
+  nsAutoString folderName;
+  if (aNewName.IsEmpty())
+    aSrcFolder->GetName(folderName);
+  else
+    folderName.Assign(aNewName);
+
   nsAutoString safeFolderName(folderName);
   NS_MsgHashIfNecessary(safeFolderName);
   nsCOMPtr<nsIMsgLocalMailFolder> localSrcFolder(do_QueryInterface(aSrcFolder));
@@ -451,7 +442,7 @@ NS_IMETHODIMP nsMsgBrkMBoxStore::CopyFolder(nsIMsgFolder *aSrcFolder,
   oldPath->Clone(getter_AddRefs(origPath));
 
    //copying necessary for aborting.... if failure return
-  rv = oldPath->CopyTo(newPath, EmptyString());
+  rv = oldPath->CopyTo(newPath, safeFolderName);
   NS_ENSURE_SUCCESS(rv, rv); // Will fail if a file by that name exists
 
   // Copy to dir can fail if filespec does not exist. If copy fails, we test
@@ -459,7 +450,9 @@ NS_IMETHODIMP nsMsgBrkMBoxStore::CopyFolder(nsIMsgFolder *aSrcFolder,
   // without copying it. If it fails and filespec exist and is not zero sized
   // there is real problem
   // Copy the file to the new dir
-  rv = summaryFile->CopyTo(newPath, EmptyString());
+  nsAutoString dbName(safeFolderName);
+  dbName += NS_LITERAL_STRING(SUMMARY_SUFFIX);
+  rv = summaryFile->CopyTo(newPath, dbName);
   if (NS_FAILED(rv)) // Test if the copy is successful
   {
     // Test if the filespec has data
@@ -659,12 +652,23 @@ nsMsgBrkMBoxStore::GetNewMsgOutputStream(nsIMsgFolder *aFolder,
   }
   int64_t filePos;
   seekable->Tell(&filePos);
+
   if (db && !*aNewMsgHdr)
   {
-    // if mbox is close to 4GB, auto-assign the msg key.
-    nsMsgKey key = filePos > 0xFFFFFF00 ? nsMsgKey_None : (nsMsgKey) filePos;
+    nsMsgKey key = nsMsgKey_None;
+    // The key should not need to be the filePos anymore, but out of caution
+    // we will continue setting key to filePos for mboxes smaller than 0xFF000000.
+    if (filePos <= 0xFF000000)
+    {
+      // After compact, we can have duplicated keys (see bug 1202105) so only
+      // set key to filePos if there is no collision.
+      bool hasKey = true;
+      if (NS_SUCCEEDED(db->ContainsKey((nsMsgKey) filePos, &hasKey)) && !hasKey)
+        key = (nsMsgKey) filePos;
+    }
     db->CreateNewHdr(key, aNewMsgHdr);
   }
+
   if (*aNewMsgHdr)
   {
     char storeToken[100];
@@ -791,7 +795,7 @@ NS_IMETHODIMP nsMsgBrkMBoxStore::CompactFolder(nsIMsgFolder *aFolder,
     do_CreateInstance(NS_MSGLOCALFOLDERCOMPACTOR_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t expungedBytes = 0;
+  int64_t expungedBytes = 0;
   aFolder->GetExpungedBytes(&expungedBytes);
   // check if we need to compact the folder
   return (expungedBytes > 0) ?
@@ -990,6 +994,12 @@ NS_IMETHODIMP nsMsgBrkMBoxStore::ChangeKeywords(nsIArray *aHdrArray,
     msgHdr = do_QueryElementAt(aHdrArray, 0);
     SetDBValid(msgHdr);
   }
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsMsgBrkMBoxStore::GetStoreType(nsACString& aType)
+{
+  aType.AssignLiteral("mbox");
   return NS_OK;
 }
 

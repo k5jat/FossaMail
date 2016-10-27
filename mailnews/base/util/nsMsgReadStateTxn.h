@@ -6,6 +6,7 @@
 #ifndef nsMsgBaseUndoTxn_h_
 #define nsMsgBaseUndoTxn_h_
 
+#include "mozilla/Attributes.h"
 #include "nsMsgTxn.h"
 #include "nsTArray.h"
 #include "nsCOMPtr.h"
@@ -32,8 +33,8 @@ public:
   nsresult Init(nsIMsgFolder *aParentFolder,
                 uint32_t aNumKeys,
                 nsMsgKey *aMsgKeyArray);
-  NS_IMETHOD UndoTransaction();
-  NS_IMETHOD RedoTransaction();
+  NS_IMETHOD UndoTransaction() override;
+  NS_IMETHOD RedoTransaction() override;
 
 protected:
   NS_IMETHOD MarkMessages(bool aAsRead);

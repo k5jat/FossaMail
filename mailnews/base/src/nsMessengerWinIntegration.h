@@ -48,7 +48,6 @@ class nsMessengerWinIntegration : public nsIMessengerOSIntegration,
 {
 public:
   nsMessengerWinIntegration();
-  virtual ~nsMessengerWinIntegration();
   virtual nsresult Init();
 
   NS_DECL_ISUPPORTS
@@ -62,8 +61,12 @@ public:
 #endif
 
 private:
+  virtual ~nsMessengerWinIntegration();
   nsresult AlertFinished();
   nsresult AlertClicked();
+#ifdef MOZ_SUITE
+  nsresult AlertClickedSimple();
+#endif
 
   void InitializeBiffStatusIcon(); 
   void FillToolTipInfo();

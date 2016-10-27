@@ -35,9 +35,8 @@ class nsMsgMailSession : public nsIMsgMailSession,
 {
 public:
   nsMsgMailSession();
-  virtual ~nsMsgMailSession();
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIMSGMAILSESSION
   NS_DECL_NSIFOLDERLISTENER
 
@@ -45,6 +44,8 @@ public:
   nsresult GetSelectedLocaleDataDir(nsIFile *defaultsDir);
 
 protected:
+  virtual ~nsMsgMailSession();
+
   struct folderListener {
     nsCOMPtr<nsIFolderListener> mListener;
     uint32_t mNotifyFlags;
@@ -80,7 +81,6 @@ class nsMsgShutdownService : public nsIMsgShutdownService,
 {
 public:
   nsMsgShutdownService();
-  virtual ~nsMsgShutdownService();
   
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMSGSHUTDOWNSERVICE
@@ -92,9 +92,11 @@ protected:
   void AttemptShutdown();
   
 private:
+  virtual ~nsMsgShutdownService();
+
   nsCOMArray<nsIMsgShutdownTask> mShutdownTasks;
   nsCOMPtr<nsIMsgProgress>       mMsgProgress;
-  int32_t                        mTaskIndex;
+  uint32_t                       mTaskIndex;
   uint32_t                       mQuitMode;
   bool mProcessedShutdown;
   bool mQuitForced;

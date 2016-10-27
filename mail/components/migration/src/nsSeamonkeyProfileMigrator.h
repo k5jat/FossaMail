@@ -19,25 +19,25 @@ public:
   NS_DECL_ISUPPORTS
 
   nsSeamonkeyProfileMigrator();
-  virtual ~nsSeamonkeyProfileMigrator();
 
   // nsIMailProfileMigrator methods
   NS_IMETHOD Migrate(uint16_t aItems, nsIProfileStartup* aStartup,
-                        const PRUnichar* aProfile);
-  NS_IMETHOD GetMigrateData(const PRUnichar* aProfile, bool aReplace,
+                        const char16_t* aProfile);
+  NS_IMETHOD GetMigrateData(const char16_t* aProfile, bool aReplace,
                             uint16_t* aResult);
   NS_IMETHOD GetSourceProfiles(nsIArray** aResult);
 
 protected:
+  virtual ~nsSeamonkeyProfileMigrator();
   nsresult FillProfileDataFromSeamonkeyRegistry();
-  nsresult GetSourceProfile(const PRUnichar* aProfile);
+  nsresult GetSourceProfile(const char16_t* aProfile);
 
   nsresult CopyPreferences(bool aReplace);
   nsresult TransformPreferences(const nsAString& aSourcePrefFileName,
                                 const nsAString& aTargetPrefFileName);
 
   nsresult DummyCopyRoutine(bool aReplace);
-  nsresult CopyJunkTraining(bool aReplace);  
+  nsresult CopyJunkTraining(bool aReplace);
   nsresult CopyPasswords(bool aReplace);
   nsresult CopyMailFolders(PBStructArray &aMailServers,
                            nsIPrefService* aPrefBranch);
@@ -55,5 +55,5 @@ private:
   nsCOMPtr<nsIMutableArray> mProfileNames;
   nsCOMPtr<nsIMutableArray> mProfileLocations;
 };
- 
+
 #endif

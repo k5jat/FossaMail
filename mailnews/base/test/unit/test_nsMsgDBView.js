@@ -17,6 +17,9 @@ load("../../../resources/messageGenerator.js");
 load("../../../resources/messageModifier.js");
 load("../../../resources/messageInjection.js");
 
+Components.utils.import("resource:///modules/jsTreeSelection.js");
+
+// Items used to add messages to the folder
 var gMessageGenerator = new MessageGenerator();
 var gScenarioFactory = new MessageScenarioFactory(gMessageGenerator);
 
@@ -276,6 +279,9 @@ function setup_view(aViewType, aViewFlags, aTestFolder) {
   gDBView.curCustomColumn = "authorFirstLetterCol";
 
   gTreeView = gDBView.QueryInterface(Components.interfaces.nsITreeView);
+  let selection = new JSTreeSelection(null);
+  selection.view = gTreeView;
+  gTreeView.selection = selection;
 }
 
 /**
@@ -464,7 +470,7 @@ function  test_number_of_messages() {
   // Bug 574799
   if (gDBView.numMsgsInView != gTestFolder.getTotalMessages(false))
     do_throw("numMsgsInView is " + gDBView.numMsgsInView + " but should be " +
-               aTestFolder.getTotalMessages(false) + "\n");
+             gTestFolder.getTotalMessages(false) + "\n");
   // Bug 600140
   // Maybe elided so open it, now only consider the first one
   if (gDBView.isContainer(0) && !gDBView.isContainerOpen(0))
@@ -479,6 +485,45 @@ function  test_number_of_messages() {
   if (gDBView.numMsgsInView != numMsgInTree)
     view_throw("message in tree is " + numMsgInTree + " but should be " +
              gDBView.numMsgsInView + "\n");
+}
+
+function test_selected_messages() {
+  gDBView.doCommand(Ci.nsMsgViewCommandType.expandAll);
+
+  // Select one message
+  gTreeView.selection.select(1);
+  let selectedMessages = gDBView.getSelectedMsgHdrs();
+
+  if (selectedMessages.length != 1)
+    do_throw("getSelectedMsgHdrs.length is " + selectedMessages.length +
+             " but should be 1\n");
+
+  let firstSelectedMsg = gDBView.hdrForFirstSelectedMessage
+  if (selectedMessages[0] != firstSelectedMsg)
+    do_throw("getSelectedMsgHdrs[0] is " + selectedMessages[0].messageKey +
+             " but should be " + firstSelectedMsg.messageKey +"\n");
+
+  // Select all messages
+  gTreeView.selection.selectAll();
+  if (gDBView.numSelected != gTreeView.rowCount)
+    do_throw("numSelected is " + gDBView.numSelected + " but should be " +
+             gTreeView.rowCount + "\n");
+
+  selectedMessages = gDBView.getSelectedMsgHdrs();
+  if (selectedMessages.length != gTestFolder.getTotalMessages(false))
+    do_throw("getSelectedMsgHdrs.length is " + selectedMessages.length +
+             " but should be " + gTestFolder.getTotalMessages(false) + "\n");
+
+  for (let i = 0; i < selectedMessages.length; i++) {
+    let expectedHdr = gDBView.getMsgHdrAt(i);
+    if (selectedMessages.indexOf(expectedHdr) == -1) {
+      view_throw("Expected " + expectedHdr.messageKey + ":" +
+                 expectedHdr.mime2DecodedSubject.substr(0, 30) +
+                 " to be selected, but it wasn't\n");
+    }
+  }
+
+  gTreeView.selection.clearSelection();
 }
 
 function test_insert_remove_view_rows() {
@@ -709,6 +754,64 @@ function test_xfvf_threading() {
   gTestFolder = save_gTestFolder;
 }
 
+/*
+ * Tests the sorting order of collapsed threads, not of messages within
+ * threads. Currently limited to testing the sort-threads-by-date case,
+ * sorting both by thread root and by newest message.
+*/
+function test_thread_sorting() {
+  let save_gTestFolder = gTestFolder;
+  gTestFolder = make_empty_folder();
+  let messages = [];
+  // build a hierarchy like this (the UID order corresponds to the date order)
+  //  1
+  //   4
+  //  2
+  //   5
+  //  3
+  let msg1 = gMessageGenerator.makeMessage({age: {days: 1, hours: 10}});
+  let msg2 = gMessageGenerator.makeMessage({age: {days: 1, hours: 9}});
+  let msg3 = gMessageGenerator.makeMessage({age: {days: 1, hours: 8}});
+  let msg4 = gMessageGenerator.makeMessage({age: {days: 1, hours: 7}, inReplyTo: msg1});
+  let msg5 = gMessageGenerator.makeMessage({age: {days: 1, hours: 6}, inReplyTo: msg2});
+  messages = messages.concat([msg1, msg2, msg3, msg4, msg5]);
+
+  let msgSet = new SyntheticMessageSet(messages);
+
+  add_sets_to_folders(gTestFolder, [msgSet]);
+
+  // test the non-default pref state first, so the pref gets left with its
+  // default value at the end
+  Services.prefs.setBoolPref("mailnews.sort_threads_by_root", true);
+  gDBView.open(gTestFolder, SortType.byDate, SortOrder.ascending, ViewFlags.kThreadedDisplay, {});
+
+  assert_view_row_count(3);
+  assert_view_message_at_indices(msg1, 0);
+  assert_view_message_at_indices(msg2, 1);
+  assert_view_message_at_indices(msg3, 2);
+
+  gDBView.sort(SortType.byDate, SortOrder.descending);
+  assert_view_message_at_indices(msg3, 0);
+  assert_view_message_at_indices(msg2, 1);
+  assert_view_message_at_indices(msg1, 2);
+
+  Services.prefs.clearUserPref("mailnews.sort_threads_by_root");
+  gDBView.open(gTestFolder, SortType.byDate, SortOrder.ascending, ViewFlags.kThreadedDisplay, {});
+
+  assert_view_row_count(3);
+  assert_view_message_at_indices(msg3, 0);
+  assert_view_message_at_indices(msg1, 1);
+  assert_view_message_at_indices(msg2, 2);
+
+  gDBView.sort(SortType.byDate, SortOrder.descending);
+  assert_view_message_at_indices(msg2, 0);
+  assert_view_message_at_indices(msg1, 1);
+  assert_view_message_at_indices(msg3, 2);
+
+  gDBView.close();
+  gTestFolder = save_gTestFolder;
+}
+
 var view_types = [
   ["threaded", ViewFlags.kThreadedDisplay],
   ["quicksearch", ViewFlags.kThreadedDisplay],
@@ -722,6 +825,7 @@ var view_types = [
 var tests_for_all_views = [
   test_sort_columns,
   test_number_of_messages,
+  test_selected_messages,
   test_insert_remove_view_rows
 ];
 
@@ -730,7 +834,8 @@ var tests_for_specific_views = {
     test_group_dummies_under_mutation_by_date
   ],
   threaded: [
-    test_expand_collapse
+    test_expand_collapse,
+    test_thread_sorting
   ],
   search: [
     test_msg_added_to_search_view

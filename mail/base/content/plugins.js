@@ -8,6 +8,12 @@
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 
+#ifdef MOZ_CRASHREPORTER
+XPCOMUtils.defineLazyServiceGetter(this, "gCrashReporter",
+                                   "@mozilla.org/xre/app-info;1",
+                                   "nsICrashReporter");
+#endif
+
 function getPluginInfo(pluginElement)
 {
   var tagMimetype;
@@ -72,8 +78,8 @@ var gPluginHandler = {
     browser.removeEventListener("NewPluginInstalled", gPluginHandler);
   },
 
-  getPluginUI: function (plugin, className) {
-    return plugin.ownerDocument.getAnonymousElementByAttribute(plugin, "class", className);
+  getPluginUI: function (plugin, anonId) {
+    return plugin.ownerDocument.getAnonymousElementByAttribute(plugin, "anonid", anonId);
   },
 
   get CrashSubmit() {
@@ -92,14 +98,64 @@ var gPluginHandler = {
     return aName.replace(/\bplug-?in\b/i, "").replace(/[\s\d\.\-\_\(\)]+$/, "");
   },
 
-  isTooSmall : function ph_isTooSmall(plugin, overlay) {
+  /**
+   * Update the visibility of the plugin overlay.
+   */
+  setVisibility : function (plugin, overlay, shouldShow) {
+    overlay.classList.toggle("visible", shouldShow);
+  },
+
+  /**
+   * Check whether the plugin should be visible on the page. A plugin should
+   * not be visible if the overlay is too big, or if any other page content
+   * overlays it.
+   *
+   * This function will handle showing or hiding the overlay.
+   * @returns true if the plugin is invisible.
+   */
+  shouldShowOverlay : function (plugin, overlay) {
+    // If the overlay size is 0, we haven't done layout yet. Presume that
+    // plugins are visible until we know otherwise.
+    if (overlay.scrollWidth == 0) {
+      return true;
+    }
+
     // Is the <object>'s size too small to hold what we want to show?
     let pluginRect = plugin.getBoundingClientRect();
     // XXX bug 446693. The text-shadow on the submitted-report text at
     //     the bottom causes scrollHeight to be larger than it should be.
     let overflows = (overlay.scrollWidth > pluginRect.width) ||
                     (overlay.scrollHeight - 5 > pluginRect.height);
-    return overflows;
+    if (overflows) {
+      return false;
+    }
+
+    // Is the plugin covered up by other content so that it is not clickable?
+    // Floating point can confuse .elementFromPoint, so inset just a bit
+    let left = pluginRect.left + 2;
+    let right = pluginRect.right - 2;
+    let top = pluginRect.top + 2;
+    let bottom = pluginRect.bottom - 2;
+    let centerX = left + (right - left) / 2;
+    let centerY = top + (bottom - top) / 2;
+    let points = [[left, top],
+                   [left, bottom],
+                   [right, top],
+                   [right, bottom],
+                   [centerX, centerY]];
+
+    if (right <= 0 || top <= 0) {
+      return false;
+    }
+
+    for (let [x, y] of points) {
+      let el = plugin.ownerDocument.elementFromPoint(x, y);
+      if (el !== plugin) {
+        return false;
+      }
+    }
+
+    return true;
   },
 
   addLinkClickCallback: function ph_addLinkClickCallback(linkNode, callbackName /*callbackArgs...*/) {
@@ -176,7 +232,7 @@ var gPluginHandler = {
       // The plugin binding fires this event when it is created.
       // As an untrusted event, ensure that this object actually has a binding
       // and make sure we don't handle it twice
-      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+      let overlay = this.getPluginUI(plugin, "main");
       if (!overlay || overlay._bindingHandled) {
         return;
       }
@@ -196,20 +252,8 @@ var gPluginHandler = {
         break;
 
       case "PluginNotFound":
-        // For non-object plugin tags, register a click handler to install the
-        // plugin. Object tags can, and often do, deal with that themselves,
-        // so don't stomp on the page developers toes.
-        if (!(plugin instanceof HTMLObjectElement)) {
-          // We don't yet check to see if there's actually an installer available.
-          let installStatus = doc.getAnonymousElementByAttribute(plugin, "class", "installStatus");
-          installStatus.setAttribute("status", "ready");
-          let iconStatus = doc.getAnonymousElementByAttribute(plugin, "class", "icon");
-          iconStatus.setAttribute("status", "ready");
-
-          let installLink = doc.getAnonymousElementByAttribute(plugin, "anonid", "installPluginLink");
-          self.addLinkClickCallback(installLink, "installSinglePlugin", plugin);
-        }
-        /* FALLTHRU */
+        // NOP. Plugin finder service (PFS) is dead.
+        break;
 
       case "PluginBlocklisted":
       case "PluginOutdated":
@@ -220,45 +264,34 @@ var gPluginHandler = {
         break;
 
       case "PluginDisabled":
-        let manageLink = doc.getAnonymousElementByAttribute(plugin, "anonid", "managePluginsLink");
+        let manageLink = this.getPluginUI(plugin, "managePluginsLink");
         self.addLinkClickCallback(manageLink, "managePlugins");
         break;
     }
 
     // Hide the in-content UI if it's too big. The crashed plugin handler already did this.
     if (eventType != "PluginCrashed") {
-      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
-      if (self.isTooSmall(plugin, overlay))
-          overlay.style.visibility = "hidden";
+      let overlay = this.getPluginUI(plugin, "main");
+      if (overlay != null) {
+        this.setVisibility(plugin, overlay,
+                           this.shouldShowOverlay(plugin, overlay));
+        let resizeListener = (event) => {
+          this.setVisibility(plugin, overlay,
+            this.shouldShowOverlay(plugin, overlay));
+          this._setPluginNotificationIcon(browser);
+        };
+        plugin.addEventListener("overflow", resizeListener);
+        plugin.addEventListener("underflow", resizeListener);
+      }
     }
   },
 
-  newPluginInstalled : function ph_newPluginInstalled(event) {
+  newPluginInstalled : function(event) {
     // browser elements are anonymous so we can't just use target.
     var browser = event.originalTarget;
 
-    // clear the plugin list, now that at least one plugin has been installed
-    browser.missingPlugins = null;
-
-    var notificationBox = getNotificationBox(browser.contentWindow);
-    var notification = notificationBox.getNotificationWithValue("missing-plugins");
-    if (notification)
-      notificationBox.removeNotification(notification);
-
     // reload the browser to make the new plugin show.
     browser.reload();
-  },
-
-  // Callback for user clicking on a missing (unsupported) plugin.
-  installSinglePlugin: function ph_installSinglePlugin(plugin) {
-    var missingPluginsArray = {};
-
-    var pluginInfo = getPluginInfo(plugin);
-    missingPluginsArray[pluginInfo.mimetype] = pluginInfo;
-
-    openDialog("chrome://mozapps/content/plugins/pluginInstallerWizard.xul",
-               "PFSWindow", "chrome,centerscreen,resizable=yes",
-               {plugins: missingPluginsArray, browser: getBrowser});
   },
 
   // Callback for user clicking on a disabled plugin
@@ -297,27 +330,20 @@ var gPluginHandler = {
                                    background: false});
   },
 
-  // event listener for missing/blocklisted/outdated/carbonFailure plugins.
-  pluginUnavailable: function ph_pluginUnavailable(plugin, eventType) {
+  // Event listener for blocklisted/outdated/carbonFailure plugins.
+  pluginUnavailable: function(plugin, eventType) {
     let Cc = Components.classes;
     let Ci = Components.interfaces;
     var tabmail = document.getElementById('tabmail');
     let browser = tabmail.getBrowserForDocument(plugin.ownerDocument
                                                 .defaultView).browser;
 
-    if (!browser.missingPlugins)
-      browser.missingPlugins = {};
-
-    var pluginInfo = getPluginInfo(plugin);
-    browser.missingPlugins[pluginInfo.mimetype] = pluginInfo;
-
     var notificationBox = getNotificationBox(browser.contentWindow);
 
     // Should only display one of these warnings per page.
-    // In order of priority, they are: outdated > missing > blocklisted
+    // In order of priority, they are: outdated > blocklisted
     let outdatedNotification = notificationBox.getNotificationWithValue("outdated-plugins");
     let blockedNotification  = notificationBox.getNotificationWithValue("blocked-plugins");
-    let missingNotification  = notificationBox.getNotificationWithValue("missing-plugins");
 
     function showBlocklistInfo() {
       var url = formatURL("extensions.blocklist.detailsURL", true);
@@ -332,17 +358,6 @@ var gPluginHandler = {
       tabmail.openTab("contentTab", {contentPage: url,
                                      background: false});
       return true;
-    }
-
-    function showPluginsMissing() {
-      // get the urls of missing plugins
-      var curBrowser = tabmail.getBrowserForSelectedTab();
-      var missingPluginsArray = curBrowser.missingPlugins;
-      if (missingPluginsArray) {
-        openDialog("chrome://mozapps/content/plugins/pluginInstallerWizard.xul",
-                   "PFSWindow", "chrome,centerscreen,resizable=yes",
-                   {plugins: missingPluginsArray, browser: curBrowser});
-      }
     }
 
 #ifdef XP_MACOSX
@@ -394,17 +409,6 @@ var gPluginHandler = {
           callback: showOutdatedPluginsInfo
         }],
       },
-      PluginNotFound: {
-        barID: "missing-plugins",
-        iconURL: "chrome://mozapps/skin/plugins/notifyPluginGeneric.png",
-        message: messengerBundle.getString("missingpluginsMessage.title"),
-        buttons: [{
-          label: messengerBundle.getString("missingpluginsMessage.button.label"),
-          accessKey: messengerBundle.getString("missingpluginsMessage.button.accesskey"),
-          popup: null,
-          callback: showPluginsMissing
-        }],
-      },
 #ifdef XP_MACOSX
       "npapi-carbon-event-model-failure": {
         barID: "carbon-failure-plugins",
@@ -419,7 +423,6 @@ var gPluginHandler = {
       }
 #endif
     };
-
 
     // If there is already an outdated plugin notification then do nothing
     if (outdatedNotification)
@@ -444,33 +447,19 @@ var gPluginHandler = {
 #endif
 
     if (eventType == "PluginBlocklisted") {
-      if (Services.prefs.getBoolPref("plugins.hide_infobar_for_missing_plugin"))
-        return;
-
-      if (blockedNotification || missingNotification)
+      if (blockedNotification)
         return;
     }
     else if (eventType == "PluginOutdated") {
       if (Services.prefs.getBoolPref("plugins.hide_infobar_for_outdated_plugin"))
         return;
 
-      // Cancel any notification about blocklisting/missing plugins
+      // Cancel any notification about blocklisted plugins.
       if (blockedNotification)
         blockedNotification.close();
-      if (missingNotification)
-        missingNotification.close();
     }
     else if (eventType == "PluginNotFound") {
-      if (Services.prefs.getBoolPref("plugins.hide_infobar_for_missing_plugin"))
-        return;
-
-
-      if (missingNotification)
-        return;
-
-      // Cancel any notification about blocklisting plugins
-      if (blockedNotification)
-        blockedNotification.close();
+      return;
     }
 
     let notify = notifications[eventType];
@@ -486,22 +475,36 @@ var gPluginHandler = {
     if (!(propertyBag instanceof Components.interfaces.nsIPropertyBag2) ||
         !(propertyBag instanceof Components.interfaces.nsIWritablePropertyBag2))
      return;
+
+#ifdef MOZ_CRASHREPORTER
+    let pluginDumpID = propertyBag.getPropertyAsAString("pluginDumpID");
+    let browserDumpID = propertyBag.getPropertyAsAString("browserDumpID");
+    let shouldSubmit = gCrashReporter.submitReports;
+    let doPrompt = true; // XXX followup to get via gCrashReporter
+
+    // Submit automatically when appropriate.
+    if (pluginDumpID && shouldSubmit && !doPrompt) {
+      this.submitReport(pluginDumpID, browserDumpID);
+      // Submission is async, so we can't easily show failure UI.
+      propertyBag.setPropertyAsBool("submittedCrashReport", true);
+    }
+#endif
   },
 
   // Crashed-plugin event listener. Called for every instance of a
   // plugin in content.
   pluginInstanceCrashed: function (plugin, aEvent) {
-    // Ensure the plugin and event are of the right type.
-    if (!(aEvent instanceof Components.interfaces.nsIDOMDataContainerEvent))
+    if (!(aEvent instanceof PluginCrashedEvent))
       return;
 
-    let submittedReport = aEvent.getData("submittedCrashReport");
-    let doPrompt = true; // XXX followup for .getData("doPrompt");
-    let submitReports = true; // XXX followup for .getData("submitReports");
-    let pluginName = aEvent.getData("pluginName");
-    let pluginFilename = aEvent.getData("pluginFilename");
-    let pluginDumpID = aEvent.getData("pluginDumpID");
-    let browserDumpID = aEvent.getData("browserDumpID");
+    let submittedReport = aEvent.submittedCrashReport;
+    let doPrompt        = true; // XXX followup for aEvent.doPrompt;
+    let submitReports   = true; // XXX followup for aEvent.submitReports;
+    let pluginName      = aEvent.pluginName;
+    let pluginFilename  = aEvent.pluginFilename;
+    let pluginDumpID    = aEvent.pluginDumpID;
+    let browserDumpID   = aEvent.browserDumpID;
+
     let messengerBundle = document.getElementById("bundle_messenger");
     let tabmail = document.getElementById('tabmail');
 
@@ -518,32 +521,96 @@ var gPluginHandler = {
     // Force a layout flush so the binding is attached.
     plugin.clientTop;
     let doc = plugin.ownerDocument;
-    let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
-    let statusDiv = doc.getAnonymousElementByAttribute(plugin, "class", "submitStatus");
+    let overlay = this.getPluginUI(plugin, "main");
+    let statusDiv = this.getPluginUI(plugin, "submitStatus");
+#ifdef MOZ_CRASHREPORTER
+    let status;
 
-    let crashText = doc.getAnonymousElementByAttribute(plugin, "class", "msgCrashedText");
+    // Determine which message to show regarding crash reports.
+    if (submittedReport) { // submitReports && !doPrompt, handled in observer
+      status = "submitted";
+    }
+    else if (!submitReports && !doPrompt) {
+      status = "noSubmit";
+    }
+    else { // doPrompt
+      status = "please";
+      // XXX can we make the link target actually be blank?
+      this.getPluginUI(plugin, "submitButton").addEventListener("click",
+        function (event) {
+	  if (event.button != 0 || !event.isTrusted)
+            return;
+          this.submitReport(pluginDumpID, browserDumpID, plugin);
+          pref.setBoolPref("", optInCB.checked);
+	}.bind(this));
+      let optInCB = this.getPluginUI(plugin, "submitURLOptIn");
+      let pref = Services.prefs.getBranch("dom.ipc.plugins.reportCrashURL");
+      optInCB.checked = pref.getBoolPref("");
+    }
+
+    // If we don't have a minidumpID, we can't (or didn't) submit anything.
+    // This can happen if the plugin is killed from the task manager.
+    if (!pluginDumpID) {
+      status = "noReport";
+    }
+
+    statusDiv.setAttribute("status", status);
+
+    let helpIcon = this.getPluginUI(plugin, "helpIcon");
+    this.addLinkClickCallback(helpIcon, "openPluginCrashHelpPage");
+
+    // If we're showing the link to manually trigger report submission, we'll
+    // want to be able to update all the instances of the UI for this crash to
+    // show an updated message when a report is submitted.
+    if (doPrompt) {
+      let observer = {
+        QueryInterface: XPCOMUtils.generateQI([Components.interfaces.nsIObserver,
+                                               Components.interfaces.nsISupportsWeakReference]),
+        observe : function(subject, topic, data) {
+          let propertyBag = subject;
+          if (!(propertyBag instanceof Components.interfaces.nsIPropertyBag2))
+            return;
+          // Ignore notifications for other crashes.
+          if (propertyBag.get("minidumpID") != pluginDumpID)
+            return;
+          statusDiv.setAttribute("status", data);
+        },
+
+        handleEvent : function(event) {
+            // Not expected to be called, just here for the closure.
+        }
+      };
+
+      // Use a weak reference, so we don't have to remove it...
+      Services.obs.addObserver(observer, "crash-report-status", true);
+      // ...alas, now we need something to hold a strong reference to prevent
+      // it from being GC. But I don't want to manually manage the reference's
+      // lifetime (which should be no greater than the page).
+      // Clever solution? Use a closue with an event listener on the document.
+      // When the doc goes away, so do the listener references and the closure.
+      doc.addEventListener("mozCleverClosureHack", observer, false);
+    }
+#endif
+
+    let crashText = this.getPluginUI(plugin, "crashedText");
     crashText.textContent = messageString;
     let browser = tabmail.getBrowserForSelectedTab();
 
-    let link = doc.getAnonymousElementByAttribute(plugin, "class", "reloadLink");
+    let link = this.getPluginUI(plugin, "reloadLink");
     this.addLinkClickCallback(link, "reloadPage", browser);
 
     let notificationBox = getNotificationBox(browser.contentWindow);
 
-    let isShowing = true;
+    let isShowing = this.shouldShowOverlay(plugin, overlay);
 
     // Is the <object>'s size too small to hold what we want to show?
-    if (this.isTooSmall(plugin, overlay)) {
+    if (!isShowing) {
       // First try hiding the crash report submission UI.
       statusDiv.removeAttribute("status");
 
-      if (this.isTooSmall(plugin, overlay)) {
-	// Hide the overlay's contents. Use visibility style, so that it doesn't
-        // collpase down to 0x0.
-        overlay.style.visibility = "hidden";
-        isShowing = false;
-      }
+      isShowing = this.shouldShowOverlay(plugin, overlay);
     }
+    this.setVisibility(plugin, overlay, isShowing);
 
     if (isShowing) {
       // If a previous plugin on the page was too small and resulted in adding a
@@ -585,8 +652,18 @@ var gPluginHandler = {
         popup: null,
         callback: function() { browser.reload(); },
       }];
+#ifdef MOZ_CRASHREPORTER
+      let submitButton = {
+        label: submitLabel,
+        accessKey: submitKey,
+        popup: null,
+          callback: function() { gPluginHandler.submitReport(pluginDumpID, browserDumpID); },
+      };
+      if (pluginDumpID)
+        buttons.push(submitButton);
+#endif
 
-      let notification = notificationBox.appendNotification(messageString, "plugin-crashed",
+      notification = notificationBox.appendNotification(messageString, "plugin-crashed",
                                                             iconURL, priority, buttons);
 
       // Add the "learn more" link.

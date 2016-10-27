@@ -83,15 +83,13 @@ static bool gInitialized = false;
 static int32_t gMIMEOnDemandThreshold = 15000;
 static bool gMIMEOnDemand = false;
 
-NS_IMPL_THREADSAFE_ADDREF(nsImapService)
-NS_IMPL_THREADSAFE_RELEASE(nsImapService)
-NS_IMPL_QUERY_INTERFACE6(nsImapService,
-                         nsIImapService,
-                         nsIMsgMessageService,
-                         nsIProtocolHandler,
-                         nsIMsgProtocolInfo,
-                         nsIMsgMessageFetchPartService,
-                         nsIContentHandler)
+NS_IMPL_ISUPPORTS(nsImapService,
+                   nsIImapService,
+                   nsIMsgMessageService,
+                   nsIProtocolHandler,
+                   nsIMsgProtocolInfo,
+                   nsIMsgMessageFetchPartService,
+                   nsIContentHandler)
 
 nsImapService::nsImapService()
 {
@@ -2631,6 +2629,13 @@ NS_IMETHODIMP nsImapService::NewURI(const nsACString &aSpec,
 
 NS_IMETHODIMP nsImapService::NewChannel(nsIURI *aURI, nsIChannel **aRetVal)
 {
+  return NewChannel2(aURI, nullptr, aRetVal);
+}
+
+NS_IMETHODIMP nsImapService::NewChannel2(nsIURI *aURI,
+                                         nsILoadInfo* aLoadInfo,
+                                         nsIChannel **aRetVal)
+{
   NS_ENSURE_ARG_POINTER(aURI);
   NS_ENSURE_ARG_POINTER(aRetVal);
   *aRetVal = nullptr;
@@ -2647,6 +2652,10 @@ NS_IMETHODIMP nsImapService::NewChannel(nsIURI *aURI, nsIChannel **aRetVal)
   nsCOMPtr<nsIImapMockChannel> channel = do_CreateInstance(kCImapMockChannel, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
   channel->SetURI(aURI);
+
+  rv = channel->SetLoadInfo(aLoadInfo);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIMsgWindow> msgWindow;
   mailnewsUrl->GetMsgWindow(getter_AddRefs(msgWindow));
   if (msgWindow)
@@ -2740,17 +2749,17 @@ NS_IMETHODIMP nsImapService::NewChannel(nsIURI *aURI, nsIChannel **aRetVal)
       nsAutoString unescapedName;
       if (NS_FAILED(CopyMUTF7toUTF16(fullFolderName, unescapedName)))
         CopyASCIItoUTF16(fullFolderName, unescapedName);
-      const PRUnichar *formatStrings[1] = { unescapedName.get() };
-      
+      const char16_t *formatStrings[1] = { unescapedName.get() };
+
       rv = bundle->FormatStringFromName(
-        NS_LITERAL_STRING("imapSubscribePrompt").get(),
+        MOZ_UTF16("imapSubscribePrompt"),
         formatStrings, 1, getter_Copies(confirmText));
       NS_ENSURE_SUCCESS(rv,rv);
-      
+
       bool confirmResult = false;
       rv = dialog->Confirm(nullptr, confirmText.get(), &confirmResult);
       NS_ENSURE_SUCCESS(rv, rv);
-      
+
       if (confirmResult)
       {
         nsCOMPtr <nsIImapIncomingServer> imapServer = do_QueryInterface(server);

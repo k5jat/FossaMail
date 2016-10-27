@@ -11,6 +11,7 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 let gFilterListMsgWindow = null;
 let gCurrentFilterList;
 let gCurrentFolder;
+let gSelectedFolder = null;
 
 let gFilterListbox = null;
 let gEditButton = null;
@@ -112,40 +113,67 @@ function onLoad()
 
     updateButtons();
 
-    // Get the folder where filters should be defined, if that server
-    // can accept filters.
-    let firstItem = getFilterFolderForSelection();
-
-    // If the selected server cannot have filters, get the default server
-    // If the default server cannot have filters, check all accounts
-    // and get a server that can have filters.
-    if (!firstItem)
-        firstItem = getServerThatCanHaveFilters().rootFolder;
-
-    if (firstItem) {
-        selectFolder(firstItem);
-    }
+    processWindowArguments(window.arguments[0]);
 
     Services.obs.addObserver(filterEditorQuitObserver,
                              "quit-application-requested", false);
 }
 
 /**
+ * Processes arguments sent to this dialog when opened or refreshed.
+ *
+ * @param aArguments  An object having members representing the arguments.
+ *                    { arg1: value1, arg2: value2, ... }
+ */
+function processWindowArguments(aArguments) {
+  // If a specific folder was requested, try to select it.
+  if (!gSelectedFolder ||
+      (("folder" in aArguments) && (aArguments.folder != gCurrentFolder)))
+  {
+    if ("folder" in aArguments)
+      gSelectedFolder = aArguments.folder;
+
+    // Get the folder where filters should be defined, if that server
+    // can accept filters.
+    let firstItem = getFilterFolderForSelection(gSelectedFolder);
+
+    // If the selected server cannot have filters, get the default server
+    // If the default server cannot have filters, check all accounts
+    // and get a server that can have filters.
+    if (!firstItem)
+      firstItem = getServerThatCanHaveFilters().rootFolder;
+
+    if (firstItem)
+      selectFolder(firstItem);
+
+    if (gSelectedFolder)
+      setRunFolder(gSelectedFolder);
+
+  } else {
+    // If we didn't change folder still redraw the list
+    // to show potential new filters if we were called for refresh.
+    rebuildFilterList();
+  }
+}
+
+/**
  * This is called from OpenOrFocusWindow() if the dialog is already open.
  * New filters could have been created by operations outside the dialog.
+ *
+ * @param aArguments  An object of arguments having the same format
+ *                    as window.arguments[0].
  */
-function refresh()
+function refresh(aArguments)
 {
   // As we really don't know what has changed, clear the search box
   // undonditionally so that the changed/added filters are surely visible.
   resetSearchBox();
 
-  // And just redraw the list.
-  rebuildFilterList();
+  processWindowArguments(aArguments);
 }
 
 /**
- * Called when a user selects a folder in the list, so we can update the 
+ * Called when a user selects a folder in the list, so we can update the
  * filters that are displayed
  * note the function name 'onFilterFolderClick' is misleading, it would be
  * better named 'onServerSelect' => file follow up bug later.
@@ -160,6 +188,10 @@ function onFilterFolderClick(aFolder)
     // Save the current filters to disk before switching because
     // the dialog may be closed and we'll lose current filters.
     gCurrentFilterList.saveToDefaultFile();
+
+    // Initial selected folder no longer applies, use getFirstFolder() logic,
+    // unless it's nntp where we can use the subscribed newsgroup.
+    gSelectedFolder = aFolder.server.type == "nntp" ? aFolder : null;
 
     selectFolder(aFolder);
 }
@@ -208,10 +240,12 @@ function setFolder(msgFolder)
    document.getElementById("folderPickerPrefix").hidden = !canFilterAfterTheFact;
 
    if (canFilterAfterTheFact) {
-     // Get the first folder for this server. INBOX for
-     // IMAP and POP3 accounts and 1st news group for news.
+     // Get the first folder for this server. INBOX for IMAP and POP3 accounts
+     // and 1st news group for news. Disable the button for Choose Folder, if
+     // no folder is selected and the server is not imap/pop3/nntp.
      gRunFiltersFolder.selectedIndex = 0;
-     runMenu.selectFolder(getFirstFolder(msgFolder));
+     runMenu.selectFolder(getFirstFolder(gSelectedFolder || msgFolder));
+     updateButtons();
    }
 }
 
@@ -234,14 +268,12 @@ function toggleFilter(aFilterItem)
   aFilterItem.childNodes[1].setAttribute("enabled", filter.enabled);
 }
 
-// sets up the menulist and the filter list
+// update the server menulist
 function selectFolder(aFolder)
 {
-    // update the server menu
-    var serverMenu = document.getElementById("serverMenuPopup");
-    serverMenu.selectFolder(aFolder);
-
-    setFolder(aFolder);
+  var serverMenu = document.getElementById("serverMenuPopup");
+  serverMenu.selectFolder(aFolder);
+  setFolder(aFolder);
 }
 
 /**
@@ -380,7 +412,7 @@ function onBottom(evt) {
 }
 
 /**
- * Moves a singular selected filter up or down either 1 increment or to the 
+ * Moves a singular selected filter up or down either 1 increment or to the
  * top/bottom. This acts on the visible filter list only which means that:
  *
  * - when moving up or down "1" the filter may skip one or more other
@@ -627,7 +659,7 @@ function rebuildFilterList()
   }
   // Remove any superfluous listitems, if the number of filters shrunk.
   for (let i = listitemCount - 1; i >= listitemIndex; i--) {
-    gFilterListbox.removeChild(gFilterListbox.lastChild);
+    gFilterListbox.lastChild.remove();
   }
 
   updateViewPosition(firstVisibleRowIndex);
@@ -687,7 +719,7 @@ function updateButtons()
     // so only disable this UI if no filters are selected
     document.getElementById("folderPickerPrefix").disabled = !numFiltersSelected;
     gRunFiltersFolder.disabled = !numFiltersSelected;
-    gRunFiltersButton.disabled = !numFiltersSelected;
+    gRunFiltersButton.disabled = !numFiltersSelected || !gRunFiltersFolder.value;
     // "up" and "top" enabled only if one filter is selected, and it's not the first
     // don't use gFilterListbox.currentIndex here, it's buggy when we've just changed the
     // children in the list (via rebuildFilterList)
@@ -708,32 +740,16 @@ function updateButtons()
  *  be defined (the root folder except for news) if the server can
  *  accept filters.
  *
+ * @param   nsIMsgFolder aFolder - selected folder, from window args
  * @returns an nsIMsgFolder where the filter is defined
  */
-function getFilterFolderForSelection()
+function getFilterFolderForSelection(aFolder)
 {
-    var args = window.arguments;
+  let rootFolder = aFolder && aFolder.server ? aFolder.server.rootFolder : null;
+  if (rootFolder && rootFolder.isServer && rootFolder.server.canHaveFilters)
+    return (aFolder.server.type == "nntp") ? aFolder : rootFolder;
 
-    if (args && args[0] && args[0].folder)
-    {
-        var selectedFolder = args[0].folder;
-        var msgFolder = selectedFolder.QueryInterface(Components.interfaces.nsIMsgFolder);
-        try
-        {
-            var rootFolder = msgFolder.server.rootFolder;
-            if (rootFolder.isServer)
-            {
-                var server = rootFolder.server;
-                if (server.canHaveFilters)
-                    return (server.type == "nntp") ? msgFolder : rootFolder;
-            }
-        }
-        catch (ex)
-        {
-        }
-    }
-
-    return null;
+  return null;
 }
 
 /**
@@ -753,8 +769,8 @@ function getServerThatCanHaveFilters()
     // If it cannot, check all accounts to find a server
     // that can have filters.
     let allServers = MailServices.accounts.allServers;
-    for each (currentServer in fixIterator(allServers,
-                                           Components.interfaces.nsIMsgIncomingServer))
+    for (let currentServer in fixIterator(allServers,
+                                          Components.interfaces.nsIMsgIncomingServer))
     {
       if (currentServer.canHaveFilters)
         return currentServer;
@@ -800,7 +816,6 @@ function onFilterListKeyPress(aEvent)
         if (!document.getElementById("deleteButton").disabled)
           onDeleteFilter();
         break;
-      case KeyEvent.DOM_VK_ENTER:
       case KeyEvent.DOM_VK_RETURN:
         if (!document.getElementById("editButton").disabled)
           onEditFilter();
@@ -822,35 +837,41 @@ function onFilterListKeyPress(aEvent)
 }
 
 function onTargetSelect(event) {
-  gRunFiltersFolder._folder = event.target._folder;
-  gRunFiltersFolder.setAttribute("label", event.target._folder.prettyName);
+  setRunFolder(event.target._folder);
+}
+
+function setRunFolder(aFolder) {
+  gRunFiltersFolder._folder = aFolder;
+  gRunFiltersFolder.menupopup.selectFolder(gRunFiltersFolder._folder);
+  updateButtons();
 }
 
 /**
- * For a given server folder, get the first folder. For imap and pop it's INBOX
- * and it's the very first group for news accounts.
+ * For a given server folder, get the default run target selected folder or show
+ * Choose Folder.
  */
 function getFirstFolder(msgFolder)
 {
   // Sanity check.
-  if (! msgFolder.isServer)
+  if (!msgFolder.isServer)
     return msgFolder;
 
   try {
-    // Find Inbox for imap and pop
+    // Choose Folder for feeds.
+    if (msgFolder.server.type == "rss")
+      return null;
+
     if (msgFolder.server.type != "nntp")
     {
+      // Find Inbox for imap and pop; show Choose Folder if not found or
+      // Local Folders or any other account type.
       const nsMsgFolderFlags = Components.interfaces.nsMsgFolderFlags;
-      var inboxFolder = msgFolder.getFolderWithFlags(nsMsgFolderFlags.Inbox);
-      if (inboxFolder)
-        return inboxFolder;
-      else
-        // If inbox does not exist then use the server as default.
-        return msgFolder;
+      // If inbox does not exist then return null.
+      return msgFolder.getFolderWithFlags(nsMsgFolderFlags.Inbox);
     }
-    else
-      // XXX TODO: For news, we should find the 1st group/folder off the news groups. For now use server.
-      return msgFolder;
+
+    // For news, this is the account folder.
+    return msgFolder;
   }
   catch (ex) {
     dump(ex + "\n");

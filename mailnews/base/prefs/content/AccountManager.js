@@ -205,8 +205,8 @@ function replaceWithDefaultSmtpServer(deletedSmtpServerKey)
 {
   // First we replace the smtpserverkey in every identity.
   let am = MailServices.accounts;
-  for each (let identity in fixIterator(am.allIdentities,
-                                        Components.interfaces.nsIMsgIdentity)) {
+  for (let identity in fixIterator(am.allIdentities,
+                                   Components.interfaces.nsIMsgIdentity)) {
     if (identity.smtpServerKey == deletedSmtpServerKey)
       identity.smtpServerKey = "";
   }
@@ -242,6 +242,9 @@ function onAccept(aDoChecks) {
   if (aDoChecks) {
     // Check if user/host have been modified correctly.
     if (!checkUserServerChanges(true))
+      return false;
+
+    if (!checkAccountNameIsValid())
       return false;
   }
 
@@ -629,6 +632,40 @@ function checkUserServerChanges(showAlert) {
   return true;
 }
 
+/**
+ * If account name is not valid, alert the user.
+ */
+function checkAccountNameIsValid() {
+  if (!currentAccount)
+    return true;
+
+  let pageElements = getPageFormElements();
+  if (!pageElements)
+    return true;
+
+  const prefBundle = document.getElementById("bundle_prefs");
+  let alertText = null;
+
+  for (let i = 0; i < pageElements.length; i++) {
+    if (!pageElements[i].id || pageElements[i].id != "server.prettyName")
+      continue;
+
+    let accountName = getFormElementValue(pageElements[i]);
+    if (!accountName)
+      alertText = prefBundle.getString("accountNameEmpty");
+    else if (accountNameExists(accountName, currentAccount.key))
+      alertText = prefBundle.getString("accountNameExists");
+
+    if (alertText) {
+      const alertTitle = prefBundle.getString("accountWizard");
+      Services.prompt.alert(window, alertTitle, alertText);
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function onSave() {
   if (pendingPageId) {
     dump("ERROR: " + pendingPageId + " hasn't loaded yet! Not saving.\n");
@@ -664,15 +701,20 @@ function AddIMAccount()
 }
 
 /**
- * Highlight the default server in the account tree,
+ * Highlight the default account row in the account tree,
  * optionally un-highlight the previous one.
+ *
+ * @param newDefault  The account that has become the new default.
+ *                    Can be given as null if there is none.
+ * @param oldDefault  The account that has stopped being the default.
+ *                    Can be given as null if there was none.
  */
 function markDefaultServer(newDefault, oldDefault) {
   let accountTreeNodes = document.getElementById("account-tree-children")
                                  .childNodes;
   for (let i = 0; i < accountTreeNodes.length; i++) {
     let accountNode = accountTreeNodes[i];
-    if (newDefault == accountNode._account) {
+    if (newDefault && newDefault == accountNode._account) {
       accountNode.firstChild
                  .firstChild
                  .setAttribute("properties", "isDefaultServer-true");
@@ -693,7 +735,7 @@ function onSetDefault(event) {
   if (event.target.getAttribute("disabled") == "true")
     return;
 
-  let previousDefault = MailServices.accounts.defaultAccount;
+  let previousDefault = getDefaultAccount();
   MailServices.accounts.defaultAccount = currentAccount;
   markDefaultServer(currentAccount, previousDefault);
 
@@ -743,6 +785,18 @@ function onRemoveAccount(event) {
   else
     serverIndex++;
 
+  // Remove password information.
+  let serverUri = server.type + "://" + server.hostName;
+
+  let logins = Services.logins.findLogins({}, serverUri, null, serverUri);
+
+  for (let i = 0; i < logins.length; i++) {
+    if (logins[i].username == server.username) {
+      Services.logins.removeLogin(logins[i]);
+      break;
+    }
+  }
+
   try {
     let serverId = server.serverURI;
     MailServices.accounts.removeAccount(currentAccount);
@@ -765,7 +819,7 @@ function onRemoveAccount(event) {
   // Either the default account was deleted so there is a new one
   // or the default account was not changed. Either way, there is
   // no need to unmark the old one.
-  markDefaultServer(MailServices.accounts.defaultAccount, null);
+  markDefaultServer(getDefaultAccount(), null);
 }
 
 function saveAccount(accountValues, account)
@@ -922,7 +976,7 @@ function updateItems(tree, account, addAccountItem, setDefaultItem, removeItem) 
     // problem. Either way, we don't want the user to act on it.
     let server = account.incomingServer;
 
-    if (account != MailServices.accounts.defaultAccount &&
+    if (account != getDefaultAccount() &&
         server.canBeDefaultServer && account.identities.length > 0)
       canSetDefault = true;
 
@@ -1002,6 +1056,15 @@ function onAccountTreeSelect(pageId, account)
       onAccept(false);
   }
 
+  if (document.getElementById("contentFrame").contentDocument.getElementById("server.prettyName")) {
+    // Check if account name is valid.
+    if (!checkAccountNameIsValid()) {
+      changeView = true;
+      account = currentAccount;
+      pageId = currentPageId;
+    }
+  }
+
   if (currentPageId) {
     // Change focus to the account tree first so that any 'onchange' handlers
     // on elements in the current page have a chance to run before the page
@@ -1040,7 +1103,6 @@ function onAccountTreeSelect(pageId, account)
 // page has loaded
 function onPanelLoaded(pageId) {
   if (pageId != pendingPageId) {
-
     // if we're reloading the current page, we'll assume the
     // page has asked itself to be completely reloaded from
     // the prefs. to do this, clear out the the old entry in
@@ -1052,7 +1114,6 @@ function onPanelLoaded(pageId) {
       restorePage(currentPageId, currentAccount);
     }
   } else {
-
     restorePage(pendingPageId, pendingAccount);
   }
 
@@ -1063,6 +1124,11 @@ function onPanelLoaded(pageId) {
 
 function pageURL(pageId)
 {
+  // If we have a special non account manager pane (e.g. about:blank),
+  // do not translate it into ChromePackageName URL.
+  if (!pageId.startsWith("am-"))
+    return pageId;
+
   let chromePackageName;
   try {
     // we could compare against "main","server","copies","offline","addressing",
@@ -1363,6 +1429,18 @@ function getCurrentAccount()
   return currentAccount;
 }
 
+/**
+ * Returns the default account without throwing exception if there is none.
+ * The account manager can be opened even if there are no account yet.
+ */
+function getDefaultAccount() {
+  try {
+    return MailServices.accounts.defaultAccount;
+  } catch (e) {
+    return null; // No default account yet.
+  }
+}
+
 // get the array of form elements for the given page
 function getPageFormElements() {
   if ("getElementsByAttribute" in top.frames["contentFrame"].document)
@@ -1401,115 +1479,134 @@ var gAccountTree = {
   },
   onServerChanged: function at_onServerChanged(aServer) {},
 
-  _rdf: Components.classes["@mozilla.org/rdf/rdf-service;1"]
-                  .getService(Components.interfaces.nsIRDFService),
-  _rdfDataSource: null,
-  _rdfOpenAttribute: null,
+  _dataStore: Components.classes["@mozilla.org/xul/xulstore;1"]
+                        .getService(Components.interfaces.nsIXULStore),
 
   /**
-   * Retrieve from localstore.rdf whether the account should be expanded (open)
+   * Retrieve from XULStore.json whether the account should be expanded (open)
    * in the account tree.
    *
    * @param aAccountKey  key of the account to check
    */
   _getAccountOpenState: function at_getAccountOpenState(aAccountKey) {
-    // The code for this was ported from
-    // mozilla/browser/components/nsBrowserGlue.js.
-    if (!this._rdfDataSource) {
-      this._rdfDataSource = this._rdf.GetDataSource("rdf:local-store");
-      this._rdfOpenAttribute = this._rdf.GetResource("open");
-    }
-
-    // Retrieve the persisted value from localstore.rdf.
-    // It is stored under the URI of the current document and ID of the XUL element.
-    let resource = this._rdf.GetResource(document.documentURI + "#" + aAccountKey);
-    let target = this._rdfDataSource.GetTarget(resource, this._rdfOpenAttribute, true);
-    if (target instanceof Components.interfaces.nsIRDFLiteral)
-      return target.Value;
-
+    if (!this._dataStore.hasValue(document.documentURI, aAccountKey, "open")) {
     // If there was no value stored, use opened state.
-    return "true";
+      return "true";
+    } else {
+      // Retrieve the persisted value from XULStore.json.
+      // It is stored under the URI of the current document and ID of the XUL element.
+      return this._dataStore
+                 .getValue(document.documentURI, aAccountKey, "open");
+    }
   },
 
   _build: function at_build() {
     const Ci = Components.interfaces;
     var bundle = document.getElementById("bundle_prefs");
-    function get(aString) { return bundle.getString(aString); }
-    var panels = [{string: get("prefPanel-server"), src: "am-server.xul"},
-                  {string: get("prefPanel-copies"), src: "am-copies.xul"},
-                  {string: get("prefPanel-synchronization"), src: "am-offline.xul"},
-                  {string: get("prefPanel-diskspace"), src: "am-offline.xul"},
-                  {string: get("prefPanel-addressing"), src: "am-addressing.xul"},
-                  {string: get("prefPanel-junk"), src: "am-junk.xul"}];
+    function getString(aString) { return bundle.getString(aString); }
+    var panels = [{string: getString("prefPanel-server"), src: "am-server.xul"},
+                  {string: getString("prefPanel-copies"), src: "am-copies.xul"},
+                  {string: getString("prefPanel-synchronization"), src: "am-offline.xul"},
+                  {string: getString("prefPanel-diskspace"), src: "am-offline.xul"},
+                  {string: getString("prefPanel-addressing"), src: "am-addressing.xul"},
+                  {string: getString("prefPanel-junk"), src: "am-junk.xul"}];
 
     let accounts = allAccountsSorted(false);
 
     let mainTree = document.getElementById("account-tree-children");
     // Clear off all children...
-    while (mainTree.firstChild)
-      mainTree.removeChild(mainTree.firstChild);
+    while (mainTree.hasChildNodes())
+      mainTree.lastChild.remove();
 
-    for each (let account in accounts) {
-      let server = account.incomingServer;
+    for (let account of accounts) {
+      let accountName = null;
+      let accountKey = account.key;
+      let amChrome = "about:blank";
+      let panelsToKeep = [];
 
-      if (server.type == "im" && !Services.prefs.getBoolPref("mail.chat.enabled"))
-        continue;
+      // This "try {} catch {}" block is intentionally very long to catch
+      // unknown exceptions and confine them to this single account.
+      // This may happen from broken accounts. See e.g. bug 813929.
+      // Other accounts can still be shown properly if they are valid.
+      try {
+        let server = account.incomingServer;
 
-      // Create the top level tree-item
+        if (server.type == "im" && !Services.prefs.getBoolPref("mail.chat.enabled"))
+          continue;
+
+        accountName = server.prettyName;
+
+        // Now add our panels.
+        let idents = MailServices.accounts.getIdentitiesForServer(server);
+        if (idents.length) {
+          panelsToKeep.push(panels[0]); // The server panel is valid
+          panelsToKeep.push(panels[1]); // also the copies panel
+          panelsToKeep.push(panels[4]); // and addresssing
+        }
+
+        // Everyone except News, RSS and IM has a junk panel
+        // XXX: unextensible!
+        // The existence of server.spamSettings can't currently be used for this.
+        if (server.type != "nntp" && server.type != "rss" && server.type != "im")
+          panelsToKeep.push(panels[5]);
+
+        // Check offline/diskspace support level.
+        let diskspace = server.supportsDiskSpace;
+        if (server.offlineSupportLevel >= 10 && diskspace)
+          panelsToKeep.push(panels[2]);
+        else if (diskspace)
+          panelsToKeep.push(panels[3]);
+
+        // extensions
+        let catMan = Components.classes["@mozilla.org/categorymanager;1"]
+                               .getService(Ci.nsICategoryManager);
+        const CATEGORY = "mailnews-accountmanager-extensions";
+        let catEnum = catMan.enumerateCategory(CATEGORY);
+        while (catEnum.hasMoreElements()) {
+          let entryName = null;
+          try {
+            entryName = catEnum.getNext().QueryInterface(Ci.nsISupportsCString).data;
+            let svc = Components.classes[catMan.getCategoryEntry(CATEGORY, entryName)]
+                                .getService(Ci.nsIMsgAccountManagerExtension);
+            if (svc.showPanel(server)) {
+              let bundleName = "chrome://" + svc.chromePackageName +
+                               "/locale/am-" + svc.name + ".properties";
+              let bundle = Services.strings.createBundle(bundleName);
+              let title = bundle.GetStringFromName("prefPanel-" + svc.name);
+              panelsToKeep.push({string: title, src: "am-" + svc.name + ".xul"});
+            }
+          } catch(e) {
+            // Fetching of this extension panel failed so do not show it,
+            // just log error.
+            let extName = entryName || "(unknown)";
+            Components.utils.reportError("Error accessing panel from extension '" +
+                                         extName + "': " + e);
+          }
+        }
+        amChrome = server.accountManagerChrome;
+      } catch(e) {
+        // Show only a placeholder in the account list saying this account
+        // is broken, with no child panels.
+        let accountID = (accountName || accountKey);
+        Components.utils.reportError("Error accessing account " + accountID + ": " + e);
+        accountName = "Invalid account " + accountID;
+        panelsToKeep.length = 0;
+      }
+
+      // Create the top level tree-item.
       var treeitem = document.createElement("treeitem");
       mainTree.appendChild(treeitem);
       var treerow = document.createElement("treerow");
       treeitem.appendChild(treerow);
       var treecell = document.createElement("treecell");
       treerow.appendChild(treecell);
-      treecell.setAttribute("label", server.rootFolder.prettyName);
-
-      // Now add our panels
-      var panelsToKeep = [];
-      let idents = MailServices.accounts.getIdentitiesForServer(server);
-      if (idents.length) {
-        panelsToKeep.push(panels[0]); // The server panel is valid
-        panelsToKeep.push(panels[1]); // also the copies panel
-        panelsToKeep.push(panels[4]); // and addresssing
-      }
-
-      // Everyone except News, RSS and IM has a junk panel
-      // XXX: unextensible!
-      // The existence of server.spamSettings can't currently be used for this.
-      if (server.type != "nntp" && server.type != "rss" && server.type != "im")
-        panelsToKeep.push(panels[5]);
-
-      // Check offline/diskspace support level
-      var offline = server.offlineSupportLevel;
-      var diskspace = server.supportsDiskSpace;
-      if (offline >= 10 && diskspace)
-        panelsToKeep.push(panels[2]);
-      else if (diskspace)
-        panelsToKeep.push(panels[3]);
-
-      // extensions
-      var catMan = Components.classes["@mozilla.org/categorymanager;1"]
-                             .getService(Ci.nsICategoryManager);
-      const CATEGORY = "mailnews-accountmanager-extensions";
-      var catEnum = catMan.enumerateCategory(CATEGORY);
-      while (catEnum.hasMoreElements()) {
-        var string = Components.interfaces.nsISupportsCString;
-        var entryName = catEnum.getNext().QueryInterface(string).data;
-        var svc = Components.classes[catMan.getCategoryEntry(CATEGORY, entryName)]
-                            .getService(Ci.nsIMsgAccountManagerExtension);
-        if (svc.showPanel(server)) {
-          let bundleName = "chrome://" + svc.chromePackageName +
-                           "/locale/am-" + svc.name + ".properties";
-          let bundle = Services.strings.createBundle(bundleName);
-          let title = bundle.GetStringFromName("prefPanel-" + svc.name);
-          panelsToKeep.push({string: title, src: "am-" + svc.name + ".xul"});
-        }
-      }
+      treecell.setAttribute("label", accountName);
+      treeitem.setAttribute("PageTag", amChrome);
 
       if (panelsToKeep.length > 0) {
         var treekids = document.createElement("treechildren");
         treeitem.appendChild(treekids);
-        for each (let panel in panelsToKeep) {
+        for (let panel of panelsToKeep) {
           var kidtreeitem = document.createElement("treeitem");
           treekids.appendChild(kidtreeitem);
           var kidtreerow = document.createElement("treerow");
@@ -1521,28 +1618,26 @@ var gAccountTree = {
           kidtreeitem._account = account;
         }
         treeitem.setAttribute("container", "true");
-        treeitem.id = account.key;
-        // Load the 'open' state of the account from localstore.rdf.
-        treeitem.setAttribute("open", this._getAccountOpenState(account.key));
-        // Let the localstore.rdf automatically save the 'open' state of the
+        treeitem.id = accountKey;
+        // Load the 'open' state of the account from XULStore.json.
+        treeitem.setAttribute("open", this._getAccountOpenState(accountKey));
+        // Let the XULStore.json automatically save the 'open' state of the
         // account when it is changed.
         treeitem.setAttribute("persist", "open");
       }
-      treeitem.setAttribute("PageTag", server ? server.accountManagerChrome
-                                              : "am-main.xul");
       treeitem._account = account;
     }
 
-    markDefaultServer(MailServices.accounts.defaultAccount, null);
+    markDefaultServer(getDefaultAccount(), null);
 
-    // Now add the outgoing server node
+    // Now add the outgoing server node.
     var treeitem = document.createElement("treeitem");
     mainTree.appendChild(treeitem);
     var treerow = document.createElement("treerow");
     treeitem.appendChild(treerow);
     var treecell = document.createElement("treecell");
     treerow.appendChild(treecell);
-    treecell.setAttribute("label", bundle.getString("prefPanel-smtp"));
+    treecell.setAttribute("label", getString("prefPanel-smtp"));
     treeitem.setAttribute("PageTag", "am-smtp.xul");
   }
 };

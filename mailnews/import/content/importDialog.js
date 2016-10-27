@@ -132,6 +132,8 @@ function ImportDialogOKButton()
   {
     importType = document.getElementById("importFields").value;
     var index = listbox.selectedItems[0].getAttribute('list-index');
+    if (index == -1)
+      return false;
     if (importType == "feeds")
       var module = "Feeds";
     else
@@ -326,6 +328,8 @@ function ImportSelectionChanged()
   if ( listbox && listbox.selectedItems && (listbox.selectedItems.length == 1) )
   {
     let index = listbox.selectedItems[0].getAttribute('list-index');
+    if (index == -1)
+      return;
     acctNameBox.setAttribute('style', 'visibility: hidden;');
     if (importType == 'feeds')
     {
@@ -359,7 +363,7 @@ function ListModules() {
 
   var body = document.getElementById( "moduleList");
   while (body.hasChildNodes()) {
-    body.removeChild(body.lastChild);
+    body.lastChild.remove();
   }
 
   var count = top.importService.GetModuleCount(top.importType);
@@ -384,15 +388,22 @@ function AddModuleToList(moduleName, index)
 
   var item = document.createElement('listitem');
   item.setAttribute('label', moduleName);
-  item.setAttribute('list-index', index);
 
+  // Temporarily skip Eudora and Outlook Import which are busted (Bug 1175055).
+  if (moduleName == "Eudora" || moduleName == "Outlook") {
+    item.setAttribute('list-index', -1);
+    item.setAttribute('disabled', true);
+    item.setAttribute('tooltiptext', "Currently disabled due to bug 1175055");
+  } else {
+    item.setAttribute('list-index', index);
+  }
   body.appendChild(item);
 }
 
 function ListFeedAccounts() {
   let body = document.getElementById( "moduleList");
   while (body.hasChildNodes())
-    body.removeChild(body.lastChild);
+    body.lastChild.remove();
 
   // Add item to allow for new account creation.
   let item = document.createElement("listitem");
@@ -1070,7 +1081,7 @@ function back()
     // Clear out the results box.
     var results = document.getElementById("results");
     while (results.hasChildNodes())
-      results.removeChild(results.lastChild);
+      results.lastChild.remove();
 
     // Reset the next button.
     var nextButton = document.getElementById("forward");

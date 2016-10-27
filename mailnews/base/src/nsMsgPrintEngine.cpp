@@ -21,7 +21,6 @@
 #include "nsMsgUtils.h"
 #include "nsIWebProgress.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsIMarkupDocumentViewer.h"
 #include "nsMsgPrintEngine.h"
 #include "nsIDocumentLoader.h"
 #include "nsIPrefService.h"
@@ -34,7 +33,6 @@
 #include "nsIBaseWindow.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIDocShellTreeItem.h"
-#include "nsIDocShellTreeNode.h"
 #include "nsIWebNavigation.h"
 #include "nsIChannel.h"
 #include "nsIContentViewerFile.h"
@@ -59,7 +57,7 @@ nsMsgPrintEngine::~nsMsgPrintEngine()
 }
 
 // Implement AddRef and Release
-NS_IMPL_ISUPPORTS4(nsMsgPrintEngine,
+NS_IMPL_ISUPPORTS(nsMsgPrintEngine,
                          nsIMsgPrintEngine, 
                          nsIWebProgressListener, 
                          nsIObserver,
@@ -79,7 +77,7 @@ nsMsgPrintEngine::OnStateChange(nsIWebProgress* aWebProgress,
     if (progressStateFlags & nsIWebProgressListener::STATE_START) {
       // Tell the user we are loading...
       nsString msg;
-      GetString(NS_LITERAL_STRING("LoadingMessageToPrint").get(), msg);
+      GetString(MOZ_UTF16("LoadingMessageToPrint"), msg);
       SetStatusMessage(msg);
     }
 
@@ -122,7 +120,7 @@ nsMsgPrintEngine::OnStateChange(nsIWebProgress* aWebProgress,
 
           // Tell the user the message is loaded...
           nsString msg;
-          GetString(NS_LITERAL_STRING("MessageLoaded").get(), msg);
+          GetString(MOZ_UTF16("MessageLoaded"), msg);
           SetStatusMessage(msg);
 
           NS_ASSERTION(mDocShell,"can't print, there is no docshell");
@@ -196,7 +194,7 @@ NS_IMETHODIMP
 nsMsgPrintEngine::OnStatusChange(nsIWebProgress* aWebProgress,
                     nsIRequest* aRequest,
                     nsresult aStatus,
-                    const PRUnichar* aMessage)
+                    const char16_t* aMessage)
 {
     return NS_OK;
 }
@@ -235,11 +233,8 @@ nsMsgPrintEngine::SetWindow(nsIDOMWindow *aWin)
   nsCOMPtr<nsIDocShellTreeItem> rootAsItem;
   docShellAsItem->GetSameTypeRootTreeItem(getter_AddRefs(rootAsItem));
 
-  nsCOMPtr<nsIDocShellTreeNode> rootAsNode(do_QueryInterface(rootAsItem));
-  NS_ENSURE_TRUE(rootAsNode, NS_ERROR_FAILURE);
-
   nsCOMPtr<nsIDocShellTreeItem> childItem;
-  rootAsNode->FindChildWithName(NS_LITERAL_STRING("content").get(), true,
+  rootAsItem->FindChildWithName(MOZ_UTF16("content"), true,
 				false, nullptr, nullptr,
 				getter_AddRefs(childItem));
 
@@ -294,7 +289,7 @@ nsMsgPrintEngine::ShowWindow(bool aShow)
 }
 
 NS_IMETHODIMP
-nsMsgPrintEngine::AddPrintURI(const PRUnichar *aMsgURI)
+nsMsgPrintEngine::AddPrintURI(const char16_t *aMsgURI)
 {
   NS_ENSURE_ARG_POINTER(aMsgURI);
 
@@ -316,7 +311,7 @@ nsMsgPrintEngine::StartPrintOperation(nsIPrintSettings* aPS)
   mPrintSettings = aPS;
 
   // Load the about:blank on the tail end...
-  nsresult rv = AddPrintURI(NS_LITERAL_STRING("about:blank").get()); 
+  nsresult rv = AddPrintURI(MOZ_UTF16("about:blank")); 
   if (NS_FAILED(rv)) return rv; 
   return StartNextPrintOperation();
 }
@@ -382,9 +377,9 @@ nsMsgPrintEngine::ShowProgressDialog(bool aIsForPrinting, bool& aDoNotify)
           NS_ADDREF(wpl);
           nsString msg;
           if (mIsDoingPrintPreview) {
-            GetString(NS_LITERAL_STRING("LoadingMailMsgForPrintPreview").get(), msg);
+            GetString(MOZ_UTF16("LoadingMailMsgForPrintPreview"), msg);
           } else {
-            GetString(NS_LITERAL_STRING("LoadingMailMsgForPrint").get(), msg);
+            GetString(MOZ_UTF16("LoadingMailMsgForPrint"), msg);
           }
           if (!msg.IsEmpty()) 
             mPrintProgressParams->SetDocTitle(msg.get());
@@ -415,7 +410,7 @@ nsMsgPrintEngine::StartNextPrintOperation()
 
     // Tell the user we are done...
     nsString msg;
-    GetString(NS_LITERAL_STRING("PrintingComplete").get(), msg);
+    GetString(MOZ_UTF16("PrintingComplete"), msg);
     SetStatusMessage(msg);
     return NS_OK;
   }
@@ -516,11 +511,7 @@ nsMsgPrintEngine::InitializeDisplayCharset()
     mDocShell->GetContentViewer(getter_AddRefs(cv));
     if (cv) 
     {
-      nsCOMPtr<nsIMarkupDocumentViewer> muDV = do_QueryInterface(cv);
-      if (muDV) 
-      {
-        muDV->SetForceCharacterSet(NS_LITERAL_CSTRING("UTF-8"));
-      }
+      cv->SetForceCharacterSet(NS_LITERAL_CSTRING("UTF-8"));
     }
   }
 }
@@ -561,7 +552,7 @@ nsMsgPrintEngine::SetStatusMessage(const nsString& aMsgString)
 #define MESSENGER_STRING_URL       "chrome://messenger/locale/messenger.properties"
 
 void
-nsMsgPrintEngine::GetString(const PRUnichar *aStringName, nsString& outStr)
+nsMsgPrintEngine::GetString(const char16_t *aStringName, nsString& outStr)
 {
   outStr.Truncate();
 
@@ -604,7 +595,7 @@ nsMsgPrintEngine::PrintMsgWindow()
       // for mail, it can review the salt.  for addrbook, it's a data:// url, which
       // means nothing to the end user.
       // needs to be " " and not "" or nullptr, otherwise, we'll still print the url
-      mPrintSettings->SetDocURL(NS_LITERAL_STRING(" ").get());
+      mPrintSettings->SetDocURL(MOZ_UTF16(" "));
 
       nsresult rv = NS_ERROR_FAILURE;
       if (mIsDoingPrintPreview) 
@@ -616,15 +607,7 @@ nsMsgPrintEngine::PrintMsgWindow()
       else 
       {
         mPrintSettings->SetPrintSilent(mCurrentlyPrintingURI != 0);
-        nsCOMPtr<nsIContentViewerFile> contentViewerFile(do_QueryInterface(mWebBrowserPrint));
-        if (contentViewerFile && mParentWindow) 
-        {
-          rv = contentViewerFile->PrintWithParent(mParentWindow, mPrintSettings, (nsIWebProgressListener *)this);
-        } 
-        else 
-        {
-          rv = mWebBrowserPrint->Print(mPrintSettings, (nsIWebProgressListener *)this);
-        }
+        rv = mWebBrowserPrint->Print(mPrintSettings, (nsIWebProgressListener *)this);
       }
 
       if (NS_FAILED(rv))
@@ -746,7 +729,7 @@ NS_IMETHODIMP nsMsgPrintEngine::SetMsgType(int32_t aMsgType)
 }
 
 /*=============== nsIObserver Interface ======================*/
-NS_IMETHODIMP nsMsgPrintEngine::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *aData)
+NS_IMETHODIMP nsMsgPrintEngine::Observe(nsISupports *aSubject, const char *aTopic, const char16_t *aData)
 {
   return FireThatLoadOperation(mLoadURI);
 }

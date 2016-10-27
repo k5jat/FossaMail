@@ -12,13 +12,13 @@
 #ifndef nsMimeObjectClassAccess_h_
 #define nsMimeObjectClassAccess_h_
 
+#include "mozilla/Attributes.h"
 #include "nsISupports.h"
 #include "nsIMimeObjectClassAccess.h"
 
 class nsMimeObjectClassAccess : public nsIMimeObjectClassAccess {
 public:
   nsMimeObjectClassAccess();
-  virtual ~nsMimeObjectClassAccess();
 
   /* this macro defines QueryInterface, AddRef and Release for this class */
   NS_DECL_ISUPPORTS
@@ -30,19 +30,23 @@ public:
   NS_IMETHOD    MimeObjectWrite(void *mimeObject,
                                 char *data,
                                 int32_t length,
-                                bool user_visible_p);
+                                bool user_visible_p) override;
 
   // The following group of calls expose the pointers for the object
   // system within libmime.
-  NS_IMETHOD    GetmimeInlineTextClass(void **ptr);
-  NS_IMETHOD    GetmimeLeafClass(void **ptr);
-  NS_IMETHOD    GetmimeObjectClass(void **ptr);
-  NS_IMETHOD    GetmimeContainerClass(void **ptr);
-  NS_IMETHOD    GetmimeMultipartClass(void **ptr);
-  NS_IMETHOD    GetmimeMultipartSignedClass(void **ptr);
-  NS_IMETHOD    GetmimeEncryptedClass(void **ptr);
+  NS_IMETHOD    GetmimeInlineTextClass(void **ptr) override;
+  NS_IMETHOD    GetmimeLeafClass(void **ptr) override;
+  NS_IMETHOD    GetmimeObjectClass(void **ptr) override;
+  NS_IMETHOD    GetmimeContainerClass(void **ptr) override;
+  NS_IMETHOD    GetmimeMultipartClass(void **ptr) override;
+  NS_IMETHOD    GetmimeMultipartSignedClass(void **ptr) override;
+  NS_IMETHOD    GetmimeEncryptedClass(void **ptr) override;
 
-  NS_IMETHOD    MimeCreate(char *content_type, void * hdrs, void * opts, void**ptr);
+  NS_IMETHOD    MimeCreate(char *content_type, void * hdrs,
+                           void * opts, void**ptr) override;
+
+private:
+  virtual ~nsMimeObjectClassAccess();
 };
 
 #endif /* nsMimeObjectClassAccess_h_ */

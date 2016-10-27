@@ -2,9 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-var Ci = Components.interfaces;
-var Cc = Components.classes;
-var Cu = Components.utils;
+const MODULE_NAME = "window-helpers";
+
+Cu.import('resource:///modules/iteratorUtils.jsm');
+Cu.import('resource://gre/modules/NetUtil.jsm');
+Cu.import("resource://gre/modules/Services.jsm");
 
 var mozmill = {};
 Cu.import('resource://mozmill/modules/mozmill.js', mozmill);
@@ -16,12 +18,6 @@ var frame = {};
 Cu.import('resource://mozmill/modules/frame.js', frame);
 var utils = {};
 Cu.import('resource://mozmill/modules/utils.js', utils);
-
-Cu.import('resource:///modules/iteratorUtils.jsm');
-Cu.import('resource://gre/modules/NetUtil.jsm');
-Cu.import("resource://gre/modules/Services.jsm");
-
-const MODULE_NAME = 'window-helpers';
 
 /**
  * Timeout to use when waiting for the first window ever to load.  This is
@@ -74,10 +70,6 @@ function hereIsMarkAction(mark_action_impl, mark_failure_impl,
   mark_action = mark_action_impl;
   mark_failure = mark_failure_impl;
   normalize_for_json = normalize_for_json_impl;
-}
-
-function setupModule() {
-  // do nothing
 }
 
 function installInto(module) {
@@ -231,7 +223,7 @@ var WindowWatcher = {
     //  window type yet.
     // because this iterates from old to new, this does the right thing in that
     //  side-effects of consider will pick the most recent window.
-    for each (let xulWindow in fixIterator(
+    for (let xulWindow in fixIterator(
                                  mozmill.wm.getXULWindowEnumerator(null),
                                  Ci.nsIXULWindow)) {
       if (!this.consider(xulWindow))
@@ -269,7 +261,7 @@ var WindowWatcher = {
     //  time in the sun.
     controller.sleep(0);
     this._firstWindowOpened = true;
-    // wrap the creation because 
+    // wrap the creation because
     mark_action("winhelp", "new MozMillController()", [aWindowType]);
     let c = new controller.MozMillController(domWindow);
     mark_action("winhelp", "/new MozMillController()", [aWindowType]);
@@ -320,6 +312,7 @@ var WindowWatcher = {
 
       let self = this;
       function startTest() {
+        self.planForWindowClose(troller.window);
         try {
           let runner = new frame.Runner(collector);
           runner.wrapper(self.subTestFunc, troller);
@@ -332,6 +325,7 @@ var WindowWatcher = {
         // except I'm not sure how to easily figure that out...
         // so just close it no matter what.
         troller.window.close();
+        self.waitForWindowClose();
 
         self.waitingList.delete(self.waitingForOpen);
         // now we are waiting for it to close...
@@ -407,8 +401,8 @@ var WindowWatcher = {
                   "Timeout waiting for window to close!",
       WINDOW_CLOSE_TIMEOUT_MS, WINDOW_CLOSE_CHECK_INTERVAL_MS, this);
     let didDisappear = (this.waitingList.get(this.waitingForClose) == null);
-    this.waitingList.delete(windowType);
     let windowType = this.waitingForClose;
+    this.waitingList.delete(windowType);
     this.waitingForClose = null;
     if (!didDisappear)
       throw new Error(windowType + " window did not disappear!");
@@ -731,7 +725,7 @@ function wait_for_frame_load(aFrame, aURLOrPredicate) {
  * Generic function to wait for some sort of document to load. We expect
  * aDetails to have three fields:
  * - webProgress: an nsIWebProgress associated with the contentWindow.
- * - currentURI: the currently loaded page (nsIURI). 
+ * - currentURI: the currently loaded page (nsIURI).
  * - contentWindow: the content window.
  */
 function _wait_for_generic_load(aDetails, aURLOrPredicate) {
@@ -955,8 +949,12 @@ var AugmentEverybodyWith = {
      *     attribute with a single value.  We pick the menu option whose DOM
      *     node has an attribute with that name and value.  We click whatever we
      *     find.  We throw if we don't find what you were asking for.
+     * @param aKeepOpen  If set to true the popups are not closed after last click.
+     *
+     * @return  An array of popup elements that were left open. It will be
+     *          an empty array if aKeepOpen was set to false.
      */
-    click_menus_in_sequence: function _click_menus(aRootPopup, aActions) {
+    click_menus_in_sequence: function _click_menus(aRootPopup, aActions, aKeepOpen) {
       if (aRootPopup.state == "closed")
         aRootPopup.openPopup(null, "", 0, 0, true, true);
       if (aRootPopup.state != "open") { // handle "showing"
@@ -965,34 +963,51 @@ var AugmentEverybodyWith = {
                       ", state=" + aRootPopup.state, 5000, 50);
       }
       // These popups sadly do not close themselves, so we need to keep track
-      //  of them so we can make sure they end up closed.
+      // of them so we can make sure they end up closed.
       let closeStack = [aRootPopup];
 
       let curPopup = aRootPopup;
       for each (let [iAction, actionObj] in Iterator(aActions)) {
-        let matchingNode = null;
+        /**
+         * Check if aNode attributes match all those given in actionObj.
+         * Nodes that are obvious containers are skipped, and their children
+         * will be used to recursively find a match instead.
+         */
+        let findMatch = function(aNode) {
+          // Ignore some elements and just use their children instead.
+          if (aNode.localName == "hbox" || aNode.localName == "vbox" ||
+              aNode.localName == "splitmenu") {
+            for (let i = 0; i < aNode.children.length; i++) {
+              let childMatch = findMatch(aNode.children[i]);
+              if (childMatch)
+                return childMatch;
+            }
+            return null;
+          }
 
-        let kids = curPopup.children;
-        for (let iKid=0; iKid < kids.length; iKid++) {
-          let node = kids[iKid];
           let matchedAll = true;
           for each (let [name, value] in Iterator(actionObj)) {
-            if (!node.hasAttribute(name) ||
-                node.getAttribute(name) != value) {
+            if (!aNode.hasAttribute(name) ||
+                aNode.getAttribute(name) != value) {
               matchedAll = false;
               break;
             }
           }
+          return (matchedAll) ? aNode : null;
+        };
 
-          if (matchedAll) {
-            matchingNode = node;
+        let matchingNode = null;
+        let kids = curPopup.children;
+        for (let iKid = 0; iKid < kids.length; iKid++) {
+          let node = kids[iKid];
+          matchingNode = findMatch(node);
+          if (matchingNode)
             break;
-          }
         }
 
         if (!matchingNode)
           throw new Error("Did not find matching menu item for action index " +
-                          iAction);
+                          iAction + ": " + JSON.stringify(actionObj));
 
         this.click(new elib.Elem(matchingNode));
         if ("menupopup" in matchingNode) {
@@ -1005,8 +1020,24 @@ var AugmentEverybodyWith = {
         }
       }
 
-      while (closeStack.length) {
-        curPopup = closeStack.pop();
+      if (!aKeepOpen) {
+        this.close_popup_sequence(closeStack);
+        return [];
+      } else {
+        return closeStack;
+      }
+    },
+
+    /**
+     * Close given menupopups.
+     *
+     * @param aCloseStack  An array of menupopup elements that are to be closed.
+     *                     The elements are processed from the end of the array
+     *                     to the front (a stack).
+     */
+    close_popup_sequence: function _close_popup_sequence(aCloseStack) {
+      while (aCloseStack.length) {
+        let curPopup = aCloseStack.pop();
         this.keypress(new elib.Elem(curPopup), "VK_ESCAPE", {});
         utils.waitFor(function() { return curPopup.state == "closed"; },
                       "Popup did not close! id=" + curPopup.id +
@@ -1148,11 +1179,11 @@ var PerWindowTypeAugmentations = {
       aController.window.MessageDisplayWidget.prototype
                  .SUMMARIZATION_SELECTION_STABILITY_INTERVAL_MS = 0;
     },
-    
+
     /**
      * Used to wrap methods on a class prototype in order to generate
      *  mark_action data about the call.
-     */         
+     */
     debugTrace: [
       // wrap 3pane unload function to notice when it explodes
       {
@@ -1215,21 +1246,21 @@ var PerWindowTypeAugmentations = {
       },
       // Message summarization annotations
       {
-        method: "summarize",
-        onConstructor: "MultiMessageSummary",
-        reportAs: "MD_MultiMessageSummary_summarize",
+        method: "summarizeThread",
+        onGlobal: true,
+        reportAs: "summarizeThread",
         showArgs: false,
       },
       {
-        method: "onQueryCompleted",
-        onConstructor: "MultiMessageSummary",
-        reportAs: "MD_*Summary_onQueryCompleted",
+        method: "summarizeMultipleSelection",
+        onGlobal: true,
+        reportAs: "summarizeMultipleSelection",
         showArgs: false,
       },
       {
-        method: "summarize",
-        onConstructor: "ThreadSummary",
-        reportAs: "MD_ThreadSummary_summarize",
+        method: "summarizeFolder",
+        onGlobal: true,
+        reportAs: "summarizeFolder",
         showArgs: false,
       },
     ],

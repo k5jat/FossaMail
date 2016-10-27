@@ -69,14 +69,14 @@ nsLDAPOperation::~nsLDAPOperation()
 NS_IMPL_CLASSINFO(nsLDAPOperation, NULL, nsIClassInfo::THREADSAFE,
                   NS_LDAPOPERATION_CID)
 
-NS_IMPL_THREADSAFE_ADDREF(nsLDAPOperation)
-NS_IMPL_THREADSAFE_RELEASE(nsLDAPOperation)
+NS_IMPL_ADDREF(nsLDAPOperation)
+NS_IMPL_RELEASE(nsLDAPOperation)
 NS_INTERFACE_MAP_BEGIN(nsLDAPOperation)
   NS_INTERFACE_MAP_ENTRY(nsILDAPOperation)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsILDAPOperation)
   NS_IMPL_QUERY_CLASSINFO(nsLDAPOperation)
 NS_INTERFACE_MAP_END_THREADSAFE
-NS_IMPL_CI_INTERFACE_GETTER1(nsLDAPOperation, nsILDAPOperation)
+NS_IMPL_CI_INTERFACE_GETTER(nsLDAPOperation, nsILDAPOperation)
 
 /**
  * Initializes this operation.  Must be called prior to use.
@@ -282,6 +282,10 @@ nsLDAPOperation::SimpleBind(const nsACString& passwd)
     PR_LOG(gLDAPLogModule, PR_LOG_DEBUG,
            ("nsLDAPOperation::SimpleBind(): called; bindName = '%s'; ",
             bindName.get()));
+
+    // this (nsLDAPOperation) may be released by RemovePendingOperation()
+    // See https://bugzilla.mozilla.org/show_bug.cgi?id=1063829.
+    nsRefPtr<nsLDAPOperation> kungFuDeathGrip = this;
 
     // If this is a second try at binding, remove the operation from pending ops
     // because msg id has changed...

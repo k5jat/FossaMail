@@ -3,6 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/Preferences.jsm");
+
 Components.utils.import("resource://testing-common/AppInfo.jsm");
 updateAppInfo();
 
@@ -62,25 +64,18 @@ function createTodoFromIcalString(icalString) {
 }
 
 function getMemoryCal() {
-    // create memory calendar
-    var memoryCalendar = Cc["@mozilla.org/calendar/calendar;1?type=memory"]
-                         .createInstance(Ci.calISyncWriteCalendar);
-
-    // remove existing items
-    var calendar = memoryCalendar.QueryInterface(Ci.calICalendarProvider);
-    try {
-        calendar.deleteCalendar(calendar, null);
-    } catch (e) {
-        print("*** error purging calendar: " + e);
-    }
-    return memoryCalendar;
+    return Cc["@mozilla.org/calendar/calendar;1?type=memory"]
+             .createInstance(Ci.calISyncWriteCalendar);
 }
 
 function getStorageCal() {
-    var db = Services.dirsvc.get("TmpD", Ci.nsIFile);
-    db.append("test_storage.sqlite");
+    // Whenever we get the storage calendar we need to request a profile,
+    // otherwise the cleanup functions will not run
+    do_get_profile();
 
     // create URI
+    var db = Services.dirsvc.get("TmpD", Ci.nsIFile);
+    db.append("test_storage.sqlite");
     var uri = Services.io.newFileURI(db);
 
     // Make sure timezone service is initialized
@@ -93,14 +88,6 @@ function getStorageCal() {
               .createInstance(Ci.calISyncWriteCalendar);
     stor.uri = uri;
     stor.id = cal.getUUID();
-
-    // remove existing items
-    var calendar = stor.QueryInterface(Ci.calICalendarProvider);
-    try {
-        calendar.deleteCalendar(calendar, null);
-    } catch (e) {
-        print("*** error purging calendar: " + e);
-    }
     return stor;
 }
 
@@ -182,55 +169,20 @@ function compareItemsSpecific(aLeftItem, aRightItem, aPropArray) {
                       "recurrenceStartDate"];
     }
     for (var i = 0; i < aPropArray.length; i++) {
-        do_check_eq(getProps(aLeftItem, aPropArray[i]),
-                    getProps(aRightItem,
-                    aPropArray[i]));
+        equal(getProps(aLeftItem, aPropArray[i]),
+              getProps(aRightItem, aPropArray[i]),
+              Components.stack.caller);
     }
 }
+
 
 /**
- * Test whether specified function throws exception with expected
- * result.
+ * Unfold ics lines by removing any \r\n or \n followed by a linear whitespace
+ * (space or htab).
  *
- * @param func
- *        Function to be tested.
- * @param result
- *        Expected result. <code>null</code> for no throws.
- * @param stack
- *        Optional stack object to be printed. <code>null</code> for
- *        Components#stack#caller.
+ * @param aLine     The line to unfold
+ * @return          The unfolded line
  */
-function do_check_throws(func, result, stack)
-{
-  if (!stack)
-    stack = Components.stack.caller;
-
-  try {
-    func();
-  } catch (exc) {
-    if (exc.result == result || exc == result) {
-      ++_passedChecks;
-      dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
-           stack.lineNumber + "] " + exc.result + " == " + result + "\n");
-      return;
-    }
-    do_throw("expected result " + result + ", caught " + (exc.result || exc), stack);
-  }
-
-  if (result) {
-    do_throw("expected result " + result + ", none thrown", stack);
-  }
-}
-
-function ics_foldline(aLine) {
-  const NEWLINE_CHAR = "\r\n";
-  const FOLD_LENGTH = 74;
-  let result = "";
-  let line = aLine || "";
-
-  while (line.length) {
-    result += NEWLINE_CHAR + " " + line.substr(0, FOLD_LENGTH);
-    line = line.substr(FOLD_LENGTH);
-  }
-  return result.substr(NEWLINE_CHAR.length + 1);
+function ics_unfoldline(aLine) {
+  return aLine.replace(/\r?\n[ \t]/g, "");
 }

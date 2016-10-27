@@ -8,7 +8,7 @@
  */
 
 Components.utils.import("resource://calendar/modules/calUtils.jsm");
-Components.utils.import("resource:///modules/PluralForm.jsm");
+Components.utils.import("resource://gre/modules/PluralForm.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
 var MODULE_NAME = "testAlarmDefaultValue";
@@ -23,8 +23,8 @@ function setupModule(module) {
 }
 
 function testDefaultAlarms() {
-  let localeUnitString = cal.calGetString("calendar-alarms",
-                                          "reminderCustomUnitDays");
+  let localeUnitString = cal.calGetString("calendar",
+                                          "unitDays");
   let unitString = PluralForm.get(50, localeUnitString)
                              .replace("#1", 50);
   let originStringEvent = cal.calGetString("calendar-alarms",

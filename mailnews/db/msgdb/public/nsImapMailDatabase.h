@@ -5,6 +5,7 @@
 #ifndef _nsImapMailDatabase_H_
 #define _nsImapMailDatabase_H_
 
+#include "mozilla/Attributes.h"
 #include "nsMailDatabase.h"
 
 class nsImapMailDatabase : public nsMailDatabase
@@ -16,24 +17,24 @@ public:
   nsImapMailDatabase();
   virtual ~nsImapMailDatabase();
   
-  NS_IMETHOD    StartBatch();
-  NS_IMETHOD    EndBatch();
-  NS_IMETHOD    GetSummaryValid(bool *aResult);
-  NS_IMETHOD    SetSummaryValid(bool valid = true);
-  virtual nsresult AdjustExpungedBytesOnDelete(nsIMsgDBHdr *msgHdr);
+  NS_IMETHOD    StartBatch() override;
+  NS_IMETHOD    EndBatch() override;
+  NS_IMETHOD    GetSummaryValid(bool *aResult) override;
+  NS_IMETHOD    SetSummaryValid(bool valid = true) override;
+  virtual nsresult AdjustExpungedBytesOnDelete(nsIMsgDBHdr *msgHdr) override;
 
-  NS_IMETHOD    ForceClosed();
-  NS_IMETHOD    AddNewHdrToDB(nsIMsgDBHdr *newHdr, bool notify);
+  NS_IMETHOD    ForceClosed() override;
+  NS_IMETHOD    AddNewHdrToDB(nsIMsgDBHdr *newHdr, bool notify) override;
   NS_IMETHOD    SetAttributeOnPendingHdr(nsIMsgDBHdr *pendingHdr, const char *property,
-                                  const char *propertyVal);
+                                  const char *propertyVal) override;
   NS_IMETHOD    SetUint32AttributeOnPendingHdr(nsIMsgDBHdr *pendingHdr, const char *property,
-                                  uint32_t propertyVal);
+                                  uint32_t propertyVal) override;
   NS_IMETHOD    SetUint64AttributeOnPendingHdr(nsIMsgDBHdr *aPendingHdr,
                                                const char *aProperty,
-                                               uint64_t aPropertyVal);
+                                               uint64_t aPropertyVal) override;
   NS_IMETHOD    DeleteMessages(uint32_t aNumKeys, nsMsgKey* nsMsgKeys,
-                               nsIDBChangeListener *instigator);
-  NS_IMETHOD    UpdatePendingAttributes(nsIMsgDBHdr* aNewHdr);
+                               nsIDBChangeListener *instigator) override;
+  NS_IMETHOD    UpdatePendingAttributes(nsIMsgDBHdr* aNewHdr) override;
 
 protected:
   // IMAP does not set local file flags, override does nothing

@@ -7,11 +7,10 @@
 var daemon = setupNNTPDaemon();
 
 // Define these up here for checking with the transaction
-var type = null;
 var test = null;
 
-function run_test() {
-  type = "RFC 4643";
+add_task(function *() {
+  yield Services.logins.initializationPromise;
 
   daemon.groupCredentials = {
     "test.subscribe.empty": ["group1", "pass1"],
@@ -19,8 +18,8 @@ function run_test() {
   };
 
   var server = makeServer(NNTP_RFC4643_extension, daemon);
-  server.start(NNTP_PORT);
-  var localserver = setupLocalServer(NNTP_PORT);
+  server.start();
+  var localserver = setupLocalServer(server.port);
   localserver.singleSignon = false;
 
   // Add passwords to the manager
@@ -36,11 +35,11 @@ function run_test() {
     serverURI + "test.filter", "group2", "pass2", "", "");
   Services.logins.addLogin(loginInfo2);
   try {
-    var prefix = "news://localhost:"+NNTP_PORT+"/";
+    var prefix = "news://localhost:" + server.port + "/";
     var transaction;
 
     test = "per-group password part 1";
-    setupProtocolTest(NNTP_PORT, prefix+"test.subscribe.empty", localserver);
+    setupProtocolTest(server.port, prefix+"test.subscribe.empty", localserver);
     server.performTest();
     transaction = server.playTransaction();
     do_check_transaction(transaction, ["MODE READER",
@@ -51,7 +50,7 @@ function run_test() {
 
     test = "per-group password part 2";
     server.resetTest();
-    setupProtocolTest(NNTP_PORT, prefix+"test.filter", localserver);
+    setupProtocolTest(server.port, prefix+"test.filter", localserver);
     server.performTest();
     transaction = server.playTransaction();
     do_check_transaction(transaction, ["MODE READER", "GROUP test.filter",
@@ -74,4 +73,8 @@ function run_test() {
   var thread = gThreadManager.currentThread;
   while (thread.hasPendingEvents())
     thread.processNextEvent(true);
+});
+
+function run_test() {
+  run_next_test();
 }

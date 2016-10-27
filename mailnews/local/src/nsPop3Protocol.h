@@ -6,6 +6,7 @@
 #ifndef nsPop3Protocol_h__
 #define nsPop3Protocol_h__
 
+#include "mozilla/Attributes.h"
 #include "nsIStreamListener.h"
 #include "nsIOutputStream.h"
 #include "nsIInputStream.h"
@@ -254,14 +255,13 @@ class nsPop3Protocol : public nsMsgProtocol,
 {
 public:
   nsPop3Protocol(nsIURI* aURL);
-  virtual ~nsPop3Protocol();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIPOP3PROTOCOL
   NS_DECL_NSIMSGASYNCPROMPTLISTENER
 
   nsresult Initialize(nsIURI * aURL);
-  virtual nsresult LoadUrl(nsIURI *aURL, nsISupports * aConsumer = nullptr);
+  virtual nsresult LoadUrl(nsIURI *aURL, nsISupports * aConsumer = nullptr) override;
   void Cleanup();
 
   const char* GetUsername() { return m_username.get(); }
@@ -269,9 +269,9 @@ public:
 
   nsresult StartGetAsyncPassword(Pop3StatesEnum aNextState);
 
-  NS_IMETHOD OnTransportStatus(nsITransport *transport, nsresult status, uint64_t progress, uint64_t progressMax);
-  NS_IMETHOD OnStopRequest(nsIRequest *request, nsISupports * aContext, nsresult aStatus);
-  NS_IMETHOD Cancel(nsresult status);
+  NS_IMETHOD OnTransportStatus(nsITransport *transport, nsresult status, int64_t progress, int64_t progressMax) override;
+  NS_IMETHOD OnStopRequest(nsIRequest *request, nsISupports * aContext, nsresult aStatus) override;
+  NS_IMETHOD Cancel(nsresult status) override;
 
   static void MarkMsgInHashTable(PLHashTable *hashTable, const Pop3UidlEntry *uidl,
                                   bool *changed);
@@ -280,13 +280,13 @@ public:
                                       nsIFile *mailDirectory,
                                       nsVoidArray  &UIDLArray);
 private:
+  virtual ~nsPop3Protocol();
   nsCString m_ApopTimestamp;
   nsCOMPtr<nsIStringBundle> mLocalBundle;
 
   nsCString m_username;
   nsCString m_senderInfo;
   nsCString m_commandResponse;
-  nsCOMPtr<nsIMsgStatusFeedback> m_statusFeedback;
   nsCString m_GSSAPICache;
 
   // Used for asynchronous password prompts to store the password temporarily.
@@ -294,8 +294,8 @@ private:
 
   // progress state information
   void UpdateProgressPercent (uint32_t totalDone, uint32_t total);
-  void UpdateStatus(const nsString &aStatusName);
-  void UpdateStatusWithString(const PRUnichar * aString);
+  void UpdateStatus(const char16_t *aStatusName);
+  void UpdateStatusWithString(const char16_t *aString);
   nsresult FormatCounterString(const nsString &stringName,
                                uint32_t count1,
                                uint32_t count2,
@@ -309,10 +309,10 @@ private:
   int32_t m_totalBytesReceived; // total # bytes received for the connection
 
   virtual nsresult ProcessProtocolState(nsIURI * url, nsIInputStream * inputStream,
-                                        uint64_t sourceOffset, uint32_t length);
+                                        uint64_t sourceOffset, uint32_t length) override;
   virtual int32_t Pop3SendData(const char * dataBuffer, bool aSuppressLogging = false);
 
-  virtual const char* GetType() {return "pop3";}
+  virtual const char* GetType() override {return "pop3";}
 
   nsCOMPtr<nsIURI> m_url;
   nsCOMPtr<nsIPop3Sink> m_nsIPop3Sink;
@@ -354,7 +354,8 @@ private:
                                            uint32_t length);
   int32_t WaitForResponse(nsIInputStream* inputStream,
                           uint32_t length);
-  int32_t Error(const char* err_code);
+  int32_t Error(const char* err_code, const char16_t **params = nullptr,
+                uint32_t length = 0);
   int32_t SendAuth();
   int32_t AuthResponse(nsIInputStream* inputStream, uint32_t length);
   int32_t SendCapa();

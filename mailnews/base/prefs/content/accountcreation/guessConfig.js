@@ -59,9 +59,22 @@ function guessConfig(domain, progressCallback, successCallback, errorCallback,
   assert(typeof(progressCallback) == "function", "need progressCallback");
   assert(typeof(successCallback) == "function", "need successCallback");
   assert(typeof(errorCallback) == "function", "need errorCallback");
+
+  // Servers that we know enough that they support OAuth2 do not need guessing.
+  if (resultConfig.incoming.auth == Ci.nsMsgAuthMethod.OAuth2) {
+    successCallback(resultConfig);
+    return null;
+  }
+
   if (!resultConfig)
     resultConfig = new AccountConfig();
   resultConfig.source = AccountConfig.kSourceGuess;
+
+  if (!Services.prefs.getBoolPref(
+      "mailnews.auto_config.guess.enabled")) {
+    errorCallback("Guessing config disabled per user preference");
+    return;
+  }
 
   var incomingHostDetector = null;
   var outgoingHostDetector = null;
@@ -258,17 +271,13 @@ function GuessAbortable(incomingHostDetector, outgoingHostDetector,
   this._outgoingHostDetector = outgoingHostDetector;
   this._updateConfig = updateConfig;
 }
-GuessAbortable.prototype =
+GuessAbortable.prototype = Object.create(Abortable.prototype);
+GuessAbortable.prototype.constructor = GuessAbortable;
+GuessAbortable.prototype.cancel = function(ex)
 {
-  cancel : function(ex)
-  {
-    this._incomingHostDetector.cancel(ex);
-    this._outgoingHostDetector.cancel(ex);
-  },
-}
-extend(GuessAbortable, Abortable);
-
-
+  this._incomingHostDetector.cancel(ex);
+  this._outgoingHostDetector.cancel(ex);
+};
 
 //////////////////////////////////////////////////////////////////////////////
 // Implementation
@@ -328,8 +337,8 @@ function CancelOthersException()
 {
   CancelledException.call(this, "we're done, cancelling the other probes");
 }
-CancelOthersException.prototype = {}
-extend(CancelOthersException, CancelledException);
+CancelOthersException.prototype = Object.create(CancelledException.prototype);
+CancelOthersException.prototype.constructor = CancelOthersException;
 
 /**
  * @param successCallback {function(result {HostTry}, alts {Array of HostTry})}
@@ -419,7 +428,6 @@ HostDetector.prototype =
     for (let i = 0; i < hostnamesToTry.length; i++)
     {
       let hostname = hostnamesToTry[i];
-      // this._portsToTry() = getIncomingTryOrder()/getOutgoingTryOrder()
       let hostEntries = this._portsToTry(hostname, protocol, ssl, port);
       for (let j = 0; j < hostEntries.length; j++)
       {
@@ -487,14 +495,9 @@ HostDetector.prototype =
   {
     if (thisTry._gotCertError)
     {
-      this._log.info("clearing validity override for " + thisTry.hostname);
-      Cc["@mozilla.org/security/certoverride;1"]
-        .getService(Ci.nsICertOverrideService)
-        .clearValidityOverride(thisTry.hostname, thisTry.port);
-
       if (thisTry._gotCertError == Ci.nsICertOverrideService.ERROR_MISMATCH)
       {
-        thisTry._gotCertError = false;
+        thisTry._gotCertError = 0;
         thisTry.status = kFailed;
         return;
       }
@@ -503,7 +506,7 @@ HostDetector.prototype =
           thisTry._gotCertError == Ci.nsICertOverrideService.ERROR_TIME)
       {
         this._log.info("TRYING AGAIN, hopefully with exception recorded");
-        thisTry._gotCertError = false;
+        thisTry._gotCertError = 0;
         thisTry.selfSignedCert = true; // _next_ run gets this exception
         thisTry.status = kNotTried; // try again (with exception)
         this._tryAll();
@@ -531,6 +534,17 @@ HostDetector.prototype =
         " ssl " + thisTry.ssl +
         (thisTry.selfSignedCert ? " (selfSignedCert)" : ""));
     thisTry.status = kSuccess;
+
+    if (thisTry.selfSignedCert) { // eh, ERROR_UNTRUSTED or ERROR_TIME
+      // We clear the temporary override now after success. If we clear it
+      // earlier we get into an infinite loop, probably because the cert
+      // remembering is temporary and the next try gets a new connection which
+      // isn't covered by that temporariness.
+      this._log.info("clearing validity override for " + thisTry.hostname);
+      Cc["@mozilla.org/security/certoverride;1"]
+        .getService(Ci.nsICertOverrideService)
+        .clearValidityOverride(thisTry.hostname, thisTry.port);
+    }
   },
 
   _checkFinished : function()
@@ -653,6 +667,7 @@ function IncomingHostDetector(
 }
 IncomingHostDetector.prototype =
 {
+  __proto__: HostDetector.prototype,
   _hostnamesToTry : function(protocol, domain)
   {
     var hostnamesToTry = [];
@@ -669,7 +684,6 @@ IncomingHostDetector.prototype =
   },
   _portsToTry : getIncomingTryOrder,
 }
-extend(IncomingHostDetector, HostDetector);
 
 function OutgoingHostDetector(
   progressCallback, successCallback, errorCallback)
@@ -678,6 +692,7 @@ function OutgoingHostDetector(
 }
 OutgoingHostDetector.prototype =
 {
+  __proto__: HostDetector.prototype,
   _hostnamesToTry : function(protocol, domain)
   {
     var hostnamesToTry = [];
@@ -688,8 +703,6 @@ OutgoingHostDetector.prototype =
   },
   _portsToTry : getOutgoingTryOrder,
 }
-extend(OutgoingHostDetector, HostDetector);
-
 
 //////////////////////////////////////////////////////////////////////////
 // Encode protocol ports and order of preference
@@ -903,7 +916,9 @@ function SSLErrorHandler(thisTry, logger)
 {
   this._try = thisTry;
   this._log = logger;
-  this._gotCertError = false;
+  // _ gotCertError will be set to an error code (one of those defined in
+  // nsICertOverrideService)
+  this._gotCertError = 0;
 }
 SSLErrorHandler.prototype =
 {
@@ -951,7 +966,7 @@ SSLErrorHandler.prototype =
       this._try._gotCertError = Ci.nsICertOverrideService.ERROR_MISMATCH;
       flags |= Ci.nsICertOverrideService.ERROR_MISMATCH;
     }
-    else if (status.isUntrusted) {
+    else if (status.isUntrusted) { // e.g. self-signed
       this._try._gotCertError = Ci.nsICertOverrideService.ERROR_UNTRUSTED;
       flags |= Ci.nsICertOverrideService.ERROR_UNTRUSTED;
     }
@@ -981,7 +996,7 @@ SSLErrorHandler.prototype =
       .rememberValidityOverride(host, port, cert, flags,
         true); // temporary override
     this._log.warn("!! Overrode bad cert temporarily " + host + " " + port +
-                   "flags = " + flags + "\n");
+                   " flags=" + flags + "\n");
     return true;
   },
 
@@ -1127,15 +1142,14 @@ function SocketAbortable(transport)
   assert(transport instanceof Ci.nsITransport, "need transport");
   this._transport = transport;
 }
-SocketAbortable.prototype =
+SocketAbortable.prototype = Object.create(Abortable.prototype);
+SocketAbortable.prototype.constructor = UserCancelledException;
+SocketAbortable.prototype.cancel = function(ex)
 {
-  cancel : function(ex)
-  {
-    try {
-      this._transport.close(Components.results.NS_ERROR_ABORT);
-    } catch (e) {
-      ddump("canceling socket failed: " + e);
-    }
+  try {
+    this._transport.close(Components.results.NS_ERROR_ABORT);
+  } catch (e) {
+    ddump("canceling socket failed: " + e);
   }
 }
-extend(SocketAbortable, Abortable);
+

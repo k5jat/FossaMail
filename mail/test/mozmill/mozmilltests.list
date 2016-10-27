@@ -6,7 +6,7 @@ composition
 content-policy
 content-tabs
 cookies
-crypto
+downloads
 folder-display
 folder-pane
 folder-tree-modes
@@ -30,5 +30,6 @@ quick-filter-bar
 search-window
 session-store
 startup-firstrun
+subscribe
 tabmail
 utils

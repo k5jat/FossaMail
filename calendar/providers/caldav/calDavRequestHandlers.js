@@ -3,8 +3,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Components.utils.import("resource://calendar/modules/calUtils.jsm");
+Components.utils.import("resource://calendar/modules/calAsyncUtils.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Timer.jsm");
+Components.utils.import("resource://gre/modules/Preferences.jsm");
+Components.utils.import("resource://gre/modules/Promise.jsm");
+Components.utils.import("resource://gre/modules/Task.jsm");
+
 
 /**
  * This is a handler for the etag request in calDavCalendar.js' getUpdatedItem.
@@ -78,7 +83,7 @@ etagsHandler.prototype = {
         }
     },
 
-    onStopRequest: function eSL_onStopRequest(request, context, statusCode) {
+    onStopRequest: Task.async(function*(request, context, statusCode) {
         if (this.calendar.verboseLogging()) {
             cal.LOG("CalDAV: recv: " + this.logXML);
         }
@@ -108,28 +113,16 @@ etagsHandler.prototype = {
                 // If an item has been deleted from the server, delete it here too.
                 // Since the target calendar's operations are synchronous, we can
                 // safely set variables from this function.
-                let foundItem;
-                let getItemListener = {
-                    onGetResult: function etags_getItem_onResult(aCalendar,
-                                                                 aStatus,
-                                                                 aItemType,
-                                                                 aDetail,
-                                                                 aCount,
-                                                                 aItems) {
-                        foundItem = aItems[0];
-                    },
-                    onOperationComplete: function etags_getItem_onOperationComplete() {}
-                };
+                let pcal = cal.async.promisifyCalendar(this.calendar.mOfflineStorage);
+                let foundItem = (yield pcal.getItem(this.calendar.mHrefIndex[path]))[0];
 
-                this.calendar.mOfflineStorage.getItem(this.calendar.mHrefIndex[path],
-                                                      getItemListener);
                 if (foundItem) {
                     let wasInboxItem = this.calendar.mItemInfoCache[foundItem.id].isInboxItem;
                     if ((wasInboxItem && this.calendar.isInbox(this.baseUri.spec)) ||
                         (wasInboxItem === false && !this.calendar.isInbox(this.baseUri.spec))) {
                         cal.LOG("Deleting local href: " + path)
                         delete this.calendar.mHrefIndex[path];
-                        this.calendar.mOfflineStorage.deleteItem(foundItem, null);
+                        yield pcal.deleteItem(foundItem);
                         needsRefresh = true;
                     }
                 }
@@ -167,7 +160,7 @@ etagsHandler.prototype = {
                                        this.changeLogListener)
             multiget.doMultiGet();
         }
-    },
+    }),
 
     onDataAvailable: function eSL_onDataAvailable(request, context, inputStream, offset, count) {
         if (this._reader) {
@@ -703,7 +696,7 @@ multigetSyncHandler.prototype = {
             return;
         }
 
-        let batchSize = cal.getPrefSafe("calendar.caldav.multigetBatchSize", 100);
+        let batchSize = Preferences.get("calendar.caldav.multigetBatchSize", 100);
         let hrefString = "";
         while (this.itemsNeedFetching.length && batchSize > 0) {
             batchSize--;

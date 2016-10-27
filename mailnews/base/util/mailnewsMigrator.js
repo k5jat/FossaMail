@@ -10,18 +10,29 @@
  * or was never used in the old version.
  */
 
-var EXPORTED_SYMBOLS = [ "migrateMailnews" ];
+const EXPORTED_SYMBOLS = [ "migrateMailnews" ];
 
 Components.utils.import("resource:///modules/errUtils.js");
 Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource:///modules/mailServices.js");
 const Ci = Components.interfaces;
 const kServerPrefVersion = 1;
 const kSmtpPrefVersion = 1;
+const kABRemoteContentPrefVersion = 1;
+const kDefaultCharsetsPrefVersion = 1;
 
 function migrateMailnews()
 {
   try {
     MigrateServerAuthPref();
+  } catch (e) { logException(e); }
+
+  try {
+    MigrateABRemoteContentSettings();
+  } catch (e) { logException(e); }
+
+  try {
+    MigrateDefaultCharsets();
   } catch (e) { logException(e); }
 }
 
@@ -103,4 +114,89 @@ function MigrateServerAuthPref()
       Services.prefs.setIntPref(server + "migrated", kSmtpPrefVersion);
     }
   } catch(e) { logException(e); }
+}
+
+/**
+ * The address book used to contain information about wheather to allow remote
+ * content for a given contact. Now we use the permission manager for that.
+ * Do a one-time migration for it.
+ */
+function MigrateABRemoteContentSettings()
+{
+  if (Services.prefs.prefHasUserValue("mail.ab_remote_content.migrated"))
+    return;
+
+  // Search through all of our local address books looking for a match.
+  let enumerator = MailServices.ab.directories;
+  while (enumerator.hasMoreElements())
+  {
+    let migrateAddress = function(aEmail) {
+      let uri = Services.io.newURI("mailto:" + aEmail, null, null);
+      Services.perms.add(uri, "image", Services.perms.ALLOW_ACTION);
+    }
+
+    let addrbook = enumerator.getNext()
+      .QueryInterface(Components.interfaces.nsIAbDirectory);
+    try {
+      // If it's a read-only book, don't try to find a card as we we could never
+      // have set the AllowRemoteContent property.
+      if (addrbook.readOnly)
+        continue;
+
+      let childCards = addrbook.childCards;
+      while (childCards.hasMoreElements())
+      {
+        let card = childCards.getNext()
+                             .QueryInterface(Components.interfaces.nsIAbCard);
+
+        if (card.getProperty("AllowRemoteContent", false) == false)
+          continue; // not allowed for this contact
+
+        if (card.primaryEmail)
+          migrateAddress(card.primaryEmail);
+
+        if (card.getProperty("SecondEmail", ""))
+          migrateAddress(card.getProperty("SecondEmail", ""));
+      }
+    } catch (e) { logException(e); }
+  }
+
+  Services.prefs.setIntPref("mail.ab_remote_content.migrated",
+                            kABRemoteContentPrefVersion);
+}
+
+/**
+ * If the default sending or viewing charset is one that is no longer available,
+ * change it back to the default.
+ */
+function MigrateDefaultCharsets()
+{
+  if (Services.prefs.prefHasUserValue("mail.default_charsets.migrated"))
+    return;
+
+  let charsetConvertManager = Components.classes['@mozilla.org/charset-converter-manager;1']
+    .getService(Components.interfaces.nsICharsetConverterManager);
+
+  let sendCharsetStr = Services.prefs.getComplexValue(
+      "mailnews.send_default_charset",
+      Components.interfaces.nsIPrefLocalizedString).data;
+
+  try {
+    charsetConvertManager.getCharsetTitle(sendCharsetStr);
+  } catch (e) {
+    Services.prefs.clearUserPref("mailnews.send_default_charset");
+  }
+
+  let viewCharsetStr = Services.prefs.getComplexValue(
+      "mailnews.view_default_charset",
+      Components.interfaces.nsIPrefLocalizedString).data;
+
+  try {
+    charsetConvertManager.getCharsetTitle(viewCharsetStr);
+  } catch (e) {
+    Services.prefs.clearUserPref("mailnews.view_default_charset");
+  }
+
+  Services.prefs.setIntPref("mail.default_charsets.migrated",
+                            kDefaultCharsetsPrefVersion);
 }

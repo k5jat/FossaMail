@@ -6,6 +6,7 @@
 #ifndef __nsPop3IncomingServer_h
 #define __nsPop3IncomingServer_h
 
+#include "mozilla/Attributes.h"
 #include "msgCore.h"
 #include "nsIPop3IncomingServer.h"
 #include "nsILocalMailIncomingServer.h"
@@ -26,23 +27,23 @@ public:
   NS_DECL_NSILOCALMAILINCOMINGSERVER
 
   nsPop3IncomingServer();
-  virtual ~nsPop3IncomingServer();
 
-  NS_IMETHOD PerformBiff(nsIMsgWindow *aMsgWindow);
-  NS_IMETHOD GetDownloadMessagesAtStartup(bool *getMessages);
-  NS_IMETHOD GetCanBeDefaultServer(bool *canBeDefaultServer);
-  NS_IMETHOD GetCanSearchMessages(bool *canSearchMessages);
-  NS_IMETHOD GetOfflineSupportLevel(int32_t *aSupportLevel);
-  NS_IMETHOD CloseCachedConnections();
-  NS_IMETHOD GetRootMsgFolder(nsIMsgFolder **aRootMsgFolder);
-  NS_IMETHOD GetCanFileMessagesOnServer(bool *aCanFileMessagesOnServer);
-  NS_IMETHOD GetCanCreateFoldersOnServer(bool *aCanCreateFoldersOnServer);
+  NS_IMETHOD PerformBiff(nsIMsgWindow *aMsgWindow) override;
+  NS_IMETHOD GetDownloadMessagesAtStartup(bool *getMessages) override;
+  NS_IMETHOD GetCanBeDefaultServer(bool *canBeDefaultServer) override;
+  NS_IMETHOD GetCanSearchMessages(bool *canSearchMessages) override;
+  NS_IMETHOD GetOfflineSupportLevel(int32_t *aSupportLevel) override;
+  NS_IMETHOD CloseCachedConnections() override;
+  NS_IMETHOD GetRootMsgFolder(nsIMsgFolder **aRootMsgFolder) override;
+  NS_IMETHOD GetCanFileMessagesOnServer(bool *aCanFileMessagesOnServer) override;
+  NS_IMETHOD GetCanCreateFoldersOnServer(bool *aCanCreateFoldersOnServer) override;
   NS_IMETHOD VerifyLogon(nsIUrlListener *aUrlListener, nsIMsgWindow *aMsgWindow,
-                         nsIURI **aURL);
+                         nsIURI **aURL) override;
   NS_IMETHOD GetNewMessages(nsIMsgFolder *aFolder, nsIMsgWindow *aMsgWindow,
-                            nsIUrlListener *aUrlListener);
+                            nsIUrlListener *aUrlListener) override;
 
 protected:
+  virtual ~nsPop3IncomingServer();
   nsresult GetInbox(nsIMsgWindow *msgWindow, nsIMsgFolder **inbox);
 
 private:

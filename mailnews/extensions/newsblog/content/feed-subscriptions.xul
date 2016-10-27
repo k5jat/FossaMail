@@ -9,7 +9,10 @@
 <?xml-stylesheet href="chrome://messenger/skin/folderMenus.css" type="text/css"?>
 <?xml-stylesheet href="chrome://messenger-newsblog/skin/feed-subscriptions.css" type="text/css"?>
 
-<!DOCTYPE window SYSTEM "chrome://messenger-newsblog/locale/feed-subscriptions.dtd">
+<!DOCTYPE window [
+<!ENTITY % feedDTD SYSTEM "chrome://messenger-newsblog/locale/feed-subscriptions.dtd">
+  %feedDTD;
+]>
 
 <window id="subscriptionsDialog"
         flex="1"
@@ -25,15 +28,7 @@
         onmousedown="FeedSubscriptions.onMouseDown(event);">
 
   <script type="application/javascript"
-          src="chrome://messenger-newsblog/content/utils.js"/>
-  <script type="application/javascript"
           src="chrome://messenger-newsblog/content/feed-subscriptions.js"/>
-  <script type="application/javascript"
-          src="chrome://messenger-newsblog/content/Feed.js"/>
-  <script type="application/javascript"
-          src="chrome://messenger-newsblog/content/FeedItem.js"/>
-  <script type="application/javascript"
-          src="chrome://messenger-newsblog/content/feed-parser.js"/>
 
   <keyset id="extensionsKeys">
     <key id="key_close"
@@ -51,9 +46,13 @@
                 src="chrome://branding/locale/brand.properties"/>
 
   <vbox flex="1" id="contentPane">
-    <description control="rssSubscriptionsList">&subscriptionDesc.label;</description>
-
-    <separator class="thin"/>
+    <hbox align="right">
+      <label id="learnMore"
+             class="text-link"
+             crop="end"
+             value="&learnMore.label;"
+             href="https://support.mozilla.org/kb/how-subscribe-news-feeds-and-blogs"/>
+    </hbox>
 
     <tree id="rssSubscriptionsList"
           treelines="true"
@@ -131,7 +130,7 @@
                              mode="feeds"
                              showFileHereLabel="true"
                              showAccountsFileHere="true"
-                             oncommand="FeedSubscriptions.setFolderPicker(event.target._folder)"/>
+                             oncommand="FeedSubscriptions.setNewFolder(event.target._folder)"/>
                 </menulist>
                 <textbox id="selectFolderValue"
                          flex="1"
@@ -146,6 +145,21 @@
                   accesskey="&quickMode.accesskey;"
                   label="&quickMode.label;"
                   oncommand="FeedSubscriptions.setSummary(this.checked)"/>
+        <checkbox id="autotagEnable"
+                  accesskey="&autotagEnable.accesskey;"
+                  label="&autotagEnable.label;"
+                  oncommand="FeedSubscriptions.setCategoryPrefs(this)"/>
+        <hbox>
+            <checkbox id="autotagUsePrefix"
+                      class="indent"
+                      accesskey="&autotagUsePrefix.accesskey;"
+                      label="&autotagUsePrefix.label;"
+                      oncommand="FeedSubscriptions.setCategoryPrefs(this)"/>
+            <textbox id="autotagPrefix"
+                     placeholder="&autoTagPrefix.placeholder;"
+                     clickSelectsAll="true"/>
+        </hbox>
+        <separator class="thin"/>
       </vbox>
     </hbox>
 
@@ -187,8 +201,6 @@
                 accesskey="&button.removeFeed.accesskey;"
                 oncommand="FeedSubscriptions.removeFeed(true);"/>
 
-        <spacer flex="1"/>
-
         <button id="importOPML"
                 label="&button.importOPML.label;"
                 accesskey="&button.importOPML.accesskey;"
@@ -199,6 +211,13 @@
                 accesskey="&button.exportOPML.accesskey;"
                 tooltiptext="&button.exportOPML.tooltip;"
                 oncommand="FeedSubscriptions.exportOPML(event);"/>
+
+        <spacer flex="1"/>
+
+        <button id="close"
+                label="&button.close.label;"
+                icon="close"
+                oncommand="window.close();"/>
       </hbox>
     </hbox>
   </vbox>

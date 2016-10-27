@@ -6,6 +6,7 @@ const EXPORTED_SYMBOLS = ['localAccountUtils'];
 
 // MailServices
 Components.utils.import("resource:///modules/mailServices.js");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
 var Cc = Components.classes;
 var Ci = Components.interfaces;
@@ -21,12 +22,32 @@ var localAccountUtils = {
   msgAccount: undefined,
 
   _localAccountInitialized: false,
+  _mailboxStoreContractID: undefined,
 
-  loadLocalMailAccount: function() {
-    // This function is idempotent
-    if (this._localAccountInitialized)
+  pluggableStores: ["@mozilla.org/msgstore/berkeleystore;1",
+                    "@mozilla.org/msgstore/maildirstore;1"],
+
+  clearAll: function() {
+    this._localAccountInitialized = false;
+    if (this.msgAccount)
+      MailServices.accounts.removeAccount(this.msgAccount);
+    this.incomingServer = undefined;
+    this.msgAccount = undefined;
+    this.inboxFolder = undefined;
+    this.rootFolder = undefined;
+  },
+
+  loadLocalMailAccount: function(storeID) {
+    if ((storeID && storeID == this._mailboxStoreContractID) ||
+        (!storeID && this._localAccountInitialized))
       return;
 
+    this.clearAll();
+    if (storeID)
+      Services.prefs.setCharPref("mail.serverDefaultStoreContractID",
+                                 storeID);
+
+    this._mailboxStoreContractID = storeID;
     MailServices.accounts.createLocalMailAccount();
 
     this.incomingServer = MailServices.accounts.localFoldersServer;
@@ -59,6 +80,23 @@ var localAccountUtils = {
    * @return The newly-created nsIMsgIncomingServer.
    */
   create_incoming_server: function(aType, aPort, aUsername, aPassword) {
+    let serverAndAccount = localAccountUtils.
+      create_incoming_server_and_account(aType, aPort, aUsername, aPassword);
+    return serverAndAccount.server;
+  },
+
+  /**
+   * Create an nsIMsgIncomingServer and an nsIMsgAccount to go with it.
+   *
+   * @param aType The type of the server (pop3, imap etc).
+   * @param aPort The port the server is on.
+   * @param aUsername The username for the server.
+   * @param aPassword The password for the server.
+   * @return An object with the newly-created nsIMsgIncomingServer as the
+             "server" property and the newly-created nsIMsgAccount as the
+             "account" property.
+   */
+  create_incoming_server_and_account: function (aType, aPort, aUsername, aPassword) {
     let server = MailServices.accounts.createIncomingServer(aUsername, "localhost",
                                                             aType);
     server.port = aPort;
@@ -80,7 +118,7 @@ var localAccountUtils = {
     }
     server.valid = true;
 
-    return server;
+    return {server: server, account: account};
   },
 
   /**

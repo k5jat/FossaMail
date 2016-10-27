@@ -3,10 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif
-
 #include "nsMsgBiffManager.h"
 #include "nsIMsgAccountManager.h"
 #include "nsMsgBaseCID.h"
@@ -29,7 +25,7 @@ static NS_DEFINE_CID(kStatusBarBiffManagerCID, NS_STATUSBARBIFFMANAGER_CID);
 
 static PRLogModuleInfo *MsgBiffLogModule = nullptr;
 
-NS_IMPL_ISUPPORTS4(nsMsgBiffManager, nsIMsgBiffManager,
+NS_IMPL_ISUPPORTS(nsMsgBiffManager, nsIMsgBiffManager,
                    nsIIncomingServerListener, nsIObserver,
                    nsISupportsWeakReference)
 
@@ -118,7 +114,7 @@ NS_IMETHODIMP nsMsgBiffManager::Shutdown()
   return NS_OK;
 }
 
-NS_IMETHODIMP nsMsgBiffManager::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
+NS_IMETHODIMP nsMsgBiffManager::Observe(nsISupports *aSubject, const char *aTopic, const char16_t *someData)
 {
   if (!strcmp(aTopic, "sleep_notification") && mBiffTimer)
   {

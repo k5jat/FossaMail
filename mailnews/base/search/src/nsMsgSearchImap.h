@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef _nsMsgSearchImap_h__
+#include "mozilla/Attributes.h"
 #include "nsMsgSearchAdapter.h"
 
 //-----------------------------------------------------------------------------
@@ -16,14 +17,14 @@ public:
   nsMsgSearchOnlineMail (nsMsgSearchScopeTerm *scope, nsISupportsArray *termList);
   virtual ~nsMsgSearchOnlineMail ();
 
-  NS_IMETHOD ValidateTerms ();
-  NS_IMETHOD Search (bool *aDone);
-  NS_IMETHOD GetEncoding (char **result);
-  NS_IMETHOD AddResultElement (nsIMsgDBHdr *);
+  NS_IMETHOD ValidateTerms () override;
+  NS_IMETHOD Search (bool *aDone) override;
+  NS_IMETHOD GetEncoding (char **result) override;
+  NS_IMETHOD AddResultElement (nsIMsgDBHdr *) override;
 
   static nsresult Encode (nsCString& ppEncoding,
                             nsISupportsArray *searchTerms,
-                            const PRUnichar *destCharset);
+                            const char16_t *destCharset);
 
 
 protected:

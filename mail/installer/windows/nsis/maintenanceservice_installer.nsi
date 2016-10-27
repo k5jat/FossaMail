@@ -12,6 +12,15 @@ SetCompress off
 CRCCheck on
 
 RequestExecutionLevel admin
+
+; The commands inside this ifdef require NSIS 3.0a2 or greater so the ifdef can
+; be removed after we require NSIS 3.0a2 or greater.
+!ifdef NSIS_PACKEDVERSION
+  Unicode true
+  ManifestSupportedOS all
+  ManifestDPIAware true
+!endif
+
 !addplugindir ./
 
 ; Variables
@@ -66,9 +75,9 @@ SetOverwrite on
 !define MaintUninstallKey \
  "Software\Microsoft\Windows\CurrentVersion\Uninstall\MozillaMaintenanceService"
 
-; The HAVE_64BIT_OS define also means that we have an x64 build,
+; The HAVE_64BIT_BUILD define also means that we have an x64 build,
 ; not just an x64 OS.
-!ifdef HAVE_64BIT_OS
+!ifdef HAVE_64BIT_BUILD
   ; See below, we actually abort the install for x64 builds currently.
   InstallDir "$PROGRAMFILES64\${MaintFullName}\"
 !else
@@ -111,7 +120,7 @@ Function .onInit
   System::Call 'kernel32::SetDllDirectoryW(w "")'
 
   SetSilent silent
-!ifdef HAVE_64BIT_OS
+!ifdef HAVE_64BIT_BUILD
   ; We plan to eventually enable 64bit native builds to use the maintenance
   ; service, but for the initial release, to reduce testing and development,
   ; 64-bit builds will not install the maintenanceservice.
@@ -210,7 +219,7 @@ Section "MaintenanceService"
   ; These keys are used to bypass the installation dir is a valid installation
   ; check from the service so that tests can be run.
   ; WriteRegStr HKLM "${FallbackKey}\0" "name" "Mozilla Corporation"
-  ; WriteRegStr HKLM "${FallbackKey}\0" "issuer" "DigiCert Assured ID Code Signing CA-1"
+  ; WriteRegStr HKLM "${FallbackKey}\0" "issuer" "DigiCert SHA2 Assured ID Code Signing CA"
   ${If} ${RunningX64}
     SetRegView lastused
   ${EndIf}

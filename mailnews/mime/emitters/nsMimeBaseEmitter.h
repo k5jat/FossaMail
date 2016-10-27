@@ -15,7 +15,6 @@
 #include "nsIURI.h"
 #include "nsIChannel.h"
 #include "nsIMimeMiscStatus.h"
-#include "nsIMsgHeaderParser.h"
 #include "nsIPipe.h"
 #include "nsIStringBundle.h"
 #include "nsCOMPtr.h"
@@ -55,10 +54,9 @@ class nsMimeBaseEmitter : public nsIMimeEmitter,
 {
 public:
   nsMimeBaseEmitter ();
-  virtual             ~nsMimeBaseEmitter (void);
 
   // nsISupports interface
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
 
   NS_DECL_NSIMIMEEMITTER
   NS_DECL_NSIINTERFACEREQUESTOR
@@ -81,6 +79,7 @@ public:
   virtual nsresult            WriteHeaderFieldHTMLPostfix();
 
 protected:
+  virtual ~nsMimeBaseEmitter();
   // Internal methods...
   void                CleanupHeaderArray(nsVoidArray *aArray);
 
@@ -126,7 +125,6 @@ protected:
   // For header caching...
   nsVoidArray         *mHeaderArray;
   nsVoidArray         *mEmbeddedHeaderArray;
-  nsCOMPtr<nsIMsgHeaderParser>  mHeaderParser;
 
   // For body caching...
   bool                mBodyStarted;

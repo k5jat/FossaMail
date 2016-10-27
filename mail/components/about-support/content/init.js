@@ -63,11 +63,14 @@ window.onload = function () {
   // Update the other sections.
   populateAccountsSection();
   populatePreferencesSection();
+#ifdef MOZ_CRASHREPORTER
+  populateCrashesSection();
+#endif
   populateExtensionsSection();
   populateGraphicsSection();
   populateJavaScriptSection();
   populateAccessibilitySection();
-  populateLibVersionsSection();  
+  populateLibVersionsSection();
 }
 
 function onShowPrivateDataChange(aCheckbox) {

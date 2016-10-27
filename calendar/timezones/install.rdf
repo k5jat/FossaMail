@@ -15,16 +15,24 @@
          with minimum and maximum supported versions. -->
     <em:targetApplication>
       <Description>
-       <!-- FossaMail -->
+        <!-- Thunderbird -->
         <em:id>{3550f703-e582-4d05-9a08-453d09bdfdc6}</em:id>
-        <em:minVersion>@THUNDERBIRD_VERSION@</em:minVersion>
+        <em:minVersion>38.0a1</em:minVersion>
         <em:maxVersion>@THUNDERBIRD_VERSION@</em:maxVersion>
       </Description>
     </em:targetApplication>
+    <em:targetApplication>
+      <Description>
+        <!-- Seamonkey -->
+        <em:id>{92650c4d-4b8e-4d2a-b7eb-24ecf4f6b63a}</em:id>
+        <em:minVersion>2.35a1</em:minVersion>
+        <em:maxVersion>@SEAMONKEY_VERSION@</em:maxVersion>
+       </Description>
+     </em:targetApplication>
 
     <em:name>Timezone Definitions for Mozilla Calendar</em:name>
     <em:unpack>true</em:unpack>
-    <em:description>Timezone definitions required by Sunbird and Lightning</em:description>
+    <em:description>Timezone definitions required by Lightning</em:description>
     <em:creator>Mozilla Calendar Project</em:creator>
     <em:iconURL>chrome://calendar-timezones/skin/addon-icon32.png</em:iconURL>
 #if 0

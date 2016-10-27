@@ -17,20 +17,22 @@
 #include "nsMsgBaseCID.h"
 #include "nsIMsgFilterService.h"
 #include "nsMsgSearchScopeTerm.h"
-#include "nsISupportsObsolete.h"
 #include "nsNetUtil.h"
 #include "nsMsgI18N.h"
 #include "nsMemory.h"
 #include "prmem.h"
+#include "mozilla/ArrayUtils.h"
 #include <ctype.h>
 
 // unicode "%s" format string
-static const PRUnichar unicodeFormatter[] = {
-    (PRUnichar)'%',
-    (PRUnichar)'s',
-    (PRUnichar)0,
+static const char16_t unicodeFormatter[] = {
+    (char16_t)'%',
+    (char16_t)'s',
+    (char16_t)0,
 };
 
+// Marker for EOF or failure during read
+#define EOF_CHAR (char) 0xFF
 
 nsMsgFilterList::nsMsgFilterList() :
     m_fileVersion(0)
@@ -43,7 +45,7 @@ nsMsgFilterList::nsMsgFilterList() :
 
 NS_IMPL_ADDREF(nsMsgFilterList)
 NS_IMPL_RELEASE(nsMsgFilterList)
-NS_IMPL_QUERY_INTERFACE1(nsMsgFilterList, nsIMsgFilterList)
+NS_IMPL_QUERY_INTERFACE(nsMsgFilterList, nsIMsgFilterList)
 
 NS_IMETHODIMP nsMsgFilterList::CreateFilter(const nsAString &name,class nsIMsgFilter **aFilter)
 {
@@ -84,24 +86,42 @@ NS_IMETHODIMP nsMsgFilterList::SaveToFile(nsIOutputStream *stream)
   return SaveTextFilters(stream);
 }
 
-NS_IMETHODIMP nsMsgFilterList::EnsureLogFile()
-{
-  nsCOMPtr <nsIFile> file;
-  nsresult rv = GetLogFile(getter_AddRefs(file));
-  NS_ENSURE_SUCCESS(rv,rv);
+#define LOG_HEADER "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<style type=\"text/css\">body{font-family:Consolas,\"Lucida Console\",Monaco,\"Courier New\",Courier,monospace;font-size:small}</style>\n</head>\n<body>\n"
+#define LOG_HEADER_LEN (strlen(LOG_HEADER))
 
+nsresult nsMsgFilterList::EnsureLogFile(nsIFile *file)
+{
   bool exists;
-  rv = file->Exists(&exists);
+  nsresult rv = file->Exists(&exists);
   if (NS_SUCCEEDED(rv) && !exists) {
-    rv = file->Create(nsIFile::NORMAL_FILE_TYPE, 0644);
-    NS_ENSURE_SUCCESS(rv,rv);
+    rv = file->Create(nsIFile::NORMAL_FILE_TYPE, 0666);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
+
+  int64_t fileSize;
+  rv = file->GetFileSize(&fileSize);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // write the header at the start
+  if (fileSize == 0)
+  {
+    nsCOMPtr<nsIOutputStream> outputStream;
+    rv = MsgGetFileStream(file, getter_AddRefs(outputStream));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    uint32_t writeCount;
+    rv = outputStream->Write(LOG_HEADER, LOG_HEADER_LEN, &writeCount);
+    NS_ASSERTION(writeCount == LOG_HEADER_LEN, "failed to write out log header");
+    NS_ENSURE_SUCCESS(rv, rv);
+    outputStream->Close();
+  }
+
   return NS_OK;
 }
 
 nsresult nsMsgFilterList::TruncateLog()
 {
-  // this will flush and close the steam
+  // This will flush and close the stream.
   nsresult rv = SetLogStream(nullptr);
   NS_ENSURE_SUCCESS(rv,rv);
 
@@ -110,9 +130,8 @@ nsresult nsMsgFilterList::TruncateLog()
   NS_ENSURE_SUCCESS(rv,rv);
 
   file->Remove(false);
-  rv = file->Create(nsIFile::NORMAL_FILE_TYPE, 0644);
-  NS_ENSURE_SUCCESS(rv,rv);
-  return rv;
+
+  return EnsureLogFile(file);
 }
 
 NS_IMETHODIMP nsMsgFilterList::ClearLog()
@@ -195,7 +214,7 @@ nsMsgFilterList::GetLogFile(nsIFile **aFile)
     rv = (*aFile)->AppendNative(NS_LITERAL_CSTRING("filterlog.html"));
     NS_ENSURE_SUCCESS(rv,rv);
   }
-  return NS_OK;
+  return EnsureLogFile(*aFile);
 }
 
 NS_IMETHODIMP
@@ -225,9 +244,6 @@ nsMsgFilterList::SetLogStream(nsIOutputStream *aLogStream)
   return NS_OK;
 }
 
-#define LOG_HEADER "<head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"></head>"
-#define LOG_HEADER_LEN (strlen(LOG_HEADER))
-
 NS_IMETHODIMP
 nsMsgFilterList::GetLogStream(nsIOutputStream **aLogStream)
 {
@@ -244,25 +260,11 @@ nsMsgFilterList::GetLogStream(nsIOutputStream **aLogStream)
     rv = MsgNewBufferedFileOutputStream(getter_AddRefs(m_logStream),
                                         logFile,
                                         PR_CREATE_FILE | PR_WRONLY | PR_APPEND,
-                                        0600);
+                                        0666);
     NS_ENSURE_SUCCESS(rv,rv);
 
     if (!m_logStream)
       return NS_ERROR_FAILURE;
-
-    int64_t fileSize;
-    rv = logFile->GetFileSize(&fileSize);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // write the header at the start
-    if (fileSize == 0)
-    {
-      uint32_t writeCount;
-
-      rv = m_logStream->Write(LOG_HEADER, LOG_HEADER_LEN, &writeCount);
-      NS_ENSURE_SUCCESS(rv, rv);
-      NS_ASSERTION(writeCount == LOG_HEADER_LEN, "failed to write out log header");
-    }
   }
 
   NS_ADDREF(*aLogStream = m_logStream);
@@ -373,7 +375,7 @@ static FilterFileAttribEntry FilterFileAttribTable[] =
 };
 
 static const unsigned int sNumFilterFileAttribTable =
-  NS_ARRAY_LENGTH(FilterFileAttribTable);
+  MOZ_ARRAY_LENGTH(FilterFileAttribTable);
 
 // If we want to buffer file IO, wrap it in here.
 char nsMsgFilterList::ReadChar(nsIInputStream *aStream)
@@ -382,11 +384,11 @@ char nsMsgFilterList::ReadChar(nsIInputStream *aStream)
   uint32_t bytesRead;
   nsresult rv = aStream->Read(&newChar, 1, &bytesRead);
   if (NS_FAILED(rv) || !bytesRead)
-    return -1;
+    return EOF_CHAR;
   uint64_t bytesAvailable;
   rv = aStream->Available(&bytesAvailable);
   if (NS_FAILED(rv))
-    return -1;
+    return EOF_CHAR;
   else
   {
     if (m_startWritingToBuffer)
@@ -421,7 +423,7 @@ char nsMsgFilterList::LoadAttrib(nsMsgFilterFileAttribValue &attrib, nsIInputStr
   int i;
   for (i = 0; i + 1 < (int)(sizeof(attribStr)); )
   {
-    if (curChar == (char) -1 || (!(curChar & 0x80) && isspace(curChar)) || curChar == '=')
+    if (curChar == EOF_CHAR || (!(curChar & 0x80) && isspace(curChar)) || curChar == '=')
       break;
     attribStr[i++] = curChar;
     curChar = ReadChar(aStream);
@@ -480,7 +482,7 @@ nsresult nsMsgFilterList::LoadValue(nsCString &value, nsIInputStream *aStream)
     }
     else
     {
-      if (curChar == (char) -1 || curChar == '"' || curChar == '\n' || curChar == '\r')
+      if (curChar == EOF_CHAR || curChar == '"' || curChar == '\n' || curChar == '\r')
       {
         value += valueStr;
         break;
@@ -489,7 +491,7 @@ nsresult nsMsgFilterList::LoadValue(nsCString &value, nsIInputStream *aStream)
     valueStr += curChar;
     curChar = ReadChar(aStream);
   }
-  while (curChar != -1);
+  while (curChar != EOF_CHAR);
   return NS_OK;
 }
 
@@ -512,7 +514,7 @@ nsresult nsMsgFilterList::LoadTextFilters(nsIInputStream *aStream)
 
     char curChar;
     curChar = LoadAttrib(attrib, bufStream);
-    if (curChar == (char) -1)  //reached eof
+    if (curChar == EOF_CHAR)  //reached eof
       break;
     err = LoadValue(value, bufStream);
     if (NS_FAILED(err))
@@ -576,7 +578,7 @@ nsresult nsMsgFilterList::LoadTextFilters(nsIInputStream *aStream)
         else
         {
           // ### fix me - this is silly.
-          PRUnichar *unicodeString =
+          char16_t *unicodeString =
             nsTextFormatter::smprintf(unicodeFormatter, value.get());
           filter->SetFilterName(nsDependentString(unicodeString));
           nsTextFormatter::smprintf_free(unicodeString);
@@ -860,7 +862,7 @@ nsresult nsMsgFilterList::WriteBoolAttr(nsMsgFilterFileAttribValue attrib, bool 
 
 nsresult
 nsMsgFilterList::WriteWstrAttr(nsMsgFilterFileAttribValue attrib,
-                               const PRUnichar *aFilterName, nsIOutputStream *aStream)
+                               const char16_t *aFilterName, nsIOutputStream *aStream)
 {
     WriteStrAttr(attrib, NS_ConvertUTF16toUTF8(aFilterName).get(), aStream);
     return NS_OK;
@@ -1037,7 +1039,7 @@ nsresult nsMsgFilterList::MoveFilterAt(uint32_t filterIndex,
 nsresult nsMsgFilterList::MoveFilter(nsIMsgFilter *aFilter,
                                      nsMsgFilterMotionValue motion)
 {
-  uint32_t filterIndex = m_filters.IndexOf(aFilter, 0);
+  size_t filterIndex = m_filters.IndexOf(aFilter, 0);
   NS_ENSURE_ARG(filterIndex != m_filters.NoIndex);
 
   return MoveFilterAt(filterIndex, motion);

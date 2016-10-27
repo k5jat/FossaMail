@@ -40,12 +40,12 @@ class NS_MSG_BASE nsMsgIncomingServer : public nsIMsgIncomingServer,
 {
  public:
   nsMsgIncomingServer();
-  virtual ~nsMsgIncomingServer();
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIMSGINCOMINGSERVER
 
 protected:
+  virtual ~nsMsgIncomingServer();
   nsCString m_serverKey;
 
   // Sets m_password, if password found. Can return NS_ERROR_ABORT if the 
@@ -62,7 +62,10 @@ protected:
   // offline messages.
   nsCOMPtr <nsIMsgPluggableStore> m_msgStore;
 
+  /// Helper routine to create local folder on disk if it doesn't exist
+  /// under the account's rootFolder.
   nsresult CreateLocalFolder(const nsAString& folderName);
+
   static nsresult GetDeferredServers(nsIMsgIncomingServer *destServer, nsCOMArray<nsIPop3IncomingServer>& aServers);
 
   nsresult CreateRootFolder();

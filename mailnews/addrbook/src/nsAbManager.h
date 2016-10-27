@@ -24,9 +24,8 @@ class nsAbManager : public nsIAbManager,
   
 public:
 	nsAbManager();
-	virtual ~nsAbManager();
 
-	NS_DECL_ISUPPORTS
+	NS_DECL_THREADSAFE_ISUPPORTS
  	NS_DECL_NSIABMANAGER
   NS_DECL_NSIOBSERVER
   NS_DECL_NSICOMMANDLINEHANDLER
@@ -34,14 +33,15 @@ public:
   nsresult Init();
 
 private:
+	virtual ~nsAbManager();
   nsresult GetRootDirectory(nsIAbDirectory **aResult);
   nsresult ExportDirectoryToDelimitedText(nsIAbDirectory *aDirectory, const char *aDelim, uint32_t aDelimLen, nsIFile *aLocalFile);
   nsresult ExportDirectoryToLDIF(nsIAbDirectory *aDirectory, nsIFile *aLocalFile);
   nsresult AppendLDIFForMailList(nsIAbCard *aCard, nsIAbLDAPAttributeMap *aAttrMap, nsACString &aResult);
   nsresult AppendDNForCard(const char *aProperty, nsIAbCard *aCard, nsIAbLDAPAttributeMap *aAttrMap, nsACString &aResult);
   nsresult AppendBasicLDIFForCard(nsIAbCard *aCard, nsIAbLDAPAttributeMap *aAttrMap, nsACString &aResult);
-  nsresult AppendProperty(const char *aProperty, const PRUnichar *aValue, nsACString &aResult);
-  bool IsSafeLDIFString(const PRUnichar *aStr);
+  nsresult AppendProperty(const char *aProperty, const char16_t *aValue, nsACString &aResult);
+  bool IsSafeLDIFString(const char16_t *aStr);
 
   struct abListener {
     nsCOMPtr<nsIAbListener> mListener;

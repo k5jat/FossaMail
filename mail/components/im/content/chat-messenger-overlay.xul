@@ -31,10 +31,12 @@
 
   <stringbundleset id="stringbundleset">
     <stringbundle id="chatBundle" src="chrome://messenger/locale/chat.properties"/>
+    <stringbundle id="bundle_dateformat" src="chrome://global/locale/dateFormat.properties"/>
+    <stringbundle id="bundle_places" src="chrome://places/locale/places.properties"/>
   </stringbundleset>
 
   <popupset id="mainPopupSet">
-    <tooltip id="buddyTooltip" type="buddy"/>
+    <tooltip id="imTooltip" type="im"/>
 
     <menupopup id="buddyListContextMenu"
                onpopupshowing="if (event.target != this) return true; gBuddyListContextMenu = new buddyListContextMenu(this); return gBuddyListContextMenu.shouldDisplay;"
@@ -151,7 +153,7 @@
                        align="center"
                        flex="1"
                        class="chromeclass-toolbar-additional">
-            <textbox id="IMSearchInput" 
+            <textbox id="IMSearchInput"
                      flex="1"
                      type="glodacomplete"
                      searchbutton="true"
@@ -192,7 +194,7 @@
           <vbox id="listPaneBox" minwidth="125" width="200" persist="width">
             <richlistbox id="contactlistbox"
                          context="buddyListContextMenu"
-                         tooltip="buddyTooltip" flex="1">
+                         tooltip="imTooltip" flex="1">
               <imgroup id="conversationsGroup" name="&conversationsHeader.label;"/>
               <imconv id="searchResultConv" displayname="&searchResultConversation.label;" hidden="true"/>
               <imgroup id="onlinecontactsGroup" name="&onlineContactsHeader.label;"/>
@@ -239,7 +241,7 @@
                 </vbox>
                 <vbox flex="1" id="logDisplayBrowserBox">
                   <browser id="conv-log-browser" type="content-conversation" contextmenu="chatConversationContextMenu" flex="1"
-                           tooltip="aHTMLTooltip"/>
+                           tooltip="imTooltip"/>
                   <progressmeter id="log-browserProgress" hidden="true"/>
                   <findbar id="log-findbar" browserid="conv-log-browser"/>
                 </vbox>
@@ -261,7 +263,7 @@
                 </hbox>
                 <listbox id="nicklist" class="conv-nicklist"
                          flex="1" seltype="multiple"
-                         tooltip="buddyTooltip"
+                         tooltip="imTooltip"
                          onclick="chatHandler.onNickClick(event);"
                          onkeypress="chatHandler.onNicklistKeyPress(event);"/>
               </vbox>

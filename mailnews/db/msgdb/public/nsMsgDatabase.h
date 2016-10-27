@@ -6,6 +6,8 @@
 #ifndef _nsMsgDatabase_H_
 #define _nsMsgDatabase_H_
 
+#include "mozilla/Attributes.h"
+#include "mozilla/MemoryReporting.h"
 #include "nsIMsgDatabase.h"
 #include "nsMsgHdr.h"
 #include "nsStringGlue.h"
@@ -27,26 +29,46 @@
 class ListContext;
 class nsMsgKeySet;
 class nsMsgThread;
+class nsMsgDatabase;
 class nsIMsgThread;
 class nsIDBFolderInfo;
-class nsIMsgHeaderParser;
 
 const int32_t kMsgDBVersion = 1;
 
-class nsMsgDBService : public nsIMsgDBService
+// Hopefully we're not opening up lots of databases at the same time, however
+// this will give us a buffer before we need to start reallocating the cache
+// array.
+const uint32_t kInitialMsgDBCacheSize = 20;
+
+class nsMsgDBService final : public nsIMsgDBService
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMSGDBSERVICE
 
   nsMsgDBService();
-  ~nsMsgDBService();
+
+  void AddToCache(nsMsgDatabase* pMessageDB);
+  void DumpCache();
+  void EnsureCached(nsMsgDatabase* pMessageDB)
+  {
+    if (!m_dbCache.Contains(pMessageDB))
+      m_dbCache.AppendElement(pMessageDB);
+  }
+  void RemoveFromCache(nsMsgDatabase* pMessageDB)
+  {
+    m_dbCache.RemoveElement(pMessageDB);
+  }
+
 protected:
+  ~nsMsgDBService();
   void HookupPendingListeners(nsIMsgDatabase *db, nsIMsgFolder *folder);
   void FinishDBOpen(nsIMsgFolder *aFolder, nsMsgDatabase *aMsgDB);
+  nsMsgDatabase* FindInCache(nsIFile *dbName);
 
   nsCOMArray <nsIMsgFolder> m_foldersPendingListeners;
   nsCOMArray <nsIDBChangeListener> m_pendingListeners;
+  nsAutoTArray<nsMsgDatabase*, kInitialMsgDBCacheSize> m_dbCache;
 };
 
 class nsMsgDBEnumerator : public nsISimpleEnumerator {
@@ -62,8 +84,6 @@ public:
     nsMsgDBEnumerator(nsMsgDatabase* db, nsIMdbTable *table,
                       nsMsgDBEnumeratorFilter filter, void* closure,
                       bool iterateForwards = true);
-    virtual ~nsMsgDBEnumerator();
-
     void Clear();
 
     nsresult                        GetRowCursor();
@@ -81,6 +101,9 @@ public:
     // This is used when the caller wants to limit how many headers the
     // enumerator looks at in any given time slice.
     mdb_pos                         mStopPos;
+
+protected:
+    virtual ~nsMsgDBEnumerator();
 };
 
 class nsMsgFilteredDBEnumerator : public nsMsgDBEnumerator
@@ -92,7 +115,7 @@ public:
   nsresult InitSearchSession(nsIArray *searchTerms, nsIMsgFolder *folder);
 
 protected:
-  virtual nsresult               PrefetchNext();
+  virtual nsresult               PrefetchNext() override;
 
   nsCOMPtr <nsIMsgSearchSession> m_searchSession;
 
@@ -130,14 +153,14 @@ public:
    *                        The database is present (and was opened), but the
    *                        summary file is missing.
    */
-  virtual nsresult Open(nsIFile *aFolderName, bool aCreate,
-                        bool aLeaveInvalidDB);
+  virtual nsresult Open(nsMsgDBService *aDBService, nsIFile *aFolderName,
+                        bool aCreate, bool aLeaveInvalidDB);
   virtual nsresult IsHeaderRead(nsIMsgDBHdr *hdr, bool *pRead);
   virtual nsresult MarkHdrReadInDB(nsIMsgDBHdr *msgHdr, bool bRead,
                                nsIDBChangeListener *instigator);
-  nsresult OpenInternal(nsIFile *aFolderName, bool aCreate,
-                        bool aLeaveInvalidDB, bool sync);
-  nsresult CheckForErrors(nsresult err, bool sync, nsIFile *summaryFile);
+  nsresult OpenInternal(nsMsgDBService *aDBService, nsIFile *aFolderName,
+                        bool aCreate, bool aLeaveInvalidDB, bool sync);
+  nsresult CheckForErrors(nsresult err, bool sync, nsMsgDBService *aDBService, nsIFile *summaryFile);
   virtual nsresult OpenMDB(const char *dbName, bool create, bool sync);
   virtual nsresult CloseMDB(bool commit);
   virtual nsresult CreateMsgHdr(nsIMdbRow* hdrRow, nsMsgKey key, nsIMsgDBHdr **result);
@@ -150,21 +173,16 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // nsMsgDatabase methods:
   nsMsgDatabase();
-  virtual ~nsMsgDatabase();
 
   void GetMDBFactory(nsIMdbFactory ** aMdbFactory);
   nsIMdbEnv             *GetEnv() {return m_mdbEnv;}
   nsIMdbStore           *GetStore() {return m_mdbStore;}
   virtual uint32_t      GetCurVersion();
-  nsIMsgHeaderParser    *GetHeaderParser();
   nsresult              GetCollationKeyGenerator();
   nsIMimeConverter *    GetMimeConverter();
 
   nsresult GetTableCreateIfMissing(const char *scope, const char *kind, nsIMdbTable **table, 
                                    mdb_token &scopeToken, mdb_token &kindToken);
-
-  static nsMsgDatabase* FindInCache(nsIFile *dbName);
-  static nsIMsgDatabase* FindInCache(nsIMsgFolder *folder);
 
   //helper function to fill in nsStrings from hdr row cell contents.
   nsresult RowCellColumnTonsString(nsIMdbRow *row, mdb_token columnToken, nsAString &resultStr);
@@ -175,6 +193,8 @@ public:
   nsresult RowCellColumnToCollationKey(nsIMdbRow *row, mdb_token columnToken, uint8_t **result, uint32_t *len);
   nsresult RowCellColumnToConstCharPtr(nsIMdbRow *row, mdb_token columnToken, const char **ptr);
   nsresult RowCellColumnToAddressCollationKey(nsIMdbRow *row, mdb_token colToken, uint8_t **result, uint32_t *len);
+
+  nsresult GetEffectiveCharset(nsIMdbRow *row, nsACString &resultCharset);
 
   // these methods take the property name as a string, not a token.
   // they should be used when the properties aren't accessed a lot
@@ -207,8 +227,6 @@ public:
   static void YarnToUInt32(struct mdbYarn *yarn, uint32_t *i);
   static void YarnToUInt64(struct mdbYarn *yarn, uint64_t *i);
 
-  static void   CleanupCache();
-  static void   DumpCache();
 #ifdef DEBUG
   virtual nsresult DumpContents();
   nsresult DumpThread(nsMsgKey threadId);
@@ -220,6 +238,8 @@ public:
   friend class nsMsgDBEnumerator;
   friend class nsMsgDBThreadEnumerator;
 protected:
+  virtual ~nsMsgDatabase();
+
   // prefs stuff - in future, we might want to cache the prefs interface
   nsresult        GetBoolPref(const char *prefName, bool *result);
   nsresult        GetIntPref(const char *prefName, int32_t *result);
@@ -240,27 +260,11 @@ protected:
   virtual nsresult AddNewThread(nsMsgHdr *msgHdr);
   virtual nsresult AddToThread(nsMsgHdr *newHdr, nsIMsgThread *thread, nsIMsgDBHdr *pMsgHdr, bool threadInThread);
 
-  static nsTArray<nsMsgDatabase*>* m_dbCache;
-  static nsTArray<nsMsgDatabase*>* GetDBCache();
-
   static PRTime gLastUseTime; // global last use time
   PRTime m_lastUseTime;       // last use time for this db
   // inline to make instrumentation as cheap as possible
   inline void RememberLastUseTime() {gLastUseTime = m_lastUseTime = PR_Now();}
 
-  static void    AddToCache(nsMsgDatabase* pMessageDB) 
-  {
-#ifdef DEBUG_David_Bienvenu
-//    NS_ASSERTION(GetDBCache()->Length() < 50, "50 or more open db's");
-#endif
-#ifdef DEBUG
-    nsCOMPtr<nsIMsgDatabase> msgDB = pMessageDB->m_folder ?
-                               dont_AddRef(FindInCache(pMessageDB->m_folder)) : nullptr;
-    NS_ASSERTION(!msgDB, "shouldn't have db in cache");
-#endif
-    GetDBCache()->AppendElement(pMessageDB);
-  }
-  static void    RemoveFromCache(nsMsgDatabase* pMessageDB);
   bool    MatchDbName(nsIFile *dbName);  // returns TRUE if they match
 
   // Flag handling routines
@@ -347,7 +351,6 @@ protected:
   mdb_token     m_threadNewestMsgDateColumnToken;
   mdb_token     m_offlineMsgOffsetColumnToken;
   mdb_token     m_offlineMessageSizeColumnToken;
-  nsIMsgHeaderParser  *m_HeaderParser;
   
   // header caching stuff - MRU headers, keeps them around in memory
   nsresult      AddHdrToCache(nsIMsgDBHdr *hdr, nsMsgKey key);
@@ -384,8 +387,7 @@ protected:
   static PLDHashOperator ClearHeaderEnumerator (PLDHashTable *table, PLDHashEntryHdr *hdr,
                                uint32_t number, void *arg);
   static PLDHashTableOps gMsgDBHashTableOps;
-  struct MsgHdrHashElement {
-    PLDHashEntryHdr mHeader;
+  struct MsgHdrHashElement : public PLDHashEntryHdr {
     nsMsgKey       mKey;
     nsIMsgDBHdr     *mHdr;
   };
@@ -417,10 +419,10 @@ protected:
   // Memory reporter details
 public:
   static size_t HeaderHashSizeOf(PLDHashEntryHdr *hdr,
-                                 nsMallocSizeOfFun aMallocSizeOf,
+                                 mozilla::MallocSizeOf aMallocSizeOf,
                                  void *arg);
-  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
   }
@@ -433,11 +435,11 @@ class nsMsgRetentionSettings : public nsIMsgRetentionSettings
 {
 public:
   nsMsgRetentionSettings();
-  virtual ~nsMsgRetentionSettings();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMSGRETENTIONSETTINGS
 protected:
+  virtual ~nsMsgRetentionSettings();
   nsMsgRetainByPreference m_retainByPreference;
   uint32_t                m_daysToKeepHdrs;
   uint32_t                m_numHeadersToKeep;
@@ -452,11 +454,11 @@ class nsMsgDownloadSettings : public nsIMsgDownloadSettings
 {
 public:
   nsMsgDownloadSettings();
-  virtual ~nsMsgDownloadSettings();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMSGDOWNLOADSETTINGS
 protected:
+  virtual ~nsMsgDownloadSettings();
   bool m_useServerDefaults;
   bool m_downloadUnreadOnly;
   bool m_downloadByDate;

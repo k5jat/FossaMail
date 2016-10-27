@@ -5,6 +5,7 @@
 #ifndef nsAbLDAPChangeLogData_h__
 #define nsAbLDAPChangeLogData_h__
 
+#include "mozilla/Attributes.h"
 #include "nsAbLDAPReplicationData.h"
 #include "nsAbLDAPChangeLogQuery.h"
 #include "nsVoidArray.h"
@@ -21,17 +22,17 @@ class nsAbLDAPProcessChangeLogData : public nsAbLDAPProcessReplicationData
 public :
    
   nsAbLDAPProcessChangeLogData();
-  ~nsAbLDAPProcessChangeLogData();
 
   NS_IMETHOD Init(nsIAbLDAPReplicationQuery * query, nsIWebProgressListener *progressListener);
 
 protected :
+  ~nsAbLDAPProcessChangeLogData();
 
   nsCOMPtr <nsIAbLDAPChangeLogQuery> mChangeLogQuery;
 
   nsresult OnLDAPBind(nsILDAPMessage *aMessage);
-  nsresult OnLDAPSearchEntry(nsILDAPMessage *aMessage);
-  nsresult OnLDAPSearchResult(nsILDAPMessage *aMessage);
+  nsresult OnLDAPSearchEntry(nsILDAPMessage *aMessage) override;
+  nsresult OnLDAPSearchResult(nsILDAPMessage *aMessage) override;
 
   nsresult ParseChangeLogEntries(nsILDAPMessage *aMessage);
   nsresult ParseRootDSEEntry(nsILDAPMessage *aMessage);

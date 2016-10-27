@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSpamSettings.h"
-#include "nsISupportsObsolete.h"
 #include "nsIFile.h"
 #include "plstr.h"
 #include "prmem.h"
@@ -23,6 +22,7 @@
 #include "nsIStringBundle.h"
 #include "nsDateTimeFormatCID.h"
 #include "mozilla/Services.h"
+#include "mozilla/mailnews/MimeHeaderParser.h"
 #include "nsIArray.h"
 #include "nsArrayUtils.h"
 #include "nsMailDirServiceDefs.h"
@@ -30,11 +30,12 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIDirectoryEnumerator.h"
-#include "nsIMsgHeaderParser.h"
 #include "nsAbBaseCID.h"
 #include "nsIAbManager.h"
 #include "nsIMsgAccountManager.h"
 #include "nsMsgBaseCID.h"
+
+using namespace mozilla::mailnews;
 
 nsSpamSettings::nsSpamSettings()
 {
@@ -58,7 +59,7 @@ nsSpamSettings::~nsSpamSettings()
 {
 }
 
-NS_IMPL_ISUPPORTS2(nsSpamSettings, nsISpamSettings, nsIUrlListener)
+NS_IMPL_ISUPPORTS(nsSpamSettings, nsISpamSettings, nsIUrlListener)
 
 NS_IMETHODIMP
 nsSpamSettings::GetLevel(int32_t *aLevel)
@@ -197,7 +198,7 @@ nsSpamSettings::SetLogStream(nsIOutputStream *aLogStream)
   return NS_OK;
 }
 
-#define LOG_HEADER "<head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"></head>"
+#define LOG_HEADER "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<style type=\"text/css\">body{font-family:Consolas,\"Lucida Console\",Monaco,\"Courier New\",Courier,monospace;font-size:small}</style>\n</head>\n<body>\n"
 #define LOG_HEADER_LEN (strlen(LOG_HEADER))
 
 NS_IMETHODIMP
@@ -679,10 +680,10 @@ NS_IMETHODIMP nsSpamSettings::LogJunkHit(nsIMsgDBHdr *aMsgHdr, bool aMoveMessage
     getter_AddRefs(bundle));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  const PRUnichar *junkLogDetectFormatStrings[3] = { authorValue.get(), subjectValue.get(), dateValue.get() };
+  const char16_t *junkLogDetectFormatStrings[3] = { authorValue.get(), subjectValue.get(), dateValue.get() };
   nsString junkLogDetectStr;
   rv = bundle->FormatStringFromName(
-    NS_LITERAL_STRING("junkLogDetectStr").get(),
+    MOZ_UTF16("junkLogDetectStr"),
     junkLogDetectFormatStrings, 3,
     getter_Copies(junkLogDetectStr));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -701,10 +702,10 @@ NS_IMETHODIMP nsSpamSettings::LogJunkHit(nsIMsgDBHdr *aMsgHdr, bool aMoveMessage
     NS_ConvertASCIItoUTF16 msgIdValue(msgId);
     NS_ConvertASCIItoUTF16 junkFolderURIValue(junkFolderURI);
 
-    const PRUnichar *logMoveFormatStrings[2] = { msgIdValue.get(), junkFolderURIValue.get() };
+    const char16_t *logMoveFormatStrings[2] = { msgIdValue.get(), junkFolderURIValue.get() };
     nsString logMoveStr;
     rv = bundle->FormatStringFromName(
-      NS_LITERAL_STRING("logMoveStr").get(),
+      MOZ_UTF16("logMoveStr"),
       logMoveFormatStrings, 2,
       getter_Copies(logMoveStr));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -796,14 +797,9 @@ NS_IMETHODIMP nsSpamSettings::CheckWhiteList(nsIMsgDBHdr *aMsgHdr, bool *aResult
 
   nsCString author;
   aMsgHdr->GetAuthor(getter_Copies(author));
-  nsresult rv;
-  nsCOMPtr<nsIMsgHeaderParser> headerParser =
-    do_GetService(NS_MAILNEWS_MIME_HEADER_PARSER_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   nsAutoCString authorEmailAddress;
-  rv = headerParser->ExtractHeaderAddressMailboxes(author, authorEmailAddress);
-  NS_ENSURE_SUCCESS(rv, rv);
+  ExtractEmail(EncodedHeader(author), authorEmailAddress);
 
   if (authorEmailAddress.IsEmpty())
     return NS_OK;

@@ -19,12 +19,20 @@ const cards = [
   { email: "foo3@foo.invalid", displayName: "dis",
     popularityIndex: 2, firstName: "first2", value: "dis <foo3@foo.invalid>" },
   { email: "foo2@foo.invalid", displayName: "di",
-    popularityIndex: 3, firstName: "first2", value: "di <foo2@foo.invalid>" }
+    popularityIndex: 3, firstName: "first2", value: "di <foo2@foo.invalid>" },
+  // this just tests we can search for the special chars '(' and ')', bug 749097
+  { email: "bracket@not.invalid", secondEmail: "h@not.invalid", firstName: "Mr.",
+    displayName: "Mr. (Bracket)", value: "Mr. (Bracket) <bracket@not.invalid>",
+    popularityIndex: 2 },
+  { email: "mr@(bracket).not.invalid", secondEmail: "bracket@not.invalid",  firstName: "Mr.",
+    displayName: "Mr. Bracket", value: "Mr. Bracket <mr@(bracket).not.invalid>",
+    popularityIndex: 1 }
 ];
 
 const duplicates = [
-  { search: "test", expected: [2, 1] },
-  { search: "first", expected: [6, 5, 3] }
+  { search: "test", expected: [1, 2] },
+  { search: "first", expected: [6, 5, 3] },
+  { search: "(bracket)", expected: [7, 8] }
 ];
 
 
@@ -72,17 +80,23 @@ function run_test()
   var obs = new acObserver();
 
   function checkInputItem(element, index, array) {
-    print("Checking " + element.search);
-    acs.startSearch(element.search, null, null, obs);
+    print("Search #" + index + ": search=" + element.search);
+    acs.startSearch(element.search, JSON.stringify({ type: "addr_to"  }), null, obs);
+
+    for (var i = 0; i < obs._result.matchCount; i++) {
+      print("... got " + i + ": " + obs._result.getValueAt(i));
+    }
+
+    for (var i = 0; i < element.expected.length; i++) {
+      print("... expected " + i + " (card " + element.expected[i] + "): " +
+            cards[element.expected[i]].value);
+    }
 
     do_check_eq(obs._search, acs);
     do_check_eq(obs._result.searchString, element.search);
     do_check_eq(obs._result.searchResult, ACR.RESULT_SUCCESS);
     do_check_eq(obs._result.errorDescription, null);
     do_check_eq(obs._result.matchCount, element.expected.length);
-
-    for (var i = 0; i < element.expected.length; ++i)
-      print(obs._result.getValueAt(i));
 
     for (var i = 0; i < element.expected.length; ++i) {
       do_check_eq(obs._result.getValueAt(i), cards[element.expected[i]].value);

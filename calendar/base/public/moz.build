@@ -16,15 +16,16 @@ XPIDL_SOURCES += [
     'calICalendarView.idl',
     'calICalendarViewController.idl',
     'calIChangeLog.idl',
+    'calIDateTime.idl',
     'calIDateTimeFormatter.idl',
     'calIDeletedItems.idl',
     'calIDuration.idl',
     'calIErrors.idl',
     'calIEvent.idl',
     'calIFreeBusyProvider.idl',
-    'calIICSService.idl',
     'calIIcsParser.idl',
     'calIIcsSerializer.idl',
+    'calIICSService.idl',
     'calIImportExport.idl',
     'calIItemBase.idl',
     'calIItipItem.idl',
@@ -47,7 +48,7 @@ XPIDL_SOURCES += [
     'calIWeekInfoService.idl',
 ]
 
-MODULE = 'calbase'
+XPIDL_MODULE = 'calbase'
 
 EXPORTS += [
     'calBaseCID.h',

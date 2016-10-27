@@ -14,8 +14,8 @@
 #include "nsMsgMessageFlags.h"
 #include "nsIMsgFolder.h"
 
-NS_IMPL_THREADSAFE_ADDREF(nsMsgTxn)
-NS_IMPL_THREADSAFE_RELEASE(nsMsgTxn)
+NS_IMPL_ADDREF(nsMsgTxn)
+NS_IMPL_RELEASE(nsMsgTxn)
 NS_INTERFACE_MAP_BEGIN(nsMsgTxn)
   NS_INTERFACE_MAP_ENTRY(nsIWritablePropertyBag)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIPropertyBag, nsIWritablePropertyBag)
@@ -36,7 +36,6 @@ nsMsgTxn::~nsMsgTxn()
 
 nsresult nsMsgTxn::Init()
 {
-  mPropertyHash.Init();
   return NS_OK;
 }
 
@@ -78,7 +77,7 @@ NS_IMETHODIMP nsMsgTxn::DeleteProperty(const nsAString& name)
 // This is same as nsSimpleProperty but for external API use.
 //
 
-class nsMailSimpleProperty : public nsIProperty 
+class nsMailSimpleProperty final : public nsIProperty 
 {
 public:
   nsMailSimpleProperty(const nsAString& aName, nsIVariant* aValue)
@@ -89,11 +88,13 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPROPERTY
 protected:
+  ~nsMailSimpleProperty() {}
+
   nsString mName;
   nsCOMPtr<nsIVariant> mValue;
 };
 
-NS_IMPL_ISUPPORTS1(nsMailSimpleProperty, nsIProperty)
+NS_IMPL_ISUPPORTS(nsMailSimpleProperty, nsIProperty)
 
 NS_IMETHODIMP nsMailSimpleProperty::GetName(nsAString& aName)
 {

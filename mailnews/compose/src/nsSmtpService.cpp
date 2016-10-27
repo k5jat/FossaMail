@@ -25,6 +25,7 @@
 #include "nsUConvCID.h"
 #include "nsAutoPtr.h"
 #include "nsComposeStrings.h"
+#include "nsIAsyncInputStream.h"
 
 #define SERVER_DELIMITER ','
 #define APPEND_SERVERS_VERSION_PREF_NAME "append_preconfig_smtpservers.version"
@@ -72,7 +73,7 @@ nsSmtpService::~nsSmtpService()
 
 }
 
-NS_IMPL_ISUPPORTS2(nsSmtpService, nsISmtpService, nsIProtocolHandler)
+NS_IMPL_ISUPPORTS(nsSmtpService, nsISmtpService, nsIProtocolHandler)
 
 
 NS_IMETHODIMP nsSmtpService::SendMailMessage(nsIFile * aFilePath,
@@ -319,12 +320,19 @@ NS_IMETHODIMP nsSmtpService::NewURI(const nsACString &aSpec,
 
 NS_IMETHODIMP nsSmtpService::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 {
+  return NewChannel2(aURI, nullptr, _retval);
+}
+
+NS_IMETHODIMP nsSmtpService::NewChannel2(nsIURI *aURI,
+                                         nsILoadInfo* aLoadInfo,
+                                         nsIChannel **_retval)
+{
   NS_ENSURE_ARG_POINTER(aURI);
   // create an empty pipe for use with the input stream channel.
   nsCOMPtr<nsIAsyncInputStream> pipeIn;
   nsCOMPtr<nsIAsyncOutputStream> pipeOut;
   nsCOMPtr<nsIPipe> pipe = do_CreateInstance("@mozilla.org/pipe;1");
-  nsresult rv = pipe->Init(false, false, 0, 0, nullptr);
+  nsresult rv = pipe->Init(false, false, 0, 0);
   if (NS_FAILED(rv)) 
     return rv;
   
@@ -333,10 +341,26 @@ NS_IMETHODIMP nsSmtpService::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 
   pipeOut->Close();
 
+  if (aLoadInfo) {
+    return NS_NewInputStreamChannelInternal(_retval,
+                                            aURI,
+                                            pipeIn,
+                                            NS_LITERAL_CSTRING("application/x-mailto"),
+                                            EmptyCString(),
+                                            aLoadInfo);
+  }
+
+  nsCOMPtr<nsIPrincipal> nullPrincipal =
+    do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
+  NS_ASSERTION(NS_SUCCEEDED(rv), "CreateInstance of nullprincipal failed.");
+  if (NS_FAILED(rv))
+    return rv;
+
   return NS_NewInputStreamChannel(_retval, aURI, pipeIn,
+                                  nullPrincipal, nsILoadInfo::SEC_NORMAL,
+                                  nsIContentPolicy::TYPE_OTHER,
                                   NS_LITERAL_CSTRING("application/x-mailto"));
 }
-
 
 NS_IMETHODIMP
 nsSmtpService::GetServers(nsISimpleEnumerator **aResult)
@@ -694,9 +718,9 @@ nsSmtpService::findServerByHostname(nsISmtpServer *aServer, void *aData)
   bool checkUsername = !entry->username.IsEmpty();
     
   if ((!checkHostname ||
-       (entry->hostname.Equals(hostname, nsCaseInsensitiveCStringComparator())) &&
+       (entry->hostname.Equals(hostname, nsCaseInsensitiveCStringComparator()))) &&
        (!checkUsername ||
-        entry->username.Equals(username, nsCaseInsensitiveCStringComparator()))))
+        entry->username.Equals(username, nsCaseInsensitiveCStringComparator())))
   {
     entry->server = aServer;
     return false;        // stop when found

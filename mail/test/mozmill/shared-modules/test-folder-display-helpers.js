@@ -2,16 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-var Ci = Components.interfaces;
-var Cc = Components.classes;
-var Cu = Components.utils;
+const MODULE_NAME = "folder-display-helpers";
 
-var elib = {};
-Cu.import('resource://mozmill/modules/elementslib.js', elib);
+const RELATIVE_ROOT = "../shared-modules";
+// we need window-helpers for augment_controller
+const MODULE_REQUIRES = ["window-helpers"];
+
 var EventUtils = {};
 Cu.import('resource://mozmill/stdlib/EventUtils.js', EventUtils);
-var mozmill = {};
-Cu.import('resource://mozmill/modules/mozmill.js', mozmill);
 var controller = {};
 Cu.import('resource://mozmill/modules/controller.js', controller);
 var frame = {};
@@ -22,12 +20,6 @@ var utils = {};
 Cu.import('resource://mozmill/modules/utils.js', utils);
 
 Cu.import("resource:///modules/gloda/log4moz.js");
-
-const MODULE_NAME = 'folder-display-helpers';
-
-const RELATIVE_ROOT = '../shared-modules';
-// we need window-helpers for augment_controller
-const MODULE_REQUIRES = ['window-helpers'];
 
 const nsMsgViewIndex_None = 0xffffffff;
 Cu.import('resource:///modules/MailConsts.js');
@@ -56,9 +48,7 @@ const DO_NOT_EXPORT = {
   // magic globals
   MODULE_NAME: true, DO_NOT_EXPORT: true, installInto: true,
   // imported modules
-  elib: true, mozmill: true, controller: true, frame: true, os: true,
-  // convenience constants
-  Ci: true, Cc: true, Cu: true, Cr: true,
+  controller: true, frame: true, os: true,
   // useful constants (we do export MailViewConstants)
   nsMsgViewIndex_None: true, MailConsts: true,
   // utility functions
@@ -133,9 +123,9 @@ function setupModule() {
   mark_failure = testHelperModule.mark_failure;
 
   // Remove the dump appender that got appended; it just adds noise.
-  testHelperModule._testLogger.removeAppender(
-    testHelperModule._testLogger.ownAppenders[
-      testHelperModule._testLogger.ownAppenders.length - 1]);
+  testHelperModule._mailnewsTestLogger.removeAppender(
+    testHelperModule._mailnewsTestLogger.ownAppenders[
+      testHelperModule._mailnewsTestLogger.ownAppenders.length - 1]);
 
   // Add a bucketing appender to the root.
   let rootLogger = Log4Moz.repository.rootLogger;
@@ -474,7 +464,7 @@ function enter_folder(aFolder) {
     return mc.folderDisplay.displayedFolder == aFolder;
   }
   utils.waitFor(isDisplayedFolder,
-                "Timeout trying to enter folder" + aFolder.URI);
+                "Timeout trying to enter folder " + aFolder.URI);
 
   wait_for_all_messages_to_load();
 
@@ -653,7 +643,7 @@ function open_message_from_file(file) {
   mark_action("fdh", "open_message_from_file", ["file", file.nativePath]);
 
   let fileURL = Services.io.newFileURI(file)
-                        .QueryInterface(Components.interfaces.nsIFileURL);
+                        .QueryInterface(Ci.nsIFileURL);
   fileURL.query = "type=application/x-message-display";
 
   windowHelper.plan_for_new_window("mail:messageWindow");
@@ -909,6 +899,33 @@ function _normalize_view_index(aViewIndex, aController) {
     return aController.dbView.QueryInterface(Ci.nsITreeView).rowCount +
       aViewIndex;
   return aViewIndex;
+}
+
+/**
+ * Generic method to simulate a left click on a row in a <tree> element.
+ *
+ * @param aTree        The the element.
+ * @param aRowIndex    Index of a row in the tree to click on.
+ * @param aController  Controller object
+ */
+function click_tree_row(aTree, aRowIndex, aController) {
+  if (aRowIndex < 0 || aRowIndex >= aTree.view.rowCount)
+    throw new Error("Row " + aRowIndex + " does not exist in the tree " + aTree.id + "!");
+
+  let selection = aTree.view.selection;
+  selection.select(aRowIndex);
+  aTree.treeBoxObject.ensureRowIsVisible(aRowIndex);
+
+  // get cell coordinates
+  let x = {}, y = {}, width = {}, height = {};
+  let column = aTree.columns[0];
+  aTree.treeBoxObject.getCoordsForCellItem(aRowIndex, column, "text",
+                                           x, y, width, height);
+
+  aController.sleep(0);
+  EventUtils.synthesizeMouse(aTree.body, x.value + 4, y.value + 4,
+                             {}, aTree.ownerDocument.defaultView);
+  aController.sleep(0);
 }
 
 /**
@@ -1588,7 +1605,7 @@ function wait_for_message_display_completion(aController, aLoadDemanded) {
       return false;
     let uri = docShell.currentURI;
     // the URL will tell us if it is running, saves us from potential error
-    if (uri && (uri instanceof Components.interfaces.nsIMsgMailNewsUrl)) {
+    if (uri && (uri instanceof Ci.nsIMsgMailNewsUrl)) {
       let urlRunningObj = {};
       uri.GetUrlState(urlRunningObj);
       // GetUrlState returns true if the url is still running
@@ -2062,18 +2079,24 @@ function archive_messages(aMsgHdrs) {
 }
 
 /**
- * @return true if |aSetOne| is equivalent to |aSetTwo| where the sets are
- *     really just lists of nsIMsgDBHdrs with cool names.
+ * Check if the selected messages match the summarized messages.
+ *
+ * @param aSummarizedKeys An array of keys (messageKey + folder.URI) for the
+ *     summarized messages.
+ * @param aSelectedMessages An array of nsIMsgDBHdrs for the selected messages.
+ * @return true is aSelectedMessages and aSummarizedKeys refer to the same set
+ *     of messages.
  */
-function _verify_message_sets_equivalent(aSetOne, aSetTwo) {
-  let uniqy1 = [msgHdr.folder.URI + msgHdr.messageKey for each
-                 ([, msgHdr] in Iterator(aSetOne))];
-  uniqy1.sort();
-  let uniqy2 = [msgHdr.folder.URI + msgHdr.messageKey for each
-                 ([, msgHdr] in Iterator(aSetTwo))];
-  uniqy2.sort();
-  // stringified versions should now be equal...
-  return uniqy1.toString() == uniqy2.toString();
+function _verify_summarized_message_set(aSummarizedKeys, aSelectedMessages) {
+  let summarizedKeys = aSummarizedKeys.slice();
+  summarizedKeys.sort();
+  // We use the same key-generation as in multimessageview.js.
+  let selectedKeys = [msgHdr.messageKey + msgHdr.folder.URI
+                      for (msgHdr of aSelectedMessages)];
+  selectedKeys.sort();
+
+  // Stringified versions should now be equal...
+  return selectedKeys.toString() == summarizedKeys.toString();
 }
 
 /**
@@ -2101,15 +2124,17 @@ function assert_messages_summarized(aController, aSelectedMessages) {
   if (aSelectedMessages.synMessages)
     aSelectedMessages = [msgHdr for each (msgHdr in aSelectedMessages.msgHdrs)];
 
-  let summary = aController.window.gSummary;
-  if (aSelectedMessages.length != summary._msgHdrs.length) {
-    let elaboration = "Summary contains " + summary._msgHdrs.length +
+  let summaryFrame = aController.window.gSummaryFrameManager.iframe;
+  let summary = summaryFrame.contentWindow.gMessageSummary;
+  let summarizedKeys = Object.keys(summary._msgNodes);
+  if (aSelectedMessages.length != summarizedKeys.length) {
+    let elaboration = "Summary contains " + summarizedKeys.length +
                       " messages, expected " + aSelectedMessages.length + ".";
     throw new Error("Summary does not contain the right set of messages. " +
                     elaboration);
   }
-  if (!_verify_message_sets_equivalent(summary._msgHdrs, aSelectedMessages)) {
-    let elaboration = "Summary: " + summary._msgHdrs + "  Selected: " +
+  if (!_verify_summarized_message_set(summarizedKeys, aSelectedMessages)) {
+    let elaboration = "Summary: " + summarizedKeys + "  Selected: " +
                       aSelectedMessages + ".";
     throw new Error("Summary does not contain the right set of messages. " +
                     elaboration);
@@ -2706,18 +2731,21 @@ function reset_close_message_on_delete() {
 
 /**
  * assert that the multimessage/thread summary view contains
- * the specified number of elements of the specified class.
+ * the specified number of elements of the specified selector.
  *
- * @param aClassName: the class to use to select
+ * @param aSelector: the CSS selector to use to select
  * @param aNumElts: the number of expected elements that have that class
  */
 
-function assert_summary_contains_N_divs(aClassName, aNumElts) {
+function assert_summary_contains_N_elts(aSelector, aNumElts) {
   let htmlframe = mc.e('multimessage');
-  let matches = htmlframe.contentDocument.getElementsByClassName(aClassName);
-  if (matches.length != aNumElts)
-    throw new Error("Expected to find " + aNumElts + " elements with class " +
-                    aClassName + ", found: " + matches.length);
+  let matches = htmlframe.contentDocument.querySelectorAll(aSelector);
+  if (matches.length != aNumElts) {
+    throw new Error(
+      "Expected to find " + aNumElts + " elements with selector '" +
+      aSelector + "', found: " + matches.length
+    );
+  }
 }
 
 

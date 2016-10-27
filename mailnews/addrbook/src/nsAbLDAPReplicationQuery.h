@@ -16,10 +16,10 @@
 #include "nsDirPrefs.h"
 #include "nsStringGlue.h"
 
-class nsAbLDAPReplicationQuery : public nsIAbLDAPReplicationQuery
+class nsAbLDAPReplicationQuery final : public nsIAbLDAPReplicationQuery
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIABLDAPREPLICATIONQUERY
 
   nsAbLDAPReplicationQuery();
@@ -28,6 +28,7 @@ public:
   nsresult ConnectToLDAPServer();
 
 protected :
+  ~nsAbLDAPReplicationQuery() {}
   // pointer to interfaces used by this object
   nsCOMPtr<nsILDAPConnection> mConnection;
   nsCOMPtr<nsILDAPOperation> mOperation;

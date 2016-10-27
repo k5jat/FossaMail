@@ -14,13 +14,13 @@
 class nsAbBooleanConditionString : public nsIAbBooleanConditionString
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIABBOOLEANCONDITIONSTRING
 
     nsAbBooleanConditionString();
-    virtual ~nsAbBooleanConditionString();
 
 protected:
+    virtual ~nsAbBooleanConditionString();
     nsAbBooleanConditionType mCondition;
     nsCString mName;
     nsString mValue;
@@ -29,13 +29,13 @@ protected:
 class nsAbBooleanExpression: public nsIAbBooleanExpression
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIABBOOLEANEXPRESSION
 
     nsAbBooleanExpression();
-    virtual ~nsAbBooleanExpression();
 
 protected:
+    virtual ~nsAbBooleanExpression();
     nsAbBooleanOperationType mOperation;
     nsCOMPtr<nsIArray> mExpressions;
 };

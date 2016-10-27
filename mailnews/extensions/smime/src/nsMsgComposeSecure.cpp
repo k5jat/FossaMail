@@ -6,11 +6,12 @@
 
 #include "nsMsgComposeSecure.h"
 
+#include "cert.h"
+#include "keyhi.h"
 #include "msgCore.h"
+#include "nsICryptoHash.h"
 #include "nsIMsgCompFields.h"
-#include "nsIMsgHeaderParser.h"
 #include "nsIMsgIdentity.h"
-#include "nsISMimeCert.h"
 #include "nsIX509CertDB.h"
 #include "nsMimeTypes.h"
 #include "nsMsgMimeCID.h"
@@ -19,11 +20,16 @@
 #include "nsServiceManagerUtils.h"
 #include "nsMemory.h"
 #include "nsAlgorithm.h"
+#include "mozilla/RefPtr.h"
 #include "mozilla/Services.h"
 #include "mozilla/mailnews/MimeEncoder.h"
+#include "mozilla/mailnews/MimeHeaderParser.h"
+#include "nsIMimeConverter.h"
+#include "ScopedNSSTypes.h"
 #include <algorithm>
 
-using mozilla::mailnews::MimeEncoder;
+using namespace mozilla::mailnews;
+using namespace mozilla;
 
 #define MK_MIME_ERROR_WRITING_FILE -1
 
@@ -36,14 +42,15 @@ using mozilla::mailnews::MimeEncoder;
 static const char crypto_multipart_blurb[] = "This is a cryptographically signed message in MIME format.";
 
 static void mime_crypto_write_base64 (void *closure, const char *buf,
-              unsigned long size);
+                                      unsigned long size);
 static nsresult mime_encoder_output_fn(const char *buf, int32_t size,
                                        void *closure);
 static nsresult mime_nested_encoder_output_fn(const char *buf, int32_t size,
                                               void *closure);
 static nsresult make_multipart_signed_header_string(bool outer_p,
-                  char **header_return,
-                  char **boundary_return);
+                                                    char **header_return,
+                                                    char **boundary_return,
+                                                    int16_t hash_type);
 static char *mime_make_separator(const char *prefix);
 
 
@@ -86,7 +93,7 @@ char
 // Implementation of nsMsgSMIMEComposeFields
 /////////////////////////////////////////////////////////////////////////////////////////
 
-NS_IMPL_ISUPPORTS1(nsMsgSMIMEComposeFields, nsIMsgSMIMECompFields)
+NS_IMPL_ISUPPORTS(nsMsgSMIMEComposeFields, nsIMsgSMIMECompFields)
 
 nsMsgSMIMEComposeFields::nsMsgSMIMEComposeFields()
 :mSignMessage(false), mAlwaysEncryptMessage(false)
@@ -125,7 +132,7 @@ NS_IMETHODIMP nsMsgSMIMEComposeFields::GetRequireEncryptMessage(bool *_retval)
 // Implementation of nsMsgComposeSecure
 /////////////////////////////////////////////////////////////////////////////////////////
 
-NS_IMPL_ISUPPORTS1(nsMsgComposeSecure, nsIMsgComposeSecure)
+NS_IMPL_ISUPPORTS(nsMsgComposeSecure, nsIMsgComposeSecure)
 
 nsMsgComposeSecure::nsMsgComposeSecure()
 {
@@ -133,6 +140,7 @@ nsMsgComposeSecure::nsMsgComposeSecure()
   mMultipartSignedBoundary  = 0;
   mBuffer = 0;
   mBufferedBytes = 0;
+  mHashType = 0;
 }
 
 nsMsgComposeSecure::~nsMsgComposeSecure()
@@ -169,8 +177,8 @@ NS_IMETHODIMP nsMsgComposeSecure::RequiresCryptoEncapsulation(nsIMsgIdentity * a
 }
 
 
-nsresult nsMsgComposeSecure::GetSMIMEBundleString(const PRUnichar *name,
-                                                  PRUnichar **outString)
+nsresult nsMsgComposeSecure::GetSMIMEBundleString(const char16_t *name,
+                                                  char16_t **outString)
 {
   *outString = nullptr;
 
@@ -183,10 +191,10 @@ nsresult nsMsgComposeSecure::GetSMIMEBundleString(const PRUnichar *name,
 
 nsresult
 nsMsgComposeSecure::
-SMIMEBundleFormatStringFromName(const PRUnichar *name,
-                                const PRUnichar **params,
+SMIMEBundleFormatStringFromName(const char16_t *name,
+                                const char16_t **params,
                                 uint32_t numParams,
-                                PRUnichar **outString)
+                                char16_t **outString)
 {
   NS_ENSURE_ARG_POINTER(name);
 
@@ -211,7 +219,7 @@ bool nsMsgComposeSecure::InitializeSMIMEBundle()
   return true;
 }
 
-void nsMsgComposeSecure::SetError(nsIMsgSendReport *sendReport, const PRUnichar *bundle_string)
+void nsMsgComposeSecure::SetError(nsIMsgSendReport *sendReport, const char16_t *bundle_string)
 {
   if (!sendReport || !bundle_string)
     return;
@@ -235,7 +243,7 @@ void nsMsgComposeSecure::SetError(nsIMsgSendReport *sendReport, const PRUnichar 
   }
 }
 
-void nsMsgComposeSecure::SetErrorWithParam(nsIMsgSendReport *sendReport, const PRUnichar *bundle_string, const char *param)
+void nsMsgComposeSecure::SetErrorWithParam(nsIMsgSendReport *sendReport, const char16_t *bundle_string, const char *param)
 {
   if (!sendReport || !bundle_string || !param)
     return;
@@ -247,7 +255,7 @@ void nsMsgComposeSecure::SetErrorWithParam(nsIMsgSendReport *sendReport, const P
   
   nsString errorString;
   nsresult res;
-  const PRUnichar *params[1];
+  const char16_t *params[1];
 
   NS_ConvertASCIItoUTF16 ucs2(param);
   params[0]= ucs2.get();
@@ -306,6 +314,87 @@ nsresult nsMsgComposeSecure::ExtractEncryptionState(nsIMsgIdentity * aIdentity, 
   return NS_OK;
 }
 
+// Select a hash algorithm to sign message
+// based on subject public key type and size.
+static nsresult
+GetSigningHashFunction(nsIX509Cert *aSigningCert, int16_t *hashType)
+{
+  // Get the signing certificate
+  CERTCertificate *scert = nullptr;
+  if (aSigningCert) {
+    scert = aSigningCert->GetCert();
+  }
+  if (!scert) {
+    return NS_ERROR_FAILURE;
+  }
+
+  mozilla::ScopedSECKEYPublicKey scertPublicKey(CERT_ExtractPublicKey(scert));
+  if (!scertPublicKey) {
+    return mozilla::MapSECStatus(SECFailure);
+  }
+  KeyType subjectPublicKeyType = SECKEY_GetPublicKeyType(scertPublicKey);
+
+  // Get the length of the signature in bits.
+  unsigned siglen = SECKEY_SignatureLen(scertPublicKey) * 8;
+  if (!siglen) {
+    return mozilla::MapSECStatus(SECFailure);
+  }
+
+  // Select a hash function for signature generation whose security strength
+  // meets or exceeds the security strength of the public key, using NIST
+  // Special Publication 800-57, Recommendation for Key Management - Part 1:
+  // General (Revision 3), where Table 2 specifies the security strength of
+  // the public key and Table 3 lists acceptable hash functions. (The security
+  // strength of the hash (for digital signatures) is half the length of the
+  // output.)
+  // [SP 800-57 is available at http://csrc.nist.gov/publications/PubsSPs.html.]
+  if (subjectPublicKeyType == rsaKey) {
+    // For RSA, siglen is the same as the length of the modulus.
+
+    // SHA-1 provides equivalent security strength for up to 1024 bits
+    // SHA-256 provides equivalent security strength for up to 3072 bits
+
+    if (siglen > 3072) {
+      *hashType = nsICryptoHash::SHA512;
+    } else if (siglen > 1024) {
+      *hashType = nsICryptoHash::SHA256;
+    } else {
+      *hashType = nsICryptoHash::SHA1;
+    }
+  } else if (subjectPublicKeyType == dsaKey) {
+    // For DSA, siglen is twice the length of the q parameter of the key.
+    // The security strength of the key is half the length (in bits) of
+    // the q parameter of the key.
+
+    // NSS only supports SHA-1, SHA-224, and SHA-256 for DSA signatures.
+    // The S/MIME code does not support SHA-224.
+
+    if (siglen >= 512) { // 512-bit signature = 256-bit q parameter
+      *hashType = nsICryptoHash::SHA256;
+    } else {
+      *hashType = nsICryptoHash::SHA1;
+    }
+  } else if (subjectPublicKeyType == ecKey) {
+    // For ECDSA, siglen is twice the length of the field size. The security
+    // strength of the key is half the length (in bits) of the field size.
+
+    if (siglen >= 1024) { // 1024-bit signature = 512-bit field size
+      *hashType = nsICryptoHash::SHA512;
+    } else if (siglen >= 768) { // 768-bit signature = 384-bit field size
+      *hashType = nsICryptoHash::SHA384;
+    } else if (siglen >= 512) { // 512-bit signature = 256-bit field size
+      *hashType = nsICryptoHash::SHA256;
+    } else {
+      *hashType = nsICryptoHash::SHA1;
+    }
+  } else {
+    // Unknown key type
+    *hashType = nsICryptoHash::SHA256;
+    NS_WARNING("GetSigningHashFunction: Subject public key type unknown.");
+  }
+  return NS_OK;
+}
+
 /* void beginCryptoEncapsulation (in nsOutputFileStream aStream, in boolean aEncrypt, in boolean aSign, in string aRecipeints, in boolean aIsDraft); */
 NS_IMETHODIMP nsMsgComposeSecure::BeginCryptoEncapsulation(nsIOutputStream * aStream,
                                                            const char * aRecipients,
@@ -341,6 +430,11 @@ NS_IMETHODIMP nsMsgComposeSecure::BeginCryptoEncapsulation(nsIOutputStream * aSt
   rv = MimeCryptoHackCerts(aRecipients, sendReport, encryptMessages, signMessage);
   if (NS_FAILED(rv)) {
     goto FAIL;
+  }
+
+  if (signMessage && mSelfSigningCert) {
+    rv = GetSigningHashFunction(mSelfSigningCert, &mHashType);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   switch (mCryptoState)
@@ -411,7 +505,8 @@ nsresult nsMsgComposeSecure::MimeInitMultipartSigned(bool aOuter, nsIMsgSendRepo
   uint32_t L;
 
   rv = make_multipart_signed_header_string(aOuter, &header,
-                    &mMultipartSignedBoundary);
+    &mMultipartSignedBoundary, mHashType);
+
   NS_ENSURE_SUCCESS(rv, rv);
 
   L = strlen(header);
@@ -435,8 +530,6 @@ nsresult nsMsgComposeSecure::MimeInitMultipartSigned(bool aOuter, nsIMsgSendRepo
   /* Now initialize the crypto library, so that we can compute a hash
    on the object which we are signing.
    */
-
-  mHashType = nsICryptoHash::SHA1;
 
   PR_SetError(0,0);
   mDataHash = do_CreateInstance("@mozilla.org/security/hash;1", &rv);
@@ -463,10 +556,19 @@ nsresult nsMsgComposeSecure::MimeInitEncryption(bool aSign, nsIMsgSendReport *se
 
   if (!sMIMEBundle)
     return NS_ERROR_FAILURE;
- 
-  sMIMEBundle->GetStringFromName(NS_LITERAL_STRING("mime_smimeEncryptedContentDesc").get(),
+
+  sMIMEBundle->GetStringFromName(MOZ_UTF16("mime_smimeEncryptedContentDesc"),
                                  getter_Copies(mime_smime_enc_content_desc));
   NS_ConvertUTF16toUTF8 enc_content_desc_utf8(mime_smime_enc_content_desc);
+
+  nsCOMPtr<nsIMimeConverter> mimeConverter =
+     do_GetService(NS_MIME_CONVERTER_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  nsCString encodedContentDescription;
+  mimeConverter->EncodeMimePartIIStr_UTF8(enc_content_desc_utf8, false, "UTF-8",
+      sizeof("Content-Description: "),
+      nsIMimeConverter::MIME_ENCODED_WORD_SIZE,
+      encodedContentDescription);
 
   /* First, construct and write out the opaque-crypto-blob MIME header data.
    */
@@ -479,7 +581,7 @@ nsresult nsMsgComposeSecure::MimeInitEncryption(bool aSign, nsIMsgSendReport *se
           "; filename=\"smime.p7m\"" CRLF
         "Content-Description: %s" CRLF
         CRLF,
-        enc_content_desc_utf8.get());
+        encodedContentDescription.get());
 
   uint32_t L;
   if (!s) return NS_ERROR_OUT_OF_MEMORY;
@@ -515,7 +617,7 @@ nsresult nsMsgComposeSecure::MimeInitEncryption(bool aSign, nsIMsgSendReport *se
   if (NS_FAILED(rv)) return rv;
   rv = mEncryptionCinfo->CreateEncrypted(mCerts);
   if (NS_FAILED(rv)) {
-    SetError(sendReport, NS_LITERAL_STRING("ErrorEncryptMail").get());
+    SetError(sendReport, MOZ_UTF16("ErrorEncryptMail"));
     goto FAIL;
   }
 
@@ -532,7 +634,7 @@ nsresult nsMsgComposeSecure::MimeInitEncryption(bool aSign, nsIMsgSendReport *se
 
   rv = mEncryptionContext->Start(mEncryptionCinfo, mime_crypto_write_base64, mCryptoEncoder);
   if (NS_FAILED(rv)) {
-    SetError(sendReport, NS_LITERAL_STRING("ErrorEncryptMail").get());
+    SetError(sendReport, MOZ_UTF16("ErrorEncryptMail"));
     goto FAIL;
   }
 
@@ -570,8 +672,8 @@ nsresult nsMsgComposeSecure::MimeFinishMultipartSigned (bool aOuter, nsIMsgSendR
 
   if (!sMIMEBundle)
     return NS_ERROR_FAILURE;
-  
-  sMIMEBundle->GetStringFromName(NS_LITERAL_STRING("mime_smimeSignatureContentDesc").get(),
+
+  sMIMEBundle->GetStringFromName(MOZ_UTF16("mime_smimeSignatureContentDesc"),
                                  getter_Copies(mime_smime_sig_content_desc));
 
   NS_ConvertUTF16toUTF8 sig_content_desc_utf8(mime_smime_sig_content_desc);
@@ -627,14 +729,15 @@ nsresult nsMsgComposeSecure::MimeFinishMultipartSigned (bool aOuter, nsIMsgSendR
   /* Create the signature...
    */
 
-  PR_ASSERT(mHashType == nsICryptoHash::SHA1);
+  NS_ASSERTION(mHashType, "Hash function for signature has not been set.");
 
   PR_ASSERT (mSelfSigningCert);
   PR_SetError(0,0);
 
-  rv = cinfo->CreateSigned(mSelfSigningCert, mSelfEncryptionCert, (unsigned char*)hashString.get(), hashString.Length());
+  rv = cinfo->CreateSigned(mSelfSigningCert, mSelfEncryptionCert,
+    (unsigned char*)hashString.get(), hashString.Length(), mHashType);
   if (NS_FAILED(rv))  {
-    SetError(sendReport, NS_LITERAL_STRING("ErrorCanNotSignMail").get());
+    SetError(sendReport, MOZ_UTF16("ErrorCanNotSignMail"));
     goto FAIL;
   }
 
@@ -648,14 +751,14 @@ nsresult nsMsgComposeSecure::MimeFinishMultipartSigned (bool aOuter, nsIMsgSendR
   PR_SetError(0,0);
   rv = encoder->Start(cinfo, mime_crypto_write_base64, mSigEncoder);
   if (NS_FAILED(rv)) {
-    SetError(sendReport, NS_LITERAL_STRING("ErrorCanNotSignMail").get());
+    SetError(sendReport, MOZ_UTF16("ErrorCanNotSignMail"));
     goto FAIL;
   }
 
   // We're not passing in any data, so no update needed.
   rv = encoder->Finish();
   if (NS_FAILED(rv)) {
-    SetError(sendReport, NS_LITERAL_STRING("ErrorCanNotSignMail").get());
+    SetError(sendReport, MOZ_UTF16("ErrorCanNotSignMail"));
     goto FAIL;
   }
 
@@ -726,10 +829,10 @@ nsresult nsMsgComposeSecure::MimeFinishEncryption (bool aSign, nsIMsgSendReport 
       goto FAIL;
     }
   }
-  
+
   rv = mEncryptionContext->Finish();
   if (NS_FAILED(rv)) {
-    SetError(sendReport, NS_LITERAL_STRING("ErrorEncryptMail").get());
+    SetError(sendReport, MOZ_UTF16("ErrorEncryptMail"));
     goto FAIL;
   }
 
@@ -763,14 +866,8 @@ nsresult nsMsgComposeSecure::MimeCryptoHackCerts(const char *aRecipients,
                                                  bool aEncrypt,
                                                  bool aSign)
 {
-  char *mailbox_list = 0;
-  nsCString all_mailboxes, mailboxes;
-  const char *mailbox = 0;
-  uint32_t count = 0;
   nsCOMPtr<nsIX509CertDB> certdb = do_GetService(NS_X509CERTDB_CONTRACTID);
   nsresult res;
-  nsCOMPtr<nsIMsgHeaderParser> pHeader = do_GetService(NS_MAILNEWS_MIME_HEADER_PARSER_CONTRACTID, &res);
-  NS_ENSURE_SUCCESS(res,res);
 
   mCerts = do_CreateInstance(NS_ARRAY_CONTRACTID, &res);
   if (NS_FAILED(res)) {
@@ -783,45 +880,41 @@ nsresult nsMsgComposeSecure::MimeCryptoHackCerts(const char *aRecipients,
 
   // must have both the signing and encryption certs to sign
   if ((mSelfSigningCert == nullptr) && aSign) {
-    SetError(sendReport, NS_LITERAL_STRING("NoSenderSigningCert").get());
-    res = NS_ERROR_FAILURE;
-    goto FAIL;
+    SetError(sendReport, MOZ_UTF16("NoSenderSigningCert"));
+    return NS_ERROR_FAILURE;
   }
 
   if ((mSelfEncryptionCert == nullptr) && aEncrypt) {
-    SetError(sendReport, NS_LITERAL_STRING("NoSenderEncryptionCert").get());
-    res = NS_ERROR_FAILURE;
-    goto FAIL;
+    SetError(sendReport, MOZ_UTF16("NoSenderEncryptionCert"));
+    return NS_ERROR_FAILURE;
   }
 
-  pHeader->ExtractHeaderAddressMailboxes(nsDependentCString(aRecipients),
-                                         all_mailboxes);
-  pHeader->RemoveDuplicateAddresses(all_mailboxes, EmptyCString(), mailboxes);
-
-  pHeader->ParseHeaderAddresses(mailboxes.get(), 0, &mailbox_list, &count);
-
-  // XXX This is not a valid use of nsresult
-  if (count < 0) return static_cast<nsresult>(count);
 
   if (aEncrypt && mSelfEncryptionCert) {
     // Make sure self's configured cert is prepared for being used
     // as an email recipient cert.
-    
-    nsCOMPtr<nsISMimeCert> sc = do_QueryInterface(mSelfEncryptionCert);
-    if (sc) {
-      sc->SaveSMimeProfile();
+    mozilla::ScopedCERTCertificate nsscert(mSelfEncryptionCert->GetCert());
+    if (!nsscert) {
+      return NS_ERROR_FAILURE;
+    }
+    // XXX: This does not respect the nsNSSShutDownObject protocol.
+    if (CERT_SaveSMimeProfile(nsscert, nullptr, nullptr) != SECSuccess) {
+      return NS_ERROR_FAILURE;
     }
   }
 
   /* If the message is to be encrypted, then get the recipient certs */
   if (aEncrypt) {
-    mailbox = mailbox_list;
+    nsTArray<nsCString> mailboxes;
+    ExtractEmails(EncodedHeader(nsDependentCString(aRecipients)),
+      UTF16ArrayAdapter<>(mailboxes));
+    uint32_t count = mailboxes.Length();
 
     bool already_added_self_cert = false;
 
-    for (; count > 0; count--) {
+    for (uint32_t i = 0; i < count; i++) {
       nsCString mailbox_lowercase;
-      ToLowerCase(nsDependentCString(mailbox), mailbox_lowercase);
+      ToLowerCase(mailboxes[i], mailbox_lowercase);
       nsCOMPtr<nsIX509Cert> cert;
       res = certdb->FindCertByEmailAddress(nullptr, mailbox_lowercase.get(),
                                            getter_AddRefs(cert));
@@ -829,10 +922,10 @@ nsresult nsMsgComposeSecure::MimeCryptoHackCerts(const char *aRecipients,
         // Failure to find a valid encryption cert is fatal.
         // Here I assume that mailbox is ascii rather than utf8.
         SetErrorWithParam(sendReport,
-                          NS_LITERAL_STRING("MissingRecipientEncryptionCert").get(),
-                          mailbox);
+                          MOZ_UTF16("MissingRecipientEncryptionCert"),
+                          mailboxes[i].get());
 
-        goto FAIL;
+        return res;
       }
 
     /* #### see if recipient requests `signedData'.
@@ -849,18 +942,11 @@ nsresult nsMsgComposeSecure::MimeCryptoHackCerts(const char *aRecipients,
       }
 
       mCerts->AppendElement(cert, false);
-      // To understand this loop, especially the "+= strlen +1", look at the documentation
-      // of ParseHeaderAddresses. Basically, it returns a list of zero terminated strings.
-      mailbox += strlen(mailbox) + 1;
     }
     
     if (!already_added_self_cert) {
       mCerts->AppendElement(mSelfEncryptionCert, false);
     }
-  }
-FAIL:
-  if (mailbox_list) {
-    nsMemory::Free(mailbox_list);
   }
   return res;
 }
@@ -951,24 +1037,43 @@ NS_IMETHODIMP nsMsgComposeSecure::MimeCryptoWriteBlock (const char *buf, int32_t
  */
 static nsresult
 make_multipart_signed_header_string(bool outer_p,
-									char **header_return,
-									char **boundary_return)
+                                    char **header_return,
+                                    char **boundary_return,
+                                    int16_t hash_type)
 {
+  const char *hashStr;
   *header_return = 0;
   *boundary_return = mime_make_separator("ms");
 
   if (!*boundary_return)
 	return NS_ERROR_OUT_OF_MEMORY;
 
+  switch (hash_type) {
+  case nsICryptoHash::SHA1:
+    hashStr = PARAM_MICALG_SHA1;
+    break;
+  case nsICryptoHash::SHA256:
+    hashStr = PARAM_MICALG_SHA256;
+    break;
+  case nsICryptoHash::SHA384:
+    hashStr = PARAM_MICALG_SHA384;
+    break;
+  case nsICryptoHash::SHA512:
+    hashStr = PARAM_MICALG_SHA512;
+    break;
+  default:
+    return NS_ERROR_INVALID_ARG;
+  }
+
   *header_return = PR_smprintf(
         "Content-Type: " MULTIPART_SIGNED "; "
         "protocol=\"" APPLICATION_PKCS7_SIGNATURE "\"; "
-				"micalg=" PARAM_MICALG_SHA1 "; "
+				"micalg=%s; "
 				"boundary=\"%s\"" CRLF
 				CRLF
 				"%s%s"
 				"--%s" CRLF,
-
+				hashStr,
 				*boundary_return,
 				(outer_p ? crypto_multipart_blurb : ""),
 				(outer_p ? CRLF CRLF : ""),

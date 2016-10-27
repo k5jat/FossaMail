@@ -5,6 +5,7 @@
 #ifndef nsAbOutlookDirectory_h___
 #define nsAbOutlookDirectory_h___
 
+#include "mozilla/Attributes.h"
 #include "nsAbDirProperty.h"
 #include "nsIAbDirectoryQuery.h"
 #include "nsIAbDirectorySearch.h"
@@ -31,24 +32,24 @@ public:
   virtual ~nsAbOutlookDirectory(void);
 
   // nsAbDirProperty methods
-  NS_IMETHOD GetDirType(int32_t *aDirType);
-  NS_IMETHOD GetURI(nsACString &aURI);
-  NS_IMETHOD GetChildCards(nsISimpleEnumerator **aCards);
-  NS_IMETHOD GetChildNodes(nsISimpleEnumerator **aNodes);
-  NS_IMETHOD GetIsQuery(bool *aResult);
-  NS_IMETHOD HasCard(nsIAbCard *aCard, bool *aHasCard);
-  NS_IMETHOD HasDirectory(nsIAbDirectory *aDirectory, bool *aHasDirectory);
-  NS_IMETHOD DeleteCards(nsIArray *aCardList);
-  NS_IMETHOD DeleteDirectory(nsIAbDirectory *aDirectory);
-  NS_IMETHOD UseForAutocomplete(const nsACString &aIdentityKey, bool *aResult);
-  NS_IMETHOD AddCard(nsIAbCard *aData, nsIAbCard **addedCard);
-  NS_IMETHOD ModifyCard(nsIAbCard *aModifiedCard);
-  NS_IMETHOD DropCard(nsIAbCard *aData, bool needToCopyCard);
-  NS_IMETHOD AddMailList(nsIAbDirectory *aMailList, nsIAbDirectory **addedList);
-  NS_IMETHOD EditMailListToDatabase(nsIAbCard *listCard);
+  NS_IMETHOD GetDirType(int32_t *aDirType) override;
+  NS_IMETHOD GetURI(nsACString &aURI) override;
+  NS_IMETHOD GetChildCards(nsISimpleEnumerator **aCards) override;
+  NS_IMETHOD GetChildNodes(nsISimpleEnumerator **aNodes) override;
+  NS_IMETHOD GetIsQuery(bool *aResult) override;
+  NS_IMETHOD HasCard(nsIAbCard *aCard, bool *aHasCard) override;
+  NS_IMETHOD HasDirectory(nsIAbDirectory *aDirectory, bool *aHasDirectory) override;
+  NS_IMETHOD DeleteCards(nsIArray *aCardList) override;
+  NS_IMETHOD DeleteDirectory(nsIAbDirectory *aDirectory) override;
+  NS_IMETHOD UseForAutocomplete(const nsACString &aIdentityKey, bool *aResult) override;
+  NS_IMETHOD AddCard(nsIAbCard *aData, nsIAbCard **addedCard) override;
+  NS_IMETHOD ModifyCard(nsIAbCard *aModifiedCard) override;
+  NS_IMETHOD DropCard(nsIAbCard *aData, bool needToCopyCard) override;
+  NS_IMETHOD AddMailList(nsIAbDirectory *aMailList, nsIAbDirectory **addedList) override;
+  NS_IMETHOD EditMailListToDatabase(nsIAbCard *listCard) override;
   
   // nsAbDirProperty method
-  NS_IMETHOD Init(const char *aUri);
+  NS_IMETHOD Init(const char *aUri) override;
   // nsIAbDirectoryQuery methods
   NS_DECL_NSIABDIRECTORYQUERY
   // nsIAbDirectorySearch methods

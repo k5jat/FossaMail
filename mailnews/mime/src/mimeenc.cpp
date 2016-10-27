@@ -849,8 +849,8 @@ public:
       in_buffer_count(0) {}
   virtual ~Base64Encoder() {}
 
-  virtual nsresult Write(const char *buffer, int32_t size) MOZ_OVERRIDE;
-  virtual nsresult Flush() MOZ_OVERRIDE;
+  virtual nsresult Write(const char *buffer, int32_t size) override;
+  virtual nsresult Flush() override;
 
 private:
   static void Base64EncodeBits(RangedPtr<char> &out, uint32_t bits);
@@ -973,7 +973,7 @@ void Base64Encoder::Base64EncodeBits(RangedPtr<char> &out, uint32_t bits)
     else if (k < 62)  *out++ = k - 52 + '0';
     else if (k == 62) *out++ = '+';
     else if (k == 63) *out++ = '/';
-    else MOZ_NOT_REACHED("6 bits should only be between 0 and 64");
+    else MOZ_CRASH("6 bits should only be between 0 and 64");
   }
 }
 
@@ -983,7 +983,7 @@ public:
     : MimeEncoder(callback, closure) {}
   virtual ~QPEncoder() {}
 
-  virtual nsresult Write(const char *buffer, int32_t size) MOZ_OVERRIDE;
+  virtual nsresult Write(const char *buffer, int32_t size) override;
 };
 
 nsresult QPEncoder::Write(const char *buffer, int32_t size)

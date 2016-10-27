@@ -4,7 +4,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 # These extensions are not optional.
-PARALLEL_DIRS += [
+DIRS += [
     'mdn',
     'mailviews/public',
     'mailviews/src',
@@ -14,8 +14,6 @@ PARALLEL_DIRS += [
     'newsblog',
     'fts3/public',
     'fts3/src',
+    'smime',
 ]
-
-if CONFIG['MOZ_PSM']:
-    PARALLEL_DIRS += ['smime']
 

@@ -8,7 +8,7 @@ Components.utils.import("resource:///modules/mailServices.js");
 
 const kNonVcardFields =
         ["NickNameContainer", "SecondaryEmailContainer", "ScreenNameContainer",
-         "customFields", "allowRemoteContent", "preferDisplayName"];
+         "customFields", "preferDisplayName"];
 
 const kPhoneticFields =
         ["PhoneticLastName", "PhoneticLabel1", "PhoneticSpacer1",
@@ -68,7 +68,6 @@ const kVcardFields =
          ["IRC", "_IRC"]
         ];
 
-const kDefaultYear = 2000;
 var gEditCard;
 var gOnSaveListeners = new Array();
 var gOnLoadListeners = new Array();
@@ -93,7 +92,8 @@ function OnLoadNewCard()
   {
     gEditCard.selectedAB = kPersonalAddressbookURI;
 
-    if ("selectedAB" in window.arguments[0]) {
+    if ("selectedAB" in window.arguments[0] &&
+        (window.arguments[0].selectedAB != kAllDirectoryRoot + "?")) {
       // check if selected ab is a mailing list
       var abURI = window.arguments[0].selectedAB;
 
@@ -122,9 +122,6 @@ function OnLoadNewCard()
     if ("aimScreenName" in window.arguments[0])
       gEditCard.card.setProperty("_AimScreenName",
                                  window.arguments[0].aimScreenName);
-    if ("allowRemoteContent" in window.arguments[0])
-      gEditCard.card.setProperty("AllowRemoteContent",
-                                 window.arguments[0].allowRemoteContent);
 
     if ("okCallback" in window.arguments[0])
       gOkCallback = window.arguments[0].okCallback;
@@ -207,6 +204,15 @@ function EditCardOKButton()
 
   CheckAndSetCardValues(gEditCard.card, document, false);
 
+  // If the source directory is "All Address Books", find the parent
+  // address book of the card being edited and reflect the changes in it.
+  if (directory.URI == kAllDirectoryRoot + "?") {
+    let dirId =
+      gEditCard.card.directoryId
+                    .substring(0, gEditCard.card.directoryId.indexOf("&"));
+    directory = MailServices.ab.getDirectoryFromId(dirId);
+  }
+
   directory.modifyCard(gEditCard.card);
 
   while (foundDirectories.length) {
@@ -264,7 +270,7 @@ function OnLoadEditCard()
       var abURI = window.arguments[0].abURI;
       var directory = GetDirectoryFromURI(abURI);
 
-      if (directory.readOnly) 
+      if (directory.readOnly)
       {
         // Set all the editable vcard fields to read only
         for (var i = kVcardFields.length; i-- > 0; )
@@ -289,7 +295,6 @@ function OnLoadEditCard()
 
         // Also disable the mail format popup and allow remote content items.
         document.getElementById("PreferMailFormatPopup").disabled = true;
-        document.getElementById("allowRemoteContent").disabled = true;
 
         // And the "prefer display name" checkbox
         document.getElementById("preferDisplayName").disabled = true;
@@ -297,10 +302,6 @@ function OnLoadEditCard()
         document.documentElement.buttons = "accept";
         document.documentElement.removeAttribute("ondialogaccept");
       }
-      
-      // hide  remote content in HTML field for remote directories
-      if (directory.isRemote)
-        document.getElementById('allowRemoteContent').hidden = true;
     }
   }
 }
@@ -369,7 +370,7 @@ function InitPhoneticFields()
     Services.prefs.getComplexValue("mail.addr_book.show_phonetic_fields",
       Components.interfaces.nsIPrefLocalizedString).data;
 
-  // hide phonetic fields if indicated by the pref
+  // show phonetic fields if indicated by the pref
   if (showPhoneticFields == "true")
   {
     for (var i = kPhoneticFields.length; i-- > 0; )
@@ -434,12 +435,6 @@ function NewCardOKButton()
       var directory = GetDirectoryFromURI(uri);
       gEditCard.card = directory.addCard(gEditCard.card);
       NotifySaveListeners(directory);
-      if ("arguments" in window && window.arguments[0] &&
-          "allowRemoteContent" in window.arguments[0]) {
-        // getProperty may return a "1" or "0" string, we want a boolean
-        window.arguments[0].allowRemoteContent =
-          gEditCard.card.getProperty("AllowRemoteContent", false) != false;
-      }
     }
   }
 
@@ -464,6 +459,14 @@ function GetCardValues(cardproperty, doc)
   var birthday = doc.getElementById("Birthday");
   modifyDatepicker(birthday);
 
+  // Get the year first, so that the following month/day
+  // calculations can take leap years into account.
+  var year = cardproperty.getProperty("BirthYear", null);
+  var birthYear = doc.getElementById("BirthYear");
+  // set the year in the datepicker to the stored year
+  birthday.year = saneBirthYear(year);
+  birthYear.value = year;
+
   // get the month of the year (1 - 12)
   var month = cardproperty.getProperty("BirthMonth", null);
   if (month > 0 && month < 13)
@@ -478,14 +481,6 @@ function GetCardValues(cardproperty, doc)
   else
     birthday.dateField.value = null;
 
-  // get the year
-  var year = cardproperty.getProperty("BirthYear", null);
-  var birthYear = doc.getElementById("BirthYear");
-  // set the year in the datepicker to the stored year
-  // if the year isn't present, default to 2000 (a leap year)
-  birthday.year = year && year < 10000 && year > 0 ? year : kDefaultYear;
-  birthYear.value = year;
-
   // get the current age
   calculateAge(null, birthYear);
 
@@ -499,11 +494,6 @@ function GetCardValues(cardproperty, doc)
   var popup = document.getElementById("PreferMailFormatPopup");
   if (popup)
     popup.value = cardproperty.getProperty("PreferMailFormat", "");
-
-  var allowRemoteContentEl = document.getElementById("allowRemoteContent");
-  if (allowRemoteContentEl)
-    // getProperty may return a "1" or "0" string, we want a boolean
-    allowRemoteContentEl.checked = cardproperty.getProperty("AllowRemoteContent", false) != false;
 
   var preferDisplayNameEl = document.getElementById("preferDisplayName");
   if (preferDisplayNameEl)
@@ -573,10 +563,6 @@ function CheckAndSetCardValues(cardproperty, doc, check)
   var popup = document.getElementById("PreferMailFormatPopup");
   if (popup)
     cardproperty.setProperty("PreferMailFormat", popup.value);
-    
-  var allowRemoteContentEl = document.getElementById("allowRemoteContent");
-  if (allowRemoteContentEl)
-    cardproperty.setProperty("AllowRemoteContent", allowRemoteContentEl.checked);
 
   var preferDisplayNameEl = document.getElementById("preferDisplayName");
   if (preferDisplayNameEl)
@@ -795,7 +781,7 @@ function calculateYear(aEvent, aElement) {
  * If any field is blank, the corresponding property is either the previous
  * value if there was one since the card was opened or the relevant portion of
  * the current date.
- * 
+ *
  * To get the displayed values, get the value of the individual field, such as
  * datepicker.yyyyField.value where yyyy is "year", "month", or "date" for the
  * year, month, and day, respectively.
@@ -1023,7 +1009,7 @@ function browsePhoto() {
   var fp = Components.classes["@mozilla.org/filepicker;1"]
                      .createInstance(nsIFilePicker);
   fp.init(window, gAddressBookBundle.getString("browsePhoto"), nsIFilePicker.modeOpen);
-  
+
   // Add All Files & Image Files filters and select the latter
   fp.appendFilters(nsIFilePicker.filterImages);
   fp.appendFilters(nsIFilePicker.filterAll);

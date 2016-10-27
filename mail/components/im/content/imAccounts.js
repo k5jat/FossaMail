@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const {interfaces: Ci, utils: Cu} = Components;
+const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 Cu.import("resource:///modules/imServices.jsm");
 Cu.import("resource:///modules/iteratorUtils.jsm");
 Cu.import("resource:///modules/mailServices.js");
@@ -33,39 +33,44 @@ var gAccountManager = {
   disableTimerID: 0,
   _connectedLabelInterval: 0,
   load: function am_load() {
-    this.accountList = document.getElementById("accountlist");
-    let defaultID;
-    Services.core.init(); // ensure the imCore is initialized.
-    for (let acc in this.getAccounts()) {
-      var elt = document.createElement("richlistitem");
-      this.accountList.appendChild(elt);
-      elt.build(acc);
-      if (!defaultID && acc.firstConnectionState == acc.FIRST_CONNECTION_CRASHED)
-        defaultID = acc.id;
-    }
-    for each (let event in events)
-      Services.obs.addObserver(this, event, false);
-    if (!this.accountList.getRowCount())
-      // This is horrible, but it works. Otherwise (at least on mac)
-      // the wizard is not centered relatively to the account manager
-      setTimeout(function() { gAccountManager.new(); }, 0);
-    else {
-      // we have accounts, show the list
-      document.getElementById("accountsDesk").selectedIndex = 1;
+    // Wait until the password service is ready before offering anything.
+    Services.logins.initializationPromise.then(() => {
+      this.accountList = document.getElementById("accountlist");
+      let defaultID;
+      Services.core.init(); // ensure the imCore is initialized.
+      for (let acc in this.getAccounts()) {
+        var elt = document.createElement("richlistitem");
+        this.accountList.appendChild(elt);
+        elt.build(acc);
+        if (!defaultID && acc.firstConnectionState == acc.FIRST_CONNECTION_CRASHED)
+          defaultID = acc.id;
+      }
+      for each (let event in events)
+        Services.obs.addObserver(this, event, false);
+      if (!this.accountList.getRowCount())
+        // This is horrible, but it works. Otherwise (at least on mac)
+        // the wizard is not centered relatively to the account manager
+        setTimeout(function() { gAccountManager.new(); }, 0);
+      else {
+        // we have accounts, show the list
+        document.getElementById("accountsDesk").selectedIndex = 1;
 
-      // ensure an account is selected
-      if (defaultID)
-        this.selectAccount(defaultID);
-      else
-        this.accountList.selectedIndex = 0;
-    }
+        // ensure an account is selected
+        if (defaultID)
+          this.selectAccount(defaultID);
+        else
+          this.accountList.selectedIndex = 0;
+      }
 
-    this.setAutoLoginNotification();
+      this.setAutoLoginNotification();
 
-    this.accountList.addEventListener("keypress", this.onKeyPress, true);
-    window.addEventListener("unload", this.unload.bind(this));
-    this._connectedLabelInterval = setInterval(this.updateConnectedLabels, 60000);
-    statusSelector.init();
+      this.accountList.addEventListener("keypress", this.onKeyPress, true);
+      window.addEventListener("unload", this.unload.bind(this));
+      this._connectedLabelInterval = setInterval(this.updateConnectedLabels, 60000);
+      statusSelector.init();
+    }, () => {
+      this.close();
+    });
   },
   unload: function am_unload() {
     clearInterval(this._connectedLabelInterval);
@@ -142,7 +147,7 @@ var gAccountManager = {
       var elt = document.getElementById(aObject.id);
       elt.destroy();
       if (!elt.selected) {
-        this.accountList.removeChild(elt);
+        elt.remove();
         return;
       }
       // The currently selected element is removed,
@@ -151,7 +156,7 @@ var gAccountManager = {
       // Prevent errors if the timer is active and the account deleted
       clearTimeout(this.disableTimerID);
       this.disableTimerID = 0;
-      this.accountList.removeChild(elt);
+      elt.remove();
       var count = this.accountList.getRowCount();
       if (!count) {
         document.getElementById("accountsDesk").selectedIndex = 0;
@@ -211,6 +216,55 @@ var gAccountManager = {
       account.disconnect();
     }
   },
+  addException: function am_addException() {
+    let account = this.accountList.selectedItem.account;
+    let prplAccount = account.prplAccount;
+    if (!account.disconnected || !prplAccount.connectionTarget)
+      return;
+
+    // Open the Gecko SSL exception dialog.
+    let params = {
+      exceptionAdded: false,
+      sslStatus: prplAccount.sslStatus,
+      prefetchCert: true,
+      location: prplAccount.connectionTarget
+    };
+    window.openDialog("chrome://pippki/content/exceptionDialog.xul", "",
+                      "chrome,centerscreen,modal", params);
+    // Reconnect the account if an exception was added.
+    if (params.exceptionAdded)
+      account.connect();
+  },
+  copyDebugLog: function am_copyDebugLog() {
+    let account = this.accountList.selectedItem.account;
+    let text = account.getDebugMessages().map(function(dbgMsg) {
+      let m = dbgMsg.message;
+      const dateServ = Cc["@mozilla.org/intl/scriptabledateformat;1"]
+                         .getService(Ci.nsIScriptableDateFormat);
+      let time = new Date(m.timeStamp);
+      time = dateServ.FormatDateTime("", dateServ.dateFormatShort,
+                                     dateServ.timeFormatSeconds,
+                                     time.getFullYear(), time.getMonth() + 1,
+                                     time.getDate(), time.getHours(),
+                                     time.getMinutes(), time.getSeconds());
+      let level = dbgMsg.logLevel;
+      if (!level)
+        return "(" + m.errorMessage + ")";
+      if (level == dbgMsg.LEVEL_ERROR)
+        level = "ERROR";
+      else if (level == dbgMsg.LEVEL_WARNING)
+        level = "WARN.";
+      else if (level == dbgMsg.LEVEL_LOG)
+        level = "LOG  ";
+      else
+        level = "DEBUG"
+      return "[" + time + "] " + level + " (@ " + m.sourceLine +
+             " " + m.sourceName + ":" + m.lineNumber + ")\n" +
+             m.errorMessage;
+    }).join("\n");
+    Cc["@mozilla.org/widget/clipboardhelper;1"]
+      .getService(Ci.nsIClipboardHelper).copyString(text);
+  },
   updateConnectedLabels: function am_updateConnectedLabels() {
     for (let i = 0; i < gAccountManager.accountList.itemCount; ++i) {
       let item = gAccountManager.accountList.getItemAtIndex(i);
@@ -242,7 +296,7 @@ var gAccountManager = {
     let server = null;
     let imAccountId = this.accountList.selectedItem.account.numericId;
     let mgr = MailServices.accounts;
-    for each (let account in fixIterator(mgr.accounts, Ci.nsIMsgAccount)) {
+    for (let account in fixIterator(mgr.accounts, Ci.nsIMsgAccount)) {
       let incomingServer = account.incomingServer;
       if (!incomingServer || incomingServer.type != "im")
         continue;
@@ -469,7 +523,7 @@ var gAccountManager = {
          If none, this function has already returned */
       case as.AUTOLOGIN_ENABLED:
         if (!("PluralForm" in window))
-          Components.utils.import("resource://gre/modules/PluralForm.jsm");
+          Cu.import("resource://gre/modules/PluralForm.jsm");
         label = bundle.getString("accountsManager.notification.singleCrash.label");
         label = PluralForm.get(crashCount, label).replace("#1", crashCount);
         priority = box.PRIORITY_WARNING_MEDIUM;

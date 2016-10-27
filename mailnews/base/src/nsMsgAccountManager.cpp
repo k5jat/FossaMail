@@ -114,7 +114,7 @@ static PLDHashOperator
 hashCleanupDeferral(nsCStringHashKey::KeyType aKey,
                     nsCOMPtr<nsIMsgIncomingServer>& aServer, void* aClosure);
 
-NS_IMPL_THREADSAFE_ISUPPORTS5(nsMsgAccountManager,
+NS_IMPL_ISUPPORTS(nsMsgAccountManager,
                               nsIMsgAccountManager,
                               nsIObserver,
                               nsISupportsWeakReference,
@@ -157,9 +157,6 @@ nsresult nsMsgAccountManager::Init()
   m_prefs = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  m_identities.Init();
-  m_incomingServers.Init();
-
   nsCOMPtr<nsIObserverService> observerService =
            mozilla::services::GetObserverService();
   if (observerService)
@@ -170,6 +167,9 @@ nsresult nsMsgAccountManager::Init()
     observerService->AddObserver(this, "profile-before-change", true);
     observerService->AddObserver(this, "sleep_notification", true);
   }
+
+  // Make sure PSM gets initialized before any accounts use certificates.
+  net_EnsurePSMInit();
 
   return NS_OK;
 }
@@ -240,7 +240,7 @@ nsMsgAccountManager::SetUserNeedsToAuthenticate(bool aUserNeedsToAuthenticate)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsMsgAccountManager::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
+NS_IMETHODIMP nsMsgAccountManager::Observe(nsISupports *aSubject, const char *aTopic, const char16_t *someData)
 {
   if(!strcmp(aTopic,NS_XPCOM_SHUTDOWN_OBSERVER_ID))
   {
@@ -464,6 +464,13 @@ nsMsgAccountManager::CreateIncomingServer(const nsACString&  username,
     nsCString defaultStore;
     m_prefs->GetCharPref("mail.serverDefaultStoreContractID", getter_Copies(defaultStore));
     (*_retval)->SetCharValue("storeContractID", defaultStore);
+
+    // From when we first create the account until we have created some folders,
+    // we can change the store type.
+    //(*_retval)->SetBoolValue("canChangeStoreType", true);
+    //
+    // This is disabled because of maildir issues in Thunderbird 38
+    (*_retval)->SetBoolValue("canChangeStoreType", false);
   }
   return rv;
 }
@@ -2365,7 +2372,7 @@ nsresult nsMsgAccountManager::GetLocalFoldersPrettyName(nsString &localFoldersNa
                                       getter_AddRefs(bundle));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return bundle->GetStringFromName(NS_LITERAL_STRING("localFolders").get(), getter_Copies(localFoldersName));
+  return bundle->GetStringFromName(MOZ_UTF16("localFolders"), getter_Copies(localFoldersName));
 }
 
 NS_IMETHODIMP
@@ -2535,8 +2542,9 @@ nsMsgAccountManager::GetChromePackageName(const nsACString& aExtensionName, nsAC
   rv = catman->EnumerateCategory(MAILNEWS_ACCOUNTMANAGER_EXTENSIONS, getter_AddRefs(e));
   if(NS_SUCCEEDED(rv) && e) {
     while (true) {
-      nsCOMPtr<nsISupportsCString> catEntry;
-      rv = e->GetNext(getter_AddRefs(catEntry));
+      nsCOMPtr<nsISupports> supports;
+      rv = e->GetNext(getter_AddRefs(supports));
+      nsCOMPtr<nsISupportsCString> catEntry = do_QueryInterface(supports);
       if (NS_FAILED(rv) || !catEntry)
         break;
 
@@ -2588,7 +2596,7 @@ private:
   nsCOMPtr<nsIMsgDatabase> mDB;
 };
 
-NS_IMPL_ISUPPORTS1(VirtualFolderChangeListener, nsIDBChangeListener)
+NS_IMPL_ISUPPORTS(VirtualFolderChangeListener, nsIDBChangeListener)
 
 VirtualFolderChangeListener::VirtualFolderChangeListener() :
   m_searchOnMsgStatus(false), m_batchingEvents(false)
@@ -3129,23 +3137,25 @@ NS_IMETHODIMP nsMsgAccountManager::SaveVirtualFolders()
   GetVirtualFoldersFile(file);
 
   // Open a buffered, safe output stream
-  nsCOMPtr<nsIOutputStream> outStreamSink;
-  nsresult rv = NS_NewSafeLocalFileOutputStream(getter_AddRefs(outStreamSink),
-                                                file,
-                                                PR_CREATE_FILE | PR_WRONLY | PR_TRUNCATE,
-                                                0664);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIOutputStream> outStream;
-  rv = NS_NewBufferedOutputStream(getter_AddRefs(outStream), outStreamSink, 4096);
+  nsresult rv = MsgNewSafeBufferedFileOutputStream(getter_AddRefs(outStream),
+                                                   file,
+                                                   PR_CREATE_FILE | PR_WRONLY | PR_TRUNCATE,
+                                                   0664);
   NS_ENSURE_SUCCESS(rv, rv);
 
   WriteLineToOutputStream("version=", "1", outStream);
   m_incomingServers.Enumerate(saveVirtualFolders, &outStream);
 
   nsCOMPtr<nsISafeOutputStream> safeStream = do_QueryInterface(outStream, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return safeStream->Finish();
+  NS_ASSERTION(safeStream, "expected a safe output stream!");
+  if (safeStream) {
+    rv = safeStream->Finish();
+    if (NS_FAILED(rv)) {
+      NS_WARNING("failed to save personal dictionary file! possible data loss");
+    }
+  }
+  return rv;
 }
 
 PLDHashOperator
@@ -3562,8 +3572,8 @@ NS_IMETHODIMP nsMsgAccountManager::OnItemPropertyChanged(nsIMsgFolder *item, nsI
 NS_IMETHODIMP
 nsMsgAccountManager::OnItemIntPropertyChanged(nsIMsgFolder *aFolder,
                                               nsIAtom *aProperty,
-                                              int32_t oldValue,
-                                              int32_t newValue)
+                                              int64_t oldValue,
+                                              int64_t newValue)
 {
   if (aProperty == mFolderFlagAtom)
   {
@@ -3664,7 +3674,7 @@ NS_IMETHODIMP nsMsgAccountManager::OnItemBoolPropertyChanged(nsIMsgFolder *item,
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP nsMsgAccountManager::OnItemUnicharPropertyChanged(nsIMsgFolder *item, nsIAtom *property, const PRUnichar *oldValue, const PRUnichar *newValue)
+NS_IMETHODIMP nsMsgAccountManager::OnItemUnicharPropertyChanged(nsIMsgFolder *item, nsIAtom *property, const char16_t *oldValue, const char16_t *newValue)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }

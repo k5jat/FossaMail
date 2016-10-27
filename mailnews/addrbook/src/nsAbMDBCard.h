@@ -6,6 +6,7 @@
 #ifndef nsAbMDBCard_h__
 #define nsAbMDBCard_h__
 
+#include "mozilla/Attributes.h"
 #include "nsAbCardProperty.h"
 #include "nsCOMPtr.h"
 
@@ -15,9 +16,11 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   nsAbMDBCard(void);
-  virtual ~nsAbMDBCard(void);
 
-  NS_IMETHOD Equals(nsIAbCard *card, bool *result);
+  NS_IMETHOD Equals(nsIAbCard *card, bool *result) override;
+
+private:
+  virtual ~nsAbMDBCard();
 };
 
 #endif

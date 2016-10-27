@@ -767,7 +767,7 @@ var GlodaIndexer = {
   /**
    * The root work-driver.  callbackDriver creates workBatch generator instances
    *  (stored in _batch) which run until they are done (kWorkDone) or they
-   *  (really the embedded _actualWorker) encounter something asynchronous.
+   *  (really the embedded activeIterator) encounter something asynchronous.
    *  The convention is that all the callback handlers end up calling us,
    *  ensuring that control-flow properly resumes.  If the batch completes,
    *  we re-schedule ourselves after a time delay (controlled by _INDEX_INTERVAL)
@@ -956,10 +956,10 @@ var GlodaIndexer = {
   /**
    * The workBatch generator handles a single 'batch' of processing, managing
    *  the database transaction and keeping track of "tokens".  It drives the
-   *  _actualWorker generator which is doing the work.
+   *  activeIterator generator which is doing the work.
    * workBatch will only produce kWorkAsync, kWorkPause, and kWorkDone
-   *  notifications.  If _actualWorker returns kWorkSync and there are still
-   *  tokens available, workBatch will keep driving _actualWorker until it
+   *  notifications.  If activeIterator returns kWorkSync and there are still
+   *  tokens available, workBatch will keep driving the activeIterator until it
    *  encounters a kWorkAsync (which workBatch will yield to callbackDriver), or
    *  it runs out of tokens and yields a kWorkPause or kWorkDone.
    */
@@ -1151,6 +1151,21 @@ var GlodaIndexer = {
         }
       }
 
+      // All pauses have been taken, how effective were we? Report!
+      // XXX: there's possibly a lot of fluctuation since we go through here
+      // every 5 messages or even less
+      if (this._indexedMessageCount > 0) {
+        let delta = (Date.now() - t0)/1000; // in seconds
+        let v = Math.round(this._indexedMessageCount/delta);
+        try {
+          let h = Services.telemetry
+            .getHistogramById("THUNDERBIRD_INDEXING_RATE_MSG_PER_S");
+          h.add(v);
+        } catch (e) {
+          this._log.warn("Couldn't report telemetry", e, v);
+        }
+      }
+
       if (batchCount > 0) {
         let totalTime = this._perfIndexStopwatch.realTimeSeconds * 1000;
         let timePerToken = totalTime / batchCount;
@@ -1204,11 +1219,7 @@ var GlodaIndexer = {
       }
     }
 
-    // try and get a job if we don't have one for the sake of the notification
-    if (this.indexing && (this._actualWorker === null))
-      this._hireJobWorker();
-    else
-      this._notifyListeners();
+    this._notifyListeners();
 
     // If we still have a transaction to commit, tell idle to do the commit
     //  when it gets around to it.

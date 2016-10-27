@@ -56,7 +56,6 @@
 #include "mimebuf.h"
 #include "nsIServiceManager.h"
 #include "mimemoz2.h"
-#include "comi18n.h"
 #include "nsIMimeContentTypeHandler.h"
 #include "nsIComponentManager.h"
 #include "nsCategoryManagerUtils.h"
@@ -752,8 +751,14 @@ mime_find_class (const char *content_type, MimeHeaders *hdrs,
           char *name = (hdrs ? MimeHeaders_get_name(hdrs, opts) : nullptr);
           if (name) {
             char *suf = PL_strrchr(name, '.');
+            bool p7mExternal = false;
+
+            if (prefBranch)
+              prefBranch->GetBoolPref("mailnews.p7m_external", &p7mExternal);
             if (suf &&
-                (!PL_strcasecmp(suf, ".p7c") || !PL_strcasecmp(suf, ".p7z")))
+                ((!PL_strcasecmp(suf, ".p7m") && p7mExternal) ||
+                 !PL_strcasecmp(suf, ".p7c") ||
+                 !PL_strcasecmp(suf, ".p7z")))
               clazz = (MimeObjectClass *)&mimeExternalObjectClass;
           }
           PR_Free(name);

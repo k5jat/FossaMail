@@ -6,6 +6,7 @@
 #ifndef _nsMsgThread_H
 #define _nsMsgThread_H
 
+#include "nsAutoPtr.h"
 #include "nsIMsgThread.h"
 #include "nsStringGlue.h"
 #include "MailNewsTypes.h"
@@ -19,7 +20,6 @@ class nsMsgThread : public nsIMsgThread {
 public:
   nsMsgThread();
   nsMsgThread(nsMsgDatabase *db, nsIMdbTable *table);
-  virtual ~nsMsgThread();
 
   friend class nsMsgThreadEnumerator;
   friend class nsMsgDatabase;
@@ -27,9 +27,10 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMSGTHREAD
 
-  nsCOMPtr<nsMsgDatabase> m_mdbDB;
+  nsRefPtr<nsMsgDatabase> m_mdbDB;
 
 protected:
+  virtual ~nsMsgThread();
 
   void                  Init();
   void                  Clear();

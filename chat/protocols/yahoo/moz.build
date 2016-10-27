@@ -14,3 +14,4 @@ EXTRA_JS_MODULES += [
     'yahoo-session.jsm',
 ]
 
+JAR_MANIFESTS += ['jar.mn']

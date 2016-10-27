@@ -6,6 +6,7 @@
 #ifndef _nsAddrDatabase_H_
 #define _nsAddrDatabase_H_
 
+#include "mozilla/Attributes.h"
 #include "nsIAddrDatabase.h"
 #include "mdb.h"
 #include "nsStringGlue.h"
@@ -25,232 +26,227 @@ typedef enum
 class nsAddrDatabase : public nsIAddrDatabase
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIADDRDBANNOUNCER
   //////////////////////////////////////////////////////////////////////////////
   // nsIAddrDatabase methods:
 
-  NS_IMETHOD GetDbPath(nsIFile * *aDbPath);
-  NS_IMETHOD SetDbPath(nsIFile * aDbPath);
-  NS_IMETHOD Open(nsIFile *aMabFile, bool aCreate, bool upgrading, nsIAddrDatabase **pCardDB);
-  NS_IMETHOD Close(bool forceCommit);
-  NS_IMETHOD OpenMDB(nsIFile *dbName, bool create);
-  NS_IMETHOD CloseMDB(bool commit);
-  NS_IMETHOD Commit(uint32_t commitType);
-  NS_IMETHOD ForceClosed();
+  NS_IMETHOD GetDbPath(nsIFile * *aDbPath) override;
+  NS_IMETHOD SetDbPath(nsIFile * aDbPath) override;
+  NS_IMETHOD Open(nsIFile *aMabFile, bool aCreate, bool upgrading, nsIAddrDatabase **pCardDB) override;
+  NS_IMETHOD Close(bool forceCommit) override;
+  NS_IMETHOD OpenMDB(nsIFile *dbName, bool create) override;
+  NS_IMETHOD CloseMDB(bool commit) override;
+  NS_IMETHOD Commit(uint32_t commitType) override;
+  NS_IMETHOD ForceClosed() override;
 
-  NS_IMETHOD CreateNewCardAndAddToDB(nsIAbCard *newCard, bool notify, nsIAbDirectory *parent);
-  NS_IMETHOD CreateNewListCardAndAddToDB(nsIAbDirectory *list, uint32_t listRowID, nsIAbCard *newCard, bool notify);
-  NS_IMETHOD CreateMailListAndAddToDB(nsIAbDirectory *newList, bool notify, nsIAbDirectory *parent);
-  NS_IMETHOD EnumerateCards(nsIAbDirectory *directory, nsISimpleEnumerator **result);
-  NS_IMETHOD GetMailingListsFromDB(nsIAbDirectory *parentDir);
-  NS_IMETHOD EnumerateListAddresses(nsIAbDirectory *directory, nsISimpleEnumerator **result);
-  NS_IMETHOD DeleteCard(nsIAbCard *newCard, bool notify, nsIAbDirectory *parent);
-  NS_IMETHOD EditCard(nsIAbCard *card, bool notify, nsIAbDirectory *parent);
-  NS_IMETHOD ContainsCard(nsIAbCard *card, bool *hasCard);
-  NS_IMETHOD DeleteMailList(nsIAbDirectory *aMailList, nsIAbDirectory *aParent);
-  NS_IMETHOD EditMailList(nsIAbDirectory *mailList, nsIAbCard *listCard, bool notify);
-  NS_IMETHOD ContainsMailList(nsIAbDirectory *mailList, bool *hasCard);
-  NS_IMETHOD DeleteCardFromMailList(nsIAbDirectory *mailList, nsIAbCard *card, bool aNotify);
+  NS_IMETHOD CreateNewCardAndAddToDB(nsIAbCard *newCard, bool notify, nsIAbDirectory *parent) override;
+  NS_IMETHOD CreateNewListCardAndAddToDB(nsIAbDirectory *list, uint32_t listRowID, nsIAbCard *newCard, bool notify) override;
+  NS_IMETHOD CreateMailListAndAddToDB(nsIAbDirectory *newList, bool notify, nsIAbDirectory *parent) override;
+  NS_IMETHOD EnumerateCards(nsIAbDirectory *directory, nsISimpleEnumerator **result) override;
+  NS_IMETHOD GetMailingListsFromDB(nsIAbDirectory *parentDir) override;
+  NS_IMETHOD EnumerateListAddresses(nsIAbDirectory *directory, nsISimpleEnumerator **result) override;
+  NS_IMETHOD DeleteCard(nsIAbCard *newCard, bool notify, nsIAbDirectory *parent) override;
+  NS_IMETHOD EditCard(nsIAbCard *card, bool notify, nsIAbDirectory *parent) override;
+  NS_IMETHOD ContainsCard(nsIAbCard *card, bool *hasCard) override;
+  NS_IMETHOD DeleteMailList(nsIAbDirectory *aMailList, nsIAbDirectory *aParent) override;
+  NS_IMETHOD EditMailList(nsIAbDirectory *mailList, nsIAbCard *listCard, bool notify) override;
+  NS_IMETHOD ContainsMailList(nsIAbDirectory *mailList, bool *hasCard) override;
+  NS_IMETHOD DeleteCardFromMailList(nsIAbDirectory *mailList, nsIAbCard *card, bool aNotify) override;
   NS_IMETHOD GetCardFromAttribute(nsIAbDirectory *aDirectory, const char *aName,
                                   const nsACString &aValue,
-                                  bool aCaseInsensitive, nsIAbCard **card);
+                                  bool aCaseInsensitive, nsIAbCard **card) override;
   NS_IMETHOD GetCardsFromAttribute(nsIAbDirectory *aDirectory,
                                    const char *aName,
                                    const nsACString & uUTF8Value,
                                    bool aCaseInsensitive,
-                                   nsISimpleEnumerator **cards);
-  NS_IMETHOD GetNewRow(nsIMdbRow * *newRow);
-  NS_IMETHOD GetNewListRow(nsIMdbRow * *newRow);
-  NS_IMETHOD AddCardRowToDB(nsIMdbRow *newRow);
-  NS_IMETHOD AddLdifListMember(nsIMdbRow* row, const char * value);
+                                   nsISimpleEnumerator **cards) override;
+  NS_IMETHOD GetNewRow(nsIMdbRow * *newRow) override;
+  NS_IMETHOD GetNewListRow(nsIMdbRow * *newRow) override;
+  NS_IMETHOD AddCardRowToDB(nsIMdbRow *newRow) override;
+  NS_IMETHOD AddLdifListMember(nsIMdbRow* row, const char * value) override;
 
-  NS_IMETHOD GetDeletedCardList(nsIArray **aResult);
-  NS_IMETHOD GetDeletedCardCount(uint32_t *aCount);
+  NS_IMETHOD GetDeletedCardList(nsIArray **aResult) override;
+  NS_IMETHOD GetDeletedCardCount(uint32_t *aCount) override;
   NS_IMETHOD PurgeDeletedCardTable();
 
-  NS_IMETHOD AddFirstName(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddFirstName(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_FirstNameColumnToken, value); }
 
-  NS_IMETHOD AddLastName(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddLastName(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_LastNameColumnToken, value); }
 
-  NS_IMETHOD AddPhoneticFirstName(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddPhoneticFirstName(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_PhoneticFirstNameColumnToken, value); }
 
-  NS_IMETHOD AddPhoneticLastName(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddPhoneticLastName(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_PhoneticLastNameColumnToken, value); }
 
-  NS_IMETHOD AddDisplayName(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddDisplayName(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_DisplayNameColumnToken, value); }
 
-  NS_IMETHOD AddNickName(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddNickName(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_NickNameColumnToken, value); }
 
-  NS_IMETHOD AddPrimaryEmail(nsIMdbRow * row, const char * value);
+  NS_IMETHOD AddPrimaryEmail(nsIMdbRow * row, const char * value) override;
 
-  NS_IMETHOD Add2ndEmail(nsIMdbRow * row, const char * value)
-  { return AddCharStringColumn(row, m_2ndEmailColumnToken, value); }
+  NS_IMETHOD Add2ndEmail(nsIMdbRow * row, const char * value) override;
 
-  NS_IMETHOD AddPreferMailFormat(nsIMdbRow * row, uint32_t value)
+  NS_IMETHOD AddPreferMailFormat(nsIMdbRow * row, uint32_t value) override
   { return AddIntColumn(row, m_MailFormatColumnToken, value); }
 
-  NS_IMETHOD AddPopularityIndex(nsIMdbRow * row, uint32_t value)
+  NS_IMETHOD AddPopularityIndex(nsIMdbRow * row, uint32_t value) override
   { return AddIntColumn(row, m_PopularityIndexColumnToken, value); }
 
-  NS_IMETHOD AddAllowRemoteContent(nsIMdbRow * row, bool value)
-  { return AddBoolColumn(row, m_AllowRemoteContentColumnToken, value); }
-
-  NS_IMETHOD AddWorkPhone(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddWorkPhone(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_WorkPhoneColumnToken, value); }
 
-  NS_IMETHOD AddHomePhone(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddHomePhone(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_HomePhoneColumnToken, value); }
 
-  NS_IMETHOD AddFaxNumber(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddFaxNumber(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_FaxColumnToken, value); }
 
-  NS_IMETHOD AddPagerNumber(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddPagerNumber(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_PagerColumnToken, value); }
 
-  NS_IMETHOD AddCellularNumber(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddCellularNumber(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_CellularColumnToken, value); }
 
-  NS_IMETHOD AddWorkPhoneType(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddWorkPhoneType(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_WorkPhoneTypeColumnToken, value); }
 
-  NS_IMETHOD AddHomePhoneType(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddHomePhoneType(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_HomePhoneTypeColumnToken, value); }
 
-  NS_IMETHOD AddFaxNumberType(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddFaxNumberType(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_FaxTypeColumnToken, value); }
 
-  NS_IMETHOD AddPagerNumberType(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddPagerNumberType(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_PagerTypeColumnToken, value); }
 
-  NS_IMETHOD AddCellularNumberType(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddCellularNumberType(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_CellularTypeColumnToken, value); }
 
-  NS_IMETHOD AddHomeAddress(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddHomeAddress(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_HomeAddressColumnToken, value); }
 
-  NS_IMETHOD AddHomeAddress2(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddHomeAddress2(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_HomeAddress2ColumnToken, value); }
 
-  NS_IMETHOD AddHomeCity(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddHomeCity(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_HomeCityColumnToken, value); }
 
-  NS_IMETHOD AddHomeState(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddHomeState(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_HomeStateColumnToken, value); }
 
-  NS_IMETHOD AddHomeZipCode(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddHomeZipCode(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_HomeZipCodeColumnToken, value); }
 
-  NS_IMETHOD AddHomeCountry(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddHomeCountry(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_HomeCountryColumnToken, value); }
 
-  NS_IMETHOD AddWorkAddress(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddWorkAddress(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_WorkAddressColumnToken, value); }
 
-  NS_IMETHOD AddWorkAddress2(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddWorkAddress2(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_WorkAddress2ColumnToken, value); }
 
-  NS_IMETHOD AddWorkCity(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddWorkCity(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_WorkCityColumnToken, value); }
 
-  NS_IMETHOD AddWorkState(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddWorkState(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_WorkStateColumnToken, value); }
 
-  NS_IMETHOD AddWorkZipCode(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddWorkZipCode(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_WorkZipCodeColumnToken, value); }
 
-  NS_IMETHOD AddWorkCountry(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddWorkCountry(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_WorkCountryColumnToken, value); }
 
-  NS_IMETHOD AddJobTitle(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddJobTitle(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_JobTitleColumnToken, value); }
 
-  NS_IMETHOD AddDepartment(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddDepartment(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_DepartmentColumnToken, value); }
 
-  NS_IMETHOD AddCompany(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddCompany(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_CompanyColumnToken, value); }
 
-  NS_IMETHOD AddAimScreenName(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddAimScreenName(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_AimScreenNameColumnToken, value); }
 
-  NS_IMETHOD AddAnniversaryYear(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddAnniversaryYear(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_AnniversaryYearColumnToken, value); }
 
-  NS_IMETHOD AddAnniversaryMonth(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddAnniversaryMonth(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_AnniversaryMonthColumnToken, value); }
 
-  NS_IMETHOD AddAnniversaryDay(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddAnniversaryDay(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_AnniversaryDayColumnToken, value); }
 
-  NS_IMETHOD AddSpouseName(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddSpouseName(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_SpouseNameColumnToken, value); }
 
-  NS_IMETHOD AddFamilyName(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddFamilyName(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_FamilyNameColumnToken, value); }
 
-  NS_IMETHOD AddDefaultAddress(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddDefaultAddress(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_DefaultAddressColumnToken, value); }
 
-  NS_IMETHOD AddCategory(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddCategory(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_CategoryColumnToken, value); }
 
-  NS_IMETHOD AddWebPage1(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddWebPage1(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_WebPage1ColumnToken, value); }
 
-  NS_IMETHOD AddWebPage2(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddWebPage2(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_WebPage2ColumnToken, value); }
 
-  NS_IMETHOD AddBirthYear(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddBirthYear(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_BirthYearColumnToken, value); }
 
-  NS_IMETHOD AddBirthMonth(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddBirthMonth(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_BirthMonthColumnToken, value); }
 
-  NS_IMETHOD AddBirthDay(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddBirthDay(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_BirthDayColumnToken, value); }
 
-  NS_IMETHOD AddCustom1(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddCustom1(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_Custom1ColumnToken, value); }
 
-  NS_IMETHOD AddCustom2(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddCustom2(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_Custom2ColumnToken, value); }
 
-  NS_IMETHOD AddCustom3(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddCustom3(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_Custom3ColumnToken, value); }
 
-  NS_IMETHOD AddCustom4(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddCustom4(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_Custom4ColumnToken, value); }
 
-  NS_IMETHOD AddNotes(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddNotes(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_NotesColumnToken, value); }
 
-  NS_IMETHOD AddListName(nsIMdbRow * row, const char * value);
+  NS_IMETHOD AddListName(nsIMdbRow * row, const char * value) override;
 
-  NS_IMETHOD AddListNickName(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddListNickName(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_ListNickNameColumnToken, value); }
 
-  NS_IMETHOD AddListDescription(nsIMdbRow * row, const char * value)
+  NS_IMETHOD AddListDescription(nsIMdbRow * row, const char * value) override
   { return AddCharStringColumn(row, m_ListDescriptionColumnToken, value); }
 
 
-  NS_IMETHOD AddListDirNode(nsIMdbRow * listRow);
+  NS_IMETHOD AddListDirNode(nsIMdbRow * listRow) override;
 
-  NS_IMETHOD FindMailListbyUnicodeName(const PRUnichar *listName, bool *exist);
+  NS_IMETHOD FindMailListbyUnicodeName(const char16_t *listName, bool *exist) override;
 
-  NS_IMETHOD GetCardCount(uint32_t *count);
+  NS_IMETHOD GetCardCount(uint32_t *count) override;
 
-  NS_IMETHOD SetCardValue(nsIAbCard *card, const char *name, const PRUnichar *value, bool notify);
-  NS_IMETHOD GetCardValue(nsIAbCard *card, const char *name, PRUnichar **value);
+  NS_IMETHOD SetCardValue(nsIAbCard *card, const char *name, const char16_t *value, bool notify) override;
+  NS_IMETHOD GetCardValue(nsIAbCard *card, const char *name, char16_t **value) override;
   // nsAddrDatabase methods:
 
   nsAddrDatabase();
-  virtual ~nsAddrDatabase();
 
   void GetMDBFactory(nsIMdbFactory ** aMdbFactory);
   nsIMdbEnv    *GetEnv() {return m_mdbEnv;}
@@ -275,12 +271,13 @@ public:
   uint32_t GetListAddressTotal(nsIMdbRow* listRow);
   nsresult GetAddressRowByPos(nsIMdbRow* listRow, uint16_t pos, nsIMdbRow** cardRow);
 
-    NS_IMETHOD AddListCardColumnsToRow(nsIAbCard *aPCard, nsIMdbRow *aPListRow, uint32_t aPos, nsIAbCard** aPNewCard, bool aInMailingList, nsIAbDirectory *aParent, nsIAbDirectory *aRoot);
-    NS_IMETHOD InitCardFromRow(nsIAbCard *aNewCard, nsIMdbRow* aCardRow);
-    NS_IMETHOD SetListAddressTotal(nsIMdbRow* aListRow, uint32_t aTotal);
-    NS_IMETHOD FindRowByCard(nsIAbCard * card,nsIMdbRow **aRow);
+    NS_IMETHOD AddListCardColumnsToRow(nsIAbCard *aPCard, nsIMdbRow *aPListRow, uint32_t aPos, nsIAbCard** aPNewCard, bool aInMailingList, nsIAbDirectory *aParent, nsIAbDirectory *aRoot) override;
+    NS_IMETHOD InitCardFromRow(nsIAbCard *aNewCard, nsIMdbRow* aCardRow) override;
+    NS_IMETHOD SetListAddressTotal(nsIMdbRow* aListRow, uint32_t aTotal) override;
+    NS_IMETHOD FindRowByCard(nsIAbCard * card,nsIMdbRow **aRow) override;
 
 protected:
+  virtual ~nsAddrDatabase();
 
   static void RemoveFromCache(nsAddrDatabase* pAddrDB);
   bool MatchDbName(nsIFile *dbName); // returns TRUE if they match
@@ -332,7 +329,7 @@ protected:
   nsresult      CheckAndUpdateRecordKey();
   nsresult      UpdateLowercaseEmailListName();
   nsresult      ConvertAndAddLowercaseColumn(nsIMdbRow * row, mdb_token fromCol, mdb_token toCol);
-  nsresult      AddUnicodeToColumn(nsIMdbRow * row, mdb_token colToken, mdb_token lowerCaseColToken, const PRUnichar* pUnicodeStr);
+  nsresult      AddUnicodeToColumn(nsIMdbRow * row, mdb_token colToken, mdb_token lowerCaseColToken, const char16_t* pUnicodeStr);
 
   nsresult      DeleteRow(nsIMdbTable* dbTable, nsIMdbRow* dbRow);
 
@@ -408,10 +405,10 @@ protected:
   mdb_token      m_LastModDateColumnToken;
   mdb_token      m_RecordKeyColumnToken;
   mdb_token      m_LowerPriEmailColumnToken;
+  mdb_token      m_Lower2ndEmailColumnToken;
 
   mdb_token      m_MailFormatColumnToken;
   mdb_token     m_PopularityIndexColumnToken;
-  mdb_token     m_AllowRemoteContentColumnToken;
 
   mdb_token      m_AddressCharSetColumnToken;
   mdb_token      m_LastRecordKeyColumnToken;
@@ -427,16 +424,16 @@ protected:
   nsCOMPtr<nsIMdbFactory> mMdbFactory;
 
 private:
-  nsresult GetRowForCharColumn(const PRUnichar *unicodeStr,
+  nsresult GetRowForCharColumn(const char16_t *unicodeStr,
                                mdb_column findColumn, bool bIsCard,
                                bool aCaseInsensitive, nsIMdbRow **findRow,
                                mdb_pos *aRowPos);
-  bool HasRowButDeletedForCharColumn(const PRUnichar *unicodeStr, mdb_column findColumn, bool aIsCard, nsIMdbRow **aFindRow);
+  bool HasRowButDeletedForCharColumn(const char16_t *unicodeStr, mdb_column findColumn, bool aIsCard, nsIMdbRow **aFindRow);
   nsresult OpenInternal(nsIFile *aMabFile, bool aCreate, nsIAddrDatabase **pCardDB);
-  nsresult AlertAboutCorruptMabFile(const PRUnichar *aOldFileName, const PRUnichar *aNewFileName);
-  nsresult AlertAboutLockedMabFile(const PRUnichar *aFileName);
-  nsresult DisplayAlert(const PRUnichar *titleName, const PRUnichar *alertStringName,
-                        const PRUnichar **formatStrings, int32_t numFormatStrings);
+  nsresult AlertAboutCorruptMabFile(const char16_t *aOldFileName, const char16_t *aNewFileName);
+  nsresult AlertAboutLockedMabFile(const char16_t *aFileName);
+  nsresult DisplayAlert(const char16_t *titleName, const char16_t *alertStringName,
+                        const char16_t **formatStrings, int32_t numFormatStrings);
 };
 
 #endif

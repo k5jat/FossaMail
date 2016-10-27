@@ -6,6 +6,7 @@
 #ifndef nsMsgDBFolder_h__
 #define nsMsgDBFolder_h__
 
+#include "mozilla/Attributes.h"
 #include "msgCore.h"
 #include "nsIMsgFolder.h" 
 #include "nsRDFResource.h"
@@ -52,7 +53,6 @@ class NS_MSG_BASE nsMsgDBFolder: public nsRDFResource,
 {
 public: 
   nsMsgDBFolder(void);
-  virtual ~nsMsgDBFolder(void);
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIMSGFOLDER
   NS_DECL_NSIDBCHANGELISTENER
@@ -64,7 +64,7 @@ public:
   NS_IMETHOD ReadFromFolderCacheElem(nsIMsgFolderCacheElement *element);
 
   // nsRDFResource overrides
-  NS_IMETHOD Init(const char* aURI);
+  NS_IMETHOD Init(const char* aURI) override;
 
   // These functions are used for tricking the front end into thinking that we have more 
   // messages than are really in the DB.  This is usually after and IMAP message copy where
@@ -83,6 +83,7 @@ public:
   nsresult GetMsgPreviewTextFromStream(nsIMsgDBHdr *msgHdr, nsIInputStream *stream);
   nsresult HandleAutoCompactEvent(nsIMsgWindow *aMsgWindow);
 protected:
+  virtual ~nsMsgDBFolder();
   
   // this is a little helper function that is not part of the public interface. 
   // we use it to get the IID of the incoming server for the derived folder.
@@ -121,8 +122,9 @@ protected:
   nsresult GetFolderCacheElemFromFile(nsIFile *file, nsIMsgFolderCacheElement **cacheElement);
   nsresult AddDirectorySeparator(nsIFile *path);
   nsresult CheckIfFolderExists(const nsAString& newFolderName, nsIMsgFolder *parentFolder, nsIMsgWindow *msgWindow);
-
-  nsresult GetSummaryFile(nsIFile** aSummaryFile);
+  bool     ConfirmAutoFolderRename(nsIMsgWindow *aMsgWindow,
+                                   const nsString& aOldName,
+                                   const nsString& aNewName);
 
   // Returns true if: a) there is no need to prompt or b) the user is already
   // logged in or c) the user logged in successfully.
@@ -160,6 +162,13 @@ protected:
 
   nsresult NotifyHdrsNotBeingClassified();
 
+  /**
+   * Produce an array of messages ordered like the input keys.
+   */
+  nsresult MessagesInKeyOrder(nsTArray<nsMsgKey> &aKeyArray,
+                              nsIMsgFolder *srcFolder,
+                              nsIMutableArray* messages);
+
 protected:
   nsCOMPtr<nsIMsgDatabase> mDatabase;
   nsCOMPtr<nsIMsgDatabase> mBackupDatabase;
@@ -186,7 +195,7 @@ protected:
   int32_t mNumUnreadMessages;        /* count of unread messages (-1 means unknown; -2 means unknown but we already tried to find out.) */
   int32_t mNumTotalMessages;         /* count of existing messages. */
   bool mNotifyCountChanges;
-  uint32_t mExpungedBytes;
+  int64_t mExpungedBytes;
   nsCOMArray<nsIMsgFolder> mSubFolders;
   // This can't be refcounted due to ownsership issues
   nsTObserverArray<nsIFolderListener*> mListeners;
@@ -202,10 +211,9 @@ protected:
   // we don't want to do an expensive select until the user actually opens that folder
   int32_t mNumPendingUnreadMessages;
   int32_t mNumPendingTotalMessages;
-  uint32_t mFolderSize;
+  int64_t mFolderSize;
 
   int32_t mNumNewBiffMessages;
-  bool mIsCachable;
 
   // these are previous set of new msgs, which we might
   // want to run junk controls on. This is in addition to "new" hdrs
@@ -236,16 +244,16 @@ protected:
   static nsresult initializeStrings();
   static nsresult createCollationKeyGenerator();
 
-  static NS_MSG_BASE_STATIC_MEMBER_(PRUnichar*) kLocalizedInboxName;
-  static NS_MSG_BASE_STATIC_MEMBER_(PRUnichar*) kLocalizedTrashName;
-  static NS_MSG_BASE_STATIC_MEMBER_(PRUnichar*) kLocalizedSentName;
-  static NS_MSG_BASE_STATIC_MEMBER_(PRUnichar*) kLocalizedDraftsName;
-  static NS_MSG_BASE_STATIC_MEMBER_(PRUnichar*) kLocalizedTemplatesName;
-  static NS_MSG_BASE_STATIC_MEMBER_(PRUnichar*) kLocalizedUnsentName;
-  static NS_MSG_BASE_STATIC_MEMBER_(PRUnichar*) kLocalizedJunkName;
-  static NS_MSG_BASE_STATIC_MEMBER_(PRUnichar*) kLocalizedArchivesName;
+  static NS_MSG_BASE_STATIC_MEMBER_(char16_t*) kLocalizedInboxName;
+  static NS_MSG_BASE_STATIC_MEMBER_(char16_t*) kLocalizedTrashName;
+  static NS_MSG_BASE_STATIC_MEMBER_(char16_t*) kLocalizedSentName;
+  static NS_MSG_BASE_STATIC_MEMBER_(char16_t*) kLocalizedDraftsName;
+  static NS_MSG_BASE_STATIC_MEMBER_(char16_t*) kLocalizedTemplatesName;
+  static NS_MSG_BASE_STATIC_MEMBER_(char16_t*) kLocalizedUnsentName;
+  static NS_MSG_BASE_STATIC_MEMBER_(char16_t*) kLocalizedJunkName;
+  static NS_MSG_BASE_STATIC_MEMBER_(char16_t*) kLocalizedArchivesName;
 
-  static NS_MSG_BASE_STATIC_MEMBER_(PRUnichar*) kLocalizedBrandShortName;
+  static NS_MSG_BASE_STATIC_MEMBER_(char16_t*) kLocalizedBrandShortName;
   
 #define MSGDBFOLDER_ATOM(name_, value) static NS_MSG_BASE_STATIC_MEMBER_(nsIAtom*) name_;
 #include "nsMsgDBFolderAtomList.h"
@@ -287,12 +295,12 @@ public:
   static nsMsgKeySetU* Create();
   ~nsMsgKeySetU();
   // IsMember() returns whether the given key is a member of this set.
-  bool IsMember(uint32_t key);
+  bool IsMember(nsMsgKey key);
   // Add() adds the given key to the set.  (Returns 1 if a change was
   // made, 0 if it was already there, and negative on error.)
-  int Add(uint32_t key);
-  // Remove() removes the given article from the set. 
-  int Remove(uint32_t key);
+  int Add(nsMsgKey key);
+  // Remove() removes the given article from the set.
+  int Remove(nsMsgKey key);
   // Add the keys in the set to aArray.
   nsresult ToMsgKeyArray(nsTArray<nsMsgKey> &aArray);
 

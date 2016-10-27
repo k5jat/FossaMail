@@ -105,7 +105,7 @@ var MailOfflineMgr = {
   },
 
   /**
-   * Prompts the user to confirm sending of unsent messages. This is different from 
+   * Prompts the user to confirm sending of unsent messages. This is different from
    * goOnlineToSendMessages which involves going online to send unsent messages.
    *
    * @return true if the user wants to send unsent messages
@@ -118,8 +118,8 @@ var MailOfflineMgr = {
       this.offlineBundle.getString('sendMessagesLabel2'),
       (Services.prompt.BUTTON_TITLE_IS_STRING * Services.prompt.BUTTON_POS_0) +
       (Services.prompt.BUTTON_TITLE_IS_STRING * Services.prompt.BUTTON_POS_1),
-      this.offlineBundle.getString('sendMessagesNow'),
-      this.offlineBundle.getString('processMessagesLater'),
+      this.offlineBundle.getString('sendMessagesNow2'),
+      this.offlineBundle.getString('processMessagesLater2'),
       null,
       this.offlineBundle.getString('sendMessagesCheckboxLabel1'),
       alwaysAsk) == 0;
@@ -166,8 +166,8 @@ var MailOfflineMgr = {
       this.offlineBundle.getString('downloadMessagesLabel1'),
       (Services.prompt.BUTTON_TITLE_IS_STRING * Services.prompt.BUTTON_POS_0) +
       (Services.prompt.BUTTON_TITLE_IS_STRING * Services.prompt.BUTTON_POS_1),
-      this.offlineBundle.getString('downloadMessagesNow'),
-      this.offlineBundle.getString('processMessagesLater'),
+      this.offlineBundle.getString('downloadMessagesNow2'),
+      this.offlineBundle.getString('processMessagesLater2'),
       null,
       this.offlineBundle.getString('downloadMessagesCheckboxLabel1'),
       alwaysAsk) == 0;
@@ -178,9 +178,9 @@ var MailOfflineMgr = {
     return downloadMessages;
   },
 
-  /** 
+  /**
    *  Get New Mail When Offline
-   *  Prompts the user about going online in order to download new messages. 
+   *  Prompts the user about going online in order to download new messages.
    *  Based on the response, will move us back to online mode.
    *
    * @return true if the user confirms going online.
@@ -197,13 +197,14 @@ var MailOfflineMgr = {
     return goOnline;
   },
 
-  /** 
+  /**
    * Private helper method to update the state of the Offline menu item
    * and the offline status bar indicator
    */
   updateOfflineUI: function(aIsOffline)
   {
     document.getElementById('goOfflineMenuItem').setAttribute("checked", aIsOffline);
+    document.getElementById('appmenu_goOffline').setAttribute("checked", aIsOffline);
     var statusBarPanel = document.getElementById('offline-status');
     if (aIsOffline)
     {
@@ -219,7 +220,7 @@ var MailOfflineMgr = {
 
   /**
    * private helper method called whenever we detect a change to the offline state
-   */ 
+   */
   mailOfflineStateChanged: function (aGoingOffline)
   {
     this.updateOfflineUI(aGoingOffline);

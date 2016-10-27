@@ -2,9 +2,9 @@
 def test(mod, path, entity = None):
   import re
 
-  # ignore anyhting but calendar stuff
+  # ignore anything but calendar stuff
   if mod not in ("netwerk", "dom", "toolkit", "security/manager",
-                 "calendar", "other-licenses/branding/sunbird"):
+                 "calendar"):
     return False
 
   # Timezone properties don't have to be translated
@@ -20,9 +20,9 @@ def test(mod, path, entity = None):
     if not re.match(r"from.today", entity):
       return "report"
 
-  # Sunbird specific strings don't need translation
-  if path.startswith("chrome/sunbird/"):
-    return False
+  # Provider for Google Calendar AMO strings do not have to be translated
+  if path == "chrome/calendar/providers/gdata/amo.properties":
+    return "report"
 
   # Everything else should be taken into account
   return True

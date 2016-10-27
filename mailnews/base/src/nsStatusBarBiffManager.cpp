@@ -25,7 +25,7 @@
 
 // QueryInterface, AddRef, and Release
 //
-NS_IMPL_ISUPPORTS3(nsStatusBarBiffManager, nsIStatusBarBiffManager, nsIFolderListener, nsIObserver)
+NS_IMPL_ISUPPORTS(nsStatusBarBiffManager, nsIStatusBarBiffManager, nsIFolderListener, nsIObserver)
 
 nsIAtom * nsStatusBarBiffManager::kBiffStateAtom = nullptr;
 
@@ -39,14 +39,16 @@ nsStatusBarBiffManager::~nsStatusBarBiffManager()
     NS_IF_RELEASE(kBiffStateAtom);
 }
 
-#define PREF_PLAY_SOUND_ON_NEW_MAIL      "mail.biff.play_sound"
-#define PREF_NEW_MAIL_SOUND_URL          "mail.biff.play_sound.url"
-#define PREF_NEW_MAIL_SOUND_TYPE         "mail.biff.play_sound.type"
+#define NEW_MAIL_PREF_BRANCH             "mail.biff."
+#define CHAT_PREF_BRANCH                 "mail.chat."
+#define FEED_PREF_BRANCH                 "mail.feed."
+#define PREF_PLAY_SOUND                  "play_sound"
+#define PREF_SOUND_URL                   "play_sound.url"
+#define PREF_SOUND_TYPE                  "play_sound.type"
 #define SYSTEM_SOUND_TYPE 0
 #define CUSTOM_SOUND_TYPE 1
 #define PREF_CHAT_ENABLED                "mail.chat.enabled"
-#define PREF_CHAT_PLAY_SOUND             "mail.chat.play_notification_sound"
-#define NEW_CHAT_MESSAGE_TOPIC           "new-directed-incoming-message"
+#define PLAY_CHAT_NOTIFICATION_SOUND     "play-chat-notification-sound"
 
 nsresult nsStatusBarBiffManager::Init()
 {
@@ -55,7 +57,7 @@ nsresult nsStatusBarBiffManager::Init()
 
   nsresult rv;
 
-  kBiffStateAtom = MsgNewAtom("BiffState").get();
+  kBiffStateAtom = MsgNewAtom("BiffState").take();
 
   nsCOMPtr<nsIMsgMailSession> mailSession = 
     do_GetService(NS_MSGMAILSESSION_CONTRACTID, &rv); 
@@ -72,33 +74,51 @@ nsresult nsStatusBarBiffManager::Init()
     nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
     if (observerService)
-      observerService->AddObserver(this, NEW_CHAT_MESSAGE_TOPIC, false);
+      observerService->AddObserver(this, PLAY_CHAT_NOTIFICATION_SOUND, false);
   }
 
   mInitialized = true;
   return NS_OK;
 }
 
-nsresult nsStatusBarBiffManager::PlayBiffSound()
+nsresult nsStatusBarBiffManager::PlayBiffSound(const char *aPrefBranch)
 {
   nsresult rv;
-  nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
-  NS_ENSURE_SUCCESS(rv,rv);
-  
+  nsCOMPtr<nsIPrefService> prefSvc = (do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIPrefBranch> pref;
+  rv = prefSvc->GetBranch(aPrefBranch, getter_AddRefs(pref));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  bool playSound;
+  if (mServerType.EqualsLiteral("rss")) {
+    nsCOMPtr<nsIPrefBranch> prefFeed;
+    rv = prefSvc->GetBranch(FEED_PREF_BRANCH, getter_AddRefs(prefFeed));
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = prefFeed->GetBoolPref(PREF_PLAY_SOUND, &playSound);
+  }
+  else {
+    rv = pref->GetBoolPref(PREF_PLAY_SOUND, &playSound);
+  }
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!playSound)
+    return NS_OK;
 
   // lazily create the sound instance
   if (!mSound)
     mSound = do_CreateInstance("@mozilla.org/sound;1");
-      
-  int32_t newMailSoundType = SYSTEM_SOUND_TYPE;
-  rv = pref->GetIntPref(PREF_NEW_MAIL_SOUND_TYPE, &newMailSoundType);
-  NS_ENSURE_SUCCESS(rv,rv);
+
+  int32_t soundType = SYSTEM_SOUND_TYPE;
+  rv = pref->GetIntPref(PREF_SOUND_TYPE, &soundType);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   bool customSoundPlayed = false;
 
-  if (newMailSoundType == CUSTOM_SOUND_TYPE) {
+  if (soundType == CUSTOM_SOUND_TYPE) {
     nsCString soundURLSpec;
-    rv = pref->GetCharPref(PREF_NEW_MAIL_SOUND_URL, getter_Copies(soundURLSpec));
+    rv = pref->GetCharPref(PREF_SOUND_URL, getter_Copies(soundURLSpec));
+
     if (NS_SUCCEEDED(rv) && !soundURLSpec.IsEmpty()) {
       if (!strncmp(soundURLSpec.get(), "file://", 7)) {
         nsCOMPtr<nsIURI> fileURI;
@@ -128,8 +148,7 @@ nsresult nsStatusBarBiffManager::PlayBiffSound()
           customSoundPlayed = true;
       }
     }
-  }    
-  
+  }
   // if nothing played, play the default system sound
   if (!customSoundPlayed) {
 #ifdef XP_MACOSX
@@ -163,23 +182,21 @@ nsStatusBarBiffManager::OnItemPropertyChanged(nsIMsgFolder *item, nsIAtom *prope
 }
 
 NS_IMETHODIMP
-nsStatusBarBiffManager::OnItemIntPropertyChanged(nsIMsgFolder *item, nsIAtom *property, int32_t oldValue, int32_t newValue)
+nsStatusBarBiffManager::OnItemIntPropertyChanged(nsIMsgFolder *item, nsIAtom *property, int64_t oldValue, int64_t newValue)
 {
   if (kBiffStateAtom == property && mCurrentBiffState != newValue) {
     // if we got new mail, attempt to play a sound.
     // if we fail along the way, don't return.
     // we still need to update the UI.    
     if (newValue == nsIMsgFolder::nsMsgBiffState_NewMail) {
-      nsresult rv;
-      nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
-      NS_ENSURE_SUCCESS(rv, rv);
-      bool playSoundOnBiff = false;
-      rv = pref->GetBoolPref(PREF_PLAY_SOUND_ON_NEW_MAIL, &playSoundOnBiff);
-      NS_ENSURE_SUCCESS(rv, rv);
-      if (playSoundOnBiff) {
-        // if we fail to play the biff sound, keep going.
-        (void)PlayBiffSound();
-      }
+      // Get the folder's server type.
+      nsCOMPtr<nsIMsgIncomingServer> server;
+      nsresult rv = item->GetServer(getter_AddRefs(server));
+      if (NS_SUCCEEDED(rv) && server)
+        server->GetType(mServerType);
+
+      // if we fail to play the biff sound, keep going.
+      (void)PlayBiffSound(NEW_MAIL_PREF_BRANCH);
     }
     mCurrentBiffState = newValue;
 
@@ -200,7 +217,7 @@ nsStatusBarBiffManager::OnItemBoolPropertyChanged(nsIMsgFolder *item, nsIAtom *p
 }
 
 NS_IMETHODIMP 
-nsStatusBarBiffManager::OnItemUnicharPropertyChanged(nsIMsgFolder *item, nsIAtom *property, const PRUnichar *oldValue, const PRUnichar *newValue)
+nsStatusBarBiffManager::OnItemUnicharPropertyChanged(nsIMsgFolder *item, nsIAtom *property, const char16_t *oldValue, const char16_t *newValue)
 {
   return NS_OK;
 }
@@ -221,20 +238,9 @@ nsStatusBarBiffManager::OnItemEvent(nsIMsgFolder *item, nsIAtom *event)
 NS_IMETHODIMP
 nsStatusBarBiffManager::Observe(nsISupports *aSubject,
                                 const char *aTopic,
-                                const PRUnichar *aData)
+                                const char16_t *aData)
 {
-  nsresult rv;
-  nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  bool playSound = false;
-  rv = pref->GetBoolPref(PREF_CHAT_PLAY_SOUND, &playSound);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!playSound)
-    return NS_OK;
-
-  return PlayBiffSound();
+  return PlayBiffSound(CHAT_PREF_BRANCH);
 }
 
 // nsIStatusBarBiffManager method....

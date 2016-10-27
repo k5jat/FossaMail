@@ -12,10 +12,9 @@
 
 #include "nsMsgLocalStoreUtils.h"
 #include "nsIFile.h"
-#include "nsInterfaceHashtable.h"
 #include "nsMsgMessageFlags.h"
 
-class nsMsgMaildirStore MOZ_FINAL : public nsMsgLocalStoreUtils, nsIMsgPluggableStore
+class nsMsgMaildirStore final : public nsMsgLocalStoreUtils, nsIMsgPluggableStore
 {
 public:
   NS_DECL_ISUPPORTS

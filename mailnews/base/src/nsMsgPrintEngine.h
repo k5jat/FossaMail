@@ -35,7 +35,6 @@ class nsMsgPrintEngine : public nsIMsgPrintEngine,
 
 public:
   nsMsgPrintEngine();
-  virtual ~nsMsgPrintEngine();
 
   // nsISupports
   NS_DECL_ISUPPORTS
@@ -53,6 +52,7 @@ public:
   NS_IMETHOD  StartNextPrintOperation();
 
 protected:
+  virtual ~nsMsgPrintEngine();
 
   bool        FirePrintEvent();
   nsresult    FireStartNextEvent();
@@ -61,7 +61,7 @@ protected:
   void        InitializeDisplayCharset();
   void        SetupObserver();
   nsresult    SetStatusMessage(const nsString& aMsgString);
-  void GetString(const PRUnichar *aStringName, nsString& aOutString);
+  void GetString(const char16_t *aStringName, nsString& aOutString);
   nsresult    ShowProgressDialog(bool aIsForPrinting, bool& aDoNotify);
 
   nsCOMPtr<nsIDocShell>       mDocShell;

@@ -114,6 +114,7 @@ pref("mail.correct_threading",              true);  // if true, makes sure threa
 pref("mail.pop3.deleteFromServerOnMove",    false);
 pref("mail.fixed_width_messages",           true);
 pref("mail.citation_color",                 "#000000"); // quoted color
+pref("mail.strip_sig_on_reply", true); // If true, remove the everything after the "-- \n" signature delimiter when replying.
 pref("mail.quoted_style",                   0); // 0=plain, 1=bold, 2=italic, 3=bolditalic
 pref("mail.quoted_size",                    0); // 0=normal, 1=big, 2=small
 pref("mail.quoted_graphical",               true); // use HTML-style quoting for displaying plain text
@@ -128,6 +129,15 @@ pref("mail.file_attach_binary",             false);
 pref("mail.show_headers",                   1); // some
 pref("mail.pane_config.dynamic",            0);
 pref("mail.addr_book.mapit_url.format", "chrome://messenger-region/locale/region.properties");
+#ifdef MOZ_SUITE
+pref("mailnews.start_page.url", "chrome://messenger-region/locale/region.properties");
+pref("messenger.throbber.url", "chrome://messenger-region/locale/region.properties");
+pref("compose.throbber.url", "chrome://messenger-region/locale/region.properties");
+pref("addressbook.throbber.url", "chrome://messenger-region/locale/region.properties");
+pref("mail.accountwizard.deferstorage", false);
+// |false|: Show both name and address, even for people in my addressbook.
+pref("mail.showCondensedAddresses", false);
+#endif
 
 // the format for "mail.addr_book.quicksearchquery.format" is:
 // @V == the escaped value typed in the quick search bar in the addressbook
@@ -180,13 +190,11 @@ pref("mail.compose.wrap_to_window_width",   false);
 pref("mailnews.reply_header_type",          1);
 // locale which affects date format, set empty string to use application default locale
 pref("mailnews.reply_header_locale",        "");
-pref("mailnews.reply_header_authorwrote",   "chrome://messenger/locale/messengercompose/composeMsgs.properties");
-pref("mailnews.reply_header_ondate",        "chrome://messenger/locale/messengercompose/composeMsgs.properties");
-
-// separator to separate between date and author
-pref("mailnews.reply_header_separator",     ", ");
-pref("mailnews.reply_header_colon",         ":");
+pref("mailnews.reply_header_authorwrotesingle", "chrome://messenger/locale/messengercompose/composeMsgs.properties");
+pref("mailnews.reply_header_ondateauthorwrote", "chrome://messenger/locale/messengercompose/composeMsgs.properties");
+pref("mailnews.reply_header_authorwroteondate", "chrome://messenger/locale/messengercompose/composeMsgs.properties");
 pref("mailnews.reply_header_originalmessage",   "chrome://messenger/locale/messengercompose/composeMsgs.properties");
+pref("mailnews.forward_header_originalmessage", "chrome://messenger/locale/messengercompose/composeMsgs.properties");
 
 pref("mailnews.reply_to_self_check_all_ident", false);
 
@@ -296,7 +304,12 @@ pref("mailnews.customDBHeaders", "");
 // close standalone message window when deleting the displayed message
 pref("mail.close_message_window.on_delete", false);
 
+#ifdef MOZ_SUITE
+pref("mailnews.reuse_message_window", true);
+#endif
+
 pref("mailnews.open_window_warning", 10); // warn user if they attempt to open more than this many messages at once
+pref("mailnews.open_tab_warning", 20); // warn user if they attempt to open more than this many messages at once
 
 pref("mailnews.start_page.enabled", true);
 
@@ -352,8 +365,11 @@ pref("mail.identity.default.headers", "");
 
 // by default, only collect addresses the user sends to (outgoing)
 // incoming is all spam anyways
+#ifdef MOZ_SUITE
+pref("mail.collect_email_address_incoming", false);
+pref("mail.collect_email_address_newsgroup", false);
+#endif
 pref("mail.collect_email_address_outgoing", true);
-
 // by default, use the Collected Addressbook for collection
 pref("mail.collect_addressbook", "moz-abmdbdirectory://history.mab");
 
@@ -414,7 +430,6 @@ pref("mail.server.default.canFileMessages", true);
 pref("mail.server.default.is_gmail", false);
 pref("mail.server.default.use_idle", true);
 // in case client or server has bugs in condstore implementation
-// Client IMAP implementation seems to have bugs, false by default.
 pref("mail.server.default.use_condstore", false);
 // in case client or server has bugs in compress implementation
 pref("mail.server.default.use_compress_deflate", true);
@@ -444,6 +459,9 @@ pref("mail.server.default.offline_download",true);
 // -1 means no limit, no purging of offline stores.
 pref("mail.server.default.autosync_max_age_days", -1);
 
+// can we change the store type?
+pref("mail.server.default.canChangeStoreType", false);
+
 // This is the default store contractID for newly created servers.
 // We don't use mail.server.default because we want to ensure that the
 // store contract id is always written out to prefs.js
@@ -461,6 +479,9 @@ pref("mail.spam.markAsNotJunkMarksUnRead", true);
 pref("mail.spam.display.sanitize", true); // display simple html for html junk messages
 // the number of allowed bayes tokens before the database is shrunk
 pref("mailnews.bayesian_spam_filter.junk_maxtokens", 100000);
+
+// pref to warn the users of exceeding the size of the message being composed. (Default 20MB).
+pref("mailnews.message_warning_size", 20971520);
 
 // set default traits for junk and good. Index should match the values in nsIJunkMailPlugin
 pref("mailnews.traits.id.1", "mailnews@mozilla.org#good");
@@ -608,17 +629,32 @@ pref("mail.biff.play_sound.type", 0);
 // otherwise, this needs to be a file url
 pref("mail.biff.play_sound.url", "");
 pref("mail.biff.show_alert", true);
-pref("mail.biff.show_tray_icon", true); // currently Windows-only
-pref("mail.biff.show_balloon", false); // currently Windows-only
+#ifdef XP_WIN
+pref("mail.biff.show_tray_icon", true);
+pref("mail.biff.show_balloon", false);
+#elifdef XP_MACOSX
 pref("mail.biff.animate_dock_icon", false);
+#elifdef XP_UNIX
+pref("mail.biff.use_system_alert", false);
+#endif
 
 // add jitter to biff interval
 pref("mail.biff.add_interval_jitter", true);
 
+#ifdef MOZ_SUITE
+// if true, check for new mail even when opening non-mail windows
+pref("mail.biff.on_new_window", true);
+#endif
+
+#ifdef XP_MACOSX
 // If true, the number used in the Mac OS X dock notification will be the
 // the number of "new" messages, as per the classic Thunderbird definition.
 // Defaults to false, which notifies about the number of unread messages.
 pref("mail.biff.use_new_count_in_mac_dock", false);
+#endif
+
+// For feed account serverType=rss sound on biff; if true, mail.biff.play_sound.* settings are used.
+pref("mail.feed.play_sound", false);
 
 // Content disposition for attachments (except binary files and vcards).
 //   0= Content-Disposition: inline
@@ -638,10 +674,6 @@ pref("mailnews.ui.junk.manualMarkAsJunkMarksRead", true);
 // 1 -> 2 is for the folder pane tree landing, to hide the
 // unread and total columns, see msgMail3PaneWindow.js
 pref("mail.ui.folderpane.version", 1);
-
-// for manual upgrades of certain UI features.
-// Thunderbird uses this pref in msgMail3PaneWindow.js for bad reasons.
-pref("mailnews.ui.threadpane.version", 7);
 
 // for manual upgrades of certain UI features.
 // 1 -> 2 is for the ab results pane tree landing
@@ -678,6 +710,11 @@ pref("mailnews.labels.color.2", "#FF9900"); // default: orange
 pref("mailnews.labels.color.3", "#009900"); // default: green
 pref("mailnews.labels.color.4", "#3333FF"); // default: blue
 pref("mailnews.labels.color.5", "#993399"); // default: purple
+
+// Whether the colors from tags should be applied only to the message(s)
+// actually tagged, or also to any collapsed threads which contain tagged
+// messages.
+pref("mailnews.display_reply_tag_colors_for_collapsed_threads", true);
 
 //default null headers
 //example "X-Warn: XReply", list of hdrs separated by ": "
@@ -724,8 +761,25 @@ pref("mail.password_protect_local_cache", false);
 // the users last used preference.
 pref("mailnews.import.text.skipfirstrecord", true);
 
+#ifdef MOZ_SUITE
 // automatically scale attached images that are displayed inline
 pref("mail.enable_automatic_image_resizing", true);
+
+#ifdef XP_WIN
+pref("ldap_2.servers.oe.uri", "moz-aboutlookdirectory://oe/");
+pref("ldap_2.servers.oe.description", "chrome://messenger/locale/addressbook/addressBook.properties");
+pref("ldap_2.servers.oe.dirType", 3);
+#endif
+#endif
+#ifdef XP_MACOSX
+pref("ldap_2.servers.osx.uri", "moz-abosxdirectory:///");
+pref("ldap_2.servers.osx.description", "chrome://messenger/locale/addressbook/addressBook.properties");
+pref("ldap_2.servers.osx.dirType", 3);
+pref("mail.notification.sound",             "");
+pref("mail.notification.count.inbox_only", true);
+// Work around bug 482811 by disabling slow script warning for chrome scripts on Mac
+pref("dom.max_chrome_script_run_time", 0);
+#endif
 
 // gtk2 (*nix) lacks transparent/translucent drag support (bug 376238), so we
 // want to disable it so people can see where they are dragging things.
@@ -742,6 +796,13 @@ pref("mailnews.emptyTrash.dontAskAgain", false);
 pref("mailnews.auto_config_url", "https://live.mozillamessaging.com/autoconfig/v1.1/");
 // Added in bug 551519. Remove when bug 545866 is fixed.
 pref("mailnews.mx_service_url", "https://live.mozillamessaging.com/dns/mx/");
+// Allow to contact ISP (email address domain)
+// This happens via insecure means (HTTP), so the config cannot be trusted,
+// and also contains the email address
+pref("mailnews.auto_config.fetchFromISP.enabled", true);
+// Allow the fetch from ISP via HTTP, but not the email address
+pref("mailnews.auto_config.fetchFromISP.sendEmailAddress", true);
+pref("mailnews.auto_config.guess.enabled", true);
 
 // -- Summary Database options
 // dontPreserveOnCopy: a space separated list of properties that are not
@@ -755,6 +816,10 @@ pref("mailnews.database.summary.dontPreserveOnCopy",
 //                     Allows extensions to control preservation of properties.
 pref("mailnews.database.summary.dontPreserveOnMove",
   "account msgOffset threadParent msgThreadId statusOfset flags size numLines ProtoThreadFlags label storeToken");
+// Should we output dbcache log via dump? Set to "Debug" to show.
+pref("mailnews.database.dbcache.logging.dump", "None");
+// Should we output dbcache log to the "error console"? Set to "Debug" to show.
+pref("mailnews.database.dbcache.logging.console", "None");
 
 // -- Global Database (gloda) options
 // Should the indexer be enabled?

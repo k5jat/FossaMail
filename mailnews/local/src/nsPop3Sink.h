@@ -16,6 +16,7 @@
 #include "nsIMsgFolder.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
+#include "nsStringGlue.h"
 
 class nsParseNewMailState;
 class nsIMsgFolder;
@@ -33,9 +34,8 @@ class nsPop3Sink : public nsIPop3Sink
 {
 public:
     nsPop3Sink();
-    virtual ~nsPop3Sink();
 
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIPOP3SINK
     nsresult GetServerFolder(nsIMsgFolder **aFolder);
     nsresult FindPartialMessages();
@@ -44,27 +44,25 @@ public:
     static char*  GetDummyEnvelope(void);
 
 protected:
-
-    nsresult WriteLineToMailbox(const char *buffer);
+    virtual ~nsPop3Sink();
+    nsresult WriteLineToMailbox(const nsACString& buffer);
     nsresult ReleaseFolderLock();
     nsresult HandleTempDownloadFailed(nsIMsgWindow *msgWindow);
 
     bool m_authed;
-    char* m_accountUrl;
+    nsCString m_accountUrl;
     uint32_t m_biffState;
     int32_t m_numNewMessages;
     int32_t m_numNewMessagesInFolder;
     int32_t m_numMsgsDownloaded;
     bool m_senderAuthed;
-    char* m_outputBuffer;
-    int32_t m_outputBufferSize;
-    nsIPop3IncomingServer *m_popServer;
+    nsCString m_outputBuffer;
+    nsCOMPtr<nsIPop3IncomingServer> m_popServer;
     //Currently the folder we want to update about biff info
     nsCOMPtr<nsIMsgFolder> m_folder;
     nsRefPtr<nsParseNewMailState> m_newMailParser;
     nsCOMPtr <nsIOutputStream> m_outFileStream; // the file we write to, which may be temporary
     nsCOMPtr<nsIMsgPluggableStore> m_msgStore;
-    nsCOMPtr <nsIOutputStream> m_inboxOutputStream; // the actual mailbox
     bool m_uidlDownload;
     bool m_buildMessageUri;
     bool m_downloadingToTempFile;

@@ -6,6 +6,7 @@
 #ifndef nsMsgProtocol_h__
 #define nsMsgProtocol_h__
 
+#include "mozilla/Attributes.h"
 #include "nsIStreamListener.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
@@ -50,9 +51,8 @@ class NS_MSG_BASE nsMsgProtocol : public nsIStreamListener
 {
 public:
   nsMsgProtocol(nsIURI * aURL);
-  virtual ~nsMsgProtocol();
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   // nsIChannel support
   NS_DECL_NSICHANNEL
   NS_DECL_NSIREQUEST
@@ -75,14 +75,11 @@ public:
   virtual void   ClearFlag (uint32_t flag) { m_flags &= ~flag; }
 
 protected:
+  virtual ~nsMsgProtocol();
+
   // methods for opening and closing a socket with core netlib....
   // mscott -okay this is lame. I should break this up into a file protocol and a socket based
   // protocool class instead of cheating and putting both methods here...
-
-  // open a connection on this url
-  virtual nsresult OpenNetworkSocket(nsIURI * aURL,
-                                     const char *connectionType,
-                                     nsIInterfaceRequestor* callbacks);
 
   // open a connection with a specific host and port
   // aHostName must be UTF-8 encoded.
@@ -159,6 +156,7 @@ protected:
   nsCOMPtr<nsISupports>       mOwner;
   nsCString                   m_ContentType;
   int64_t                     mContentLength;
+  nsCOMPtr<nsILoadInfo>       m_loadInfo;
 
   nsCString m_lastPasswordSent; // used to prefill the password prompt
 
@@ -181,17 +179,16 @@ class NS_MSG_BASE nsMsgAsyncWriteProtocol : public nsMsgProtocol
 public:
   NS_DECL_ISUPPORTS_INHERITED
 
-  NS_IMETHOD Cancel(nsresult status);
+  NS_IMETHOD Cancel(nsresult status) override;
 
   nsMsgAsyncWriteProtocol(nsIURI * aURL);
-  virtual ~nsMsgAsyncWriteProtocol(); 
   
   // temporary over ride...
-  virtual nsresult PostMessage(nsIURI* url, nsIFile *postFile);
+  virtual nsresult PostMessage(nsIURI* url, nsIFile *postFile) override;
   
   // over ride the following methods from the base class
-  virtual nsresult SetupTransportState();
-  virtual nsresult SendData(const char * dataBuffer, bool aSuppressLogging = false);
+  virtual nsresult SetupTransportState() override;
+  virtual nsresult SendData(const char * dataBuffer, bool aSuppressLogging = false) override;
   nsCString mAsyncBuffer;
 
   // if we suspended the asynch write while waiting for more data to write then this will be TRUE
@@ -222,6 +219,8 @@ public:
   void UpdateProgress(uint32_t aNewBytes);
   nsMsgFilePostHelper * mFilePostHelper; // needs to be a weak reference
 protected:
+  virtual ~nsMsgAsyncWriteProtocol();
+
   // the streams for the pipe used to queue up data for the async write calls to the server.
   // we actually re-use the same mOutStream variable in our parent class for the output
   // stream to the socket channel. So no need for a new variable here.
@@ -235,7 +234,7 @@ protected:
   uint32_t  mNumBytesPosted; // used for deterimining progress on posting files 
   bool      mGenerateProgressNotifications; // set during a post operation after we've started sending the post data...
 
-  virtual nsresult CloseSocket(); 
+  virtual nsresult CloseSocket() override; 
 };
 
 #undef  IMETHOD_VISIBILITY

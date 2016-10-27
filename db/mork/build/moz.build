@@ -3,14 +3,26 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'mork'
-
 EXPORTS += [
     'nsIMdbFactoryFactory.h',
     'nsMorkCID.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'nsMorkFactory.cpp',
 ]
 
+USE_LIBS += [
+    'mozalloc',
+]
+
+if CONFIG['MOZ_INCOMPLETE_EXTERNAL_LINKAGE']:
+    XPCOMBinaryComponent('mork')
+    USE_LIBS += [
+        'nspr',
+        'xpcomglue_s',
+        'xul',
+    ]
+else:
+    Library('mork')
+    FINAL_LIBRARY = 'xul'

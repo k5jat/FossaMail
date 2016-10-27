@@ -70,6 +70,7 @@ var MigrationWizard = {
   onImportSourcePageShow: function ()
   {
     this._wiz.canRewind = false;
+    this._wiz.canAdvance = false;
 
     // Figure out what source apps are are available to import from:
     var group = document.getElementById("importSourceGroup");
@@ -87,12 +88,16 @@ var MigrationWizard = {
 
     var firstNonDisabled = null;
     for (var i = 0; i < group.childNodes.length; ++i) {
-    if (!group.childNodes[i].hidden) {
+    if (!group.childNodes[i].hidden && !group.childNodes[i].disabled) {
         firstNonDisabled = group.childNodes[i];
         break;
       }
     }
     group.selectedItem = this._source == "" ? firstNonDisabled : document.getElementById(this._source);
+
+    if (firstNonDisabled) {
+      this._wiz.canAdvance = true;
+    }
   },
 
   onImportSourcePageAdvanced: function ()
@@ -139,8 +144,11 @@ var MigrationWizard = {
 
     var profiles = document.getElementById("profiles");
     while (profiles.hasChildNodes())
-      profiles.removeChild(profiles.firstChild);
+      profiles.lastChild.remove();
 
+    if (!this._migrator) {
+      return;
+    }
     var sourceProfiles = this._migrator.sourceProfiles;
     var count = sourceProfiles.length;
     for (var i = 0; i < count; ++i) {
@@ -174,7 +182,7 @@ var MigrationWizard = {
   {
     var dataSources = document.getElementById("dataSources");
     while (dataSources.hasChildNodes())
-      dataSources.removeChild(dataSources.firstChild);
+      dataSources.lastChild.remove();
 
     var bundle = document.getElementById("bundle");
 
@@ -245,7 +253,7 @@ var MigrationWizard = {
   {
     var items = document.getElementById(aID);
     while (items.hasChildNodes())
-      items.removeChild(items.firstChild);
+      items.lastChild.remove();
 
     var bundle = document.getElementById("bundle");
     var itemID;

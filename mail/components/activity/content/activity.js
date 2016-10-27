@@ -166,7 +166,7 @@ var activityObject =
           // element, we have to explicitly remove the binding from
           // activities' listeners list. See bug 230086 for details.
           item.detachFromActivity();
-          this._activitiesView.removeChild(item);
+          item.remove();
           break;
         }
       }
@@ -180,13 +180,13 @@ var activityObject =
           // element, we have to explicitly remove the binding from
           // activities' listeners list. See bug 230086 for details.
           actbinding.detachFromActivity();
-          groupView.removeChild(actbinding);
+          actbinding.remove();
 
           // if the group becomes empty after the removal,
           // get rid of the group as well
           if (groupView.getRowCount() == 0) {
             delete this._groupCache[item.contextType + ":" + item.contextObj];
-            this._activitiesView.removeChild(item);
+            item.remove();
           }
 
           break;
@@ -266,17 +266,17 @@ var activityObject =
                                                                  'actID', '*');
         while (actbinding) {
           actbinding.detachFromActivity();
-          actbinding.parentNode.removeChild(actbinding);
+          actbinding.remove();
           actbinding = document.getAnonymousElementByAttribute(item,
                                                                'actID', '*');
         }
       }
     }
 
-    let (empty = this._activitiesView.cloneNode(false)) {
-      this._activitiesView.parentNode.replaceChild(empty, this._activitiesView);
-      this._activitiesView = empty;
-    }
+    let empty = this._activitiesView.cloneNode(false);
+    this._activitiesView.parentNode.replaceChild(empty, this._activitiesView);
+    this._activitiesView = empty;
+
     this._groupCache = {};
     this.rebuild();
     this._ignoreNotifications = false;

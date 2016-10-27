@@ -9,6 +9,7 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://testing-common/mailnews/mailTestUtils.js");
 Components.utils.import("resource://testing-common/mailnews/localAccountUtils.js");
 Components.utils.import("resource://testing-common/mailnews/IMAPpump.js");
+Components.utils.import("resource://testing-common/mailnews/PromiseTestUtils.jsm");
 
 var Cc = Components.classes;
 var Ci = Components.interfaces;
@@ -22,8 +23,6 @@ do_get_profile();
 Components.utils.import("resource://testing-common/mailnews/maild.js");
 Components.utils.import("resource://testing-common/mailnews/imapd.js");
 Components.utils.import("resource://testing-common/mailnews/auth.js");
-
-const IMAP_PORT = 1024 + 143;
 
 function makeServer(daemon, infoString, otherProps) {
   if (infoString in configurations)
@@ -46,12 +45,12 @@ function makeServer(daemon, infoString, otherProps) {
     return handler;
   }
   var server = new nsMailServer(createHandler, daemon);
-  server.start(IMAP_PORT);
+  server.start();
   return server;
 }
 
-function createLocalIMAPServer() {
-  let server = localAccountUtils.create_incoming_server("imap", IMAP_PORT,
+function createLocalIMAPServer(port) {
+  let server = localAccountUtils.create_incoming_server("imap", port,
 							"user", "password");
   server.QueryInterface(Ci.nsIImapIncomingServer);
   return server;
@@ -90,3 +89,19 @@ function do_check_transaction(fromServer, expected, withParams) {
 
   do_check_eq(realTransaction.join(", "), expected.join(", "));
 }
+
+/**
+ * add a simple message to the IMAP pump mailbox
+ */
+function addImapMessage()
+{
+  let messages = [];
+  let messageGenerator = new MessageGenerator();
+  messages = messages.concat(messageGenerator.makeMessage());
+  let dataUri = Services.io.newURI("data:text/plain;base64," +
+                  btoa(messages[0].toMessageString()),
+                  null, null);
+  let imapMsg = new imapMessage(dataUri.spec, IMAPPump.mailbox.uidnext++, []);
+  IMAPPump.mailbox.addMessage(imapMsg);
+}
+

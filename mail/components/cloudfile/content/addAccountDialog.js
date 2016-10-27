@@ -16,6 +16,7 @@ Cu.import("resource:///modules/cloudFileAccounts.js");
 function createAccountObserver() {};
 
 createAccountObserver.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIRequestObserver]),
   onStartRequest: function(aRequest, aContext) {},
   onStopRequest: function(aRequest, aContext, aStatusCode) {
     if (aStatusCode == Cr.NS_OK
@@ -51,6 +52,10 @@ let addAccountDialog = {
   _accept: null,
   _strings: Services.strings
                     .createBundle("chrome://messenger/locale/cloudfile/addAccountDialog.properties"),
+  // This blacklist is for providers who no longer want to be offered
+  // as an option for a new Filelink provider, but still wants to
+  // exist as a Filelink provider for pre-existing users.
+  _blacklist: new Set(["YouSendIt"]),
 
   onInit: function AAD_onInit() {
     this._settings = document.getElementById("accountSettings");
@@ -67,13 +72,14 @@ let addAccountDialog = {
     this.addAccountTypes();
 
     // Hook up our onInput event handler
-    this._settings.addEventListener("DOMContentLoaded",
-                                    this.onIFrameLoaded.bind(this),
-                                    false);
+    this._settings.addEventListener("DOMContentLoaded", this, false);
 
-    this._settings.addEventListener("overflow", function(e) {
-      addAccountDialog.fitIFrame();
-    });
+    this._settings.addEventListener("overflow", this);
+
+    // Hook up the selection handler.
+    this._accountType.addEventListener("select", this);
+    // Also call it to run it for the default selection.
+    addAccountDialog.accountTypeSelected();
 
     // Hook up the default "Learn More..." link to the appropriate link.
     let learnMore = this._settings
@@ -88,6 +94,32 @@ let addAccountDialog = {
     this.onIFrameLoaded(null);
 
     addAccountDialog.fitIFrame();
+  },
+
+  onUnInit: function() {
+    // Clean-up the event listeners.
+    this._settings.removeEventListener("DOMContentLoaded", this, false);
+    this._settings.removeEventListener("overflow", this);
+    this._accountType.removeEventListener("select", this);
+
+    return false;
+  },
+
+  handleEvent: function(aEvent) {
+    switch (aEvent.type) {
+      case "DOMContentLoaded": {
+        this.onIFrameLoaded();
+        break;
+      }
+      case "overflow": {
+        this.fitIFrame();
+        break;
+      }
+      case "select": {
+        this.accountTypeSelected();
+        break;
+      }
+    }
   },
 
   onIFrameLoaded: function AAD_onIFrameLoaded(aEvent) {
@@ -137,6 +169,9 @@ let addAccountDialog = {
       if (cloudFileAccounts.getAccountsForType(key).length > 0)
         continue;
 
+      if (this._blacklist.has(key))
+        continue;
+
       let menuitem = document.createElement("menuitem");
       menuitem.setAttribute("label", provider.displayName);
       menuitem.setAttribute("value", key);
@@ -178,7 +213,8 @@ let addAccountDialog = {
 
     this._messages.selectedPanel = this._authSpinner;
 
-    return false;
+    // Uninitialize the dialog before closing.
+    return this.onUnInit()
   },
 
   getExtraArgs: function AAD_getExtraArgs() {

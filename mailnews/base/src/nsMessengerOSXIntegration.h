@@ -29,7 +29,6 @@ class nsMessengerOSXIntegration : public nsIMessengerOSIntegration,
 {
 public:
   nsMessengerOSXIntegration();
-  virtual ~nsMessengerOSXIntegration();
   virtual nsresult Init();
 
   NS_DECL_ISUPPORTS
@@ -39,11 +38,16 @@ public:
   NS_DECL_MOZINEWMAILLISTENER
 
 private:
+  virtual ~nsMessengerOSXIntegration();
+
   nsCOMPtr<nsIAtom> mBiffStateAtom;
   nsCOMPtr<nsIAtom> mNewMailReceivedAtom;
   nsresult ShowAlertMessage(const nsAString& aAlertTitle, const nsAString& aAlertText, const nsACString& aFolderURI);
   nsresult OnAlertFinished();
-  nsresult OnAlertClicked(const PRUnichar * aAlertCookie);
+  nsresult OnAlertClicked(const char16_t * aAlertCookie);
+#ifdef MOZ_SUITE
+  nsresult OnAlertClickedSimple();
+#endif
   nsresult GetStringBundle(nsIStringBundle **aBundle);
   void FillToolTipInfo(nsIMsgFolder *aFolder, int32_t aNewCount);
   nsresult GetFirstFolderWithNewMail(nsIMsgFolder* aFolder, nsCString& aFolderURI);

@@ -8,7 +8,6 @@
 #include "modmimee.h"
 #include "nscore.h"
 #include "nsStreamConverter.h"
-#include "comi18n.h"
 #include "prmem.h"
 #include "prprf.h"
 #include "prlog.h"
@@ -38,6 +37,7 @@
 #include "nsIAsyncInputStream.h"
 #include "nsIAsyncOutputStream.h"
 #include "nsMsgUtils.h"
+#include "mozilla/ArrayUtils.h"
 
 #define PREF_MAIL_DISPLAY_GLYPH "mail.display_glyph"
 #define PREF_MAIL_DISPLAY_STRUCT "mail.display_struct"
@@ -348,7 +348,7 @@ nsStreamConverter::DetermineOutputFormat(const char *aUrl, nsMimeOutputType *aNe
     // is added to any URL. It appears that this code has been orphaned off by a change
     // elsewhere and is no longer required. It will be removed in the future unless
     // someone complains.
-    NS_ABORT_IF_FALSE(false, "Is this code actually being used?");
+    MOZ_ASSERT(false, "Is this code actually being used?");
 
     while (*format == ' ')
       ++format;
@@ -446,7 +446,7 @@ nsStreamConverter::DetermineOutputFormat(const char *aUrl, nsMimeOutputType *aNe
     // find the requested header in table, ensure that we don't match on a prefix
     // by checking that the following character is either null or the next query element
     const char * remainder;
-    for (uint32_t n = 0; n < NS_ARRAY_LENGTH(rgTypes); ++n)
+    for (uint32_t n = 0; n < MOZ_ARRAY_LENGTH(rgTypes); ++n)
     {
       remainder = SkipPrefix(header, rgTypes[n].headerType);
       if (remainder && (*remainder == '\0' || *remainder == '&'))
@@ -500,16 +500,8 @@ nsStreamConverter::~nsStreamConverter()
   InternalCleanup();
 }
 
-NS_IMPL_THREADSAFE_ADDREF(nsStreamConverter)
-NS_IMPL_THREADSAFE_RELEASE(nsStreamConverter)
-
-NS_INTERFACE_MAP_BEGIN(nsStreamConverter)
-   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStreamListener)
-   NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
-   NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
-   NS_INTERFACE_MAP_ENTRY(nsIStreamConverter)
-   NS_INTERFACE_MAP_ENTRY(nsIMimeStreamConverter)
-NS_INTERFACE_MAP_END
+NS_IMPL_ISUPPORTS(nsStreamConverter, nsIStreamListener, nsIRequestObserver,
+  nsIStreamConverter, nsIMimeStreamConverter)
 
 ///////////////////////////////////////////////////////////////
 // nsStreamConverter definitions....
@@ -629,7 +621,7 @@ NS_IMETHODIMP nsStreamConverter::Init(nsIURI *aURI, nsIStreamListener * aOutList
 
   // now we want to create a pipe which we'll use for converting the data...
   nsCOMPtr<nsIPipe> pipe = do_CreateInstance("@mozilla.org/pipe;1");
-  rv = pipe->Init(true, true, 4096, 8, nullptr);
+  rv = pipe->Init(true, true, 4096, 8);
   
   // initialize our emitter
   if (NS_SUCCEEDED(rv) && mEmitter)
