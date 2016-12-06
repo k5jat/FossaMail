@@ -159,7 +159,7 @@ repack-process-extrafiles:
 $(LIBXUL_DIST)/bin/platform.ini:
 	mkdir -p $(@D)
 	echo "[Build]" >> $(LIBXUL_DIST)/bin/platform.ini
-	echo "Milestone=$(call print_ltnconfig,Gecko,MaxVersion)" >> $(LIBXUL_DIST)/bin/platform.ini
+	echo "Milestone=$(call print_ltnconfig,Goanna,MaxVersion)" >> $(LIBXUL_DIST)/bin/platform.ini
 	echo "SourceStamp=$(call print_ltnconfig,Build,SourceStamp)" >> $(LIBXUL_DIST)/bin/platform.ini
 	echo "SourceRepository=$(call print_ltnconfig,Build,SourceRepository)" >> $(LIBXUL_DIST)/bin/platform.ini
 	echo "BuildID=$(call print_ltnconfig,App,BuildID)" >> $(LIBXUL_DIST)/bin/platform.ini

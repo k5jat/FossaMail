@@ -10,7 +10,7 @@ GENERATED_INCLUDES += [
 ]
 
 if not CONFIG['LIBXUL_SDK']:
-    GeckoProgram(CONFIG['MOZ_APP_NAME'], msvcrt='static')
+    GoannaProgram(CONFIG['MOZ_APP_NAME'], msvcrt='static')
     USE_LIBS += ['mozglue']
     SOURCES += ['nsMain.cpp']
     LOCAL_INCLUDES += [

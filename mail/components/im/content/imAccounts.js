@@ -222,7 +222,7 @@ var gAccountManager = {
     if (!account.disconnected || !prplAccount.connectionTarget)
       return;
 
-    // Open the Gecko SSL exception dialog.
+    // Open the Goanna SSL exception dialog.
     let params = {
       exceptionAdded: false,
       sslStatus: prplAccount.sslStatus,

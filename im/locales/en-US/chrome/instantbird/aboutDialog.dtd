@@ -4,7 +4,7 @@
 <!ENTITY aboutLink.label        "&lt; About &brandShortName;">
 <!ENTITY aboutLink.accesskey    "A">
 <!ENTITY aboutVersion           "version">
-<!ENTITY geckoVersion           "Gecko">
+<!ENTITY goannaVersion           "Goanna">
 <!ENTITY libpurpleVersion       "libpurple">
 <!-- Use the &copyrightYear; entity to place the current year. -->
 <!ENTITY copyrightText2         "&#169;2007-&copyrightYear; Contributors. This program is free software; you can redistribute it and/or modify it under the terms of the GNU GPL license version 2.0 or later.">

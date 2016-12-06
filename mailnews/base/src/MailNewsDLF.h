@@ -33,6 +33,6 @@ private:
 }
 
 #define MAILNEWSDLF_CATEGORIES \
-  { "Gecko-Content-Viewers", MESSAGE_RFC822, NS_MAILNEWSDLF_CONTRACTID }, \
+  { "Goanna-Content-Viewers", MESSAGE_RFC822, NS_MAILNEWSDLF_CONTRACTID }, \
 
 #endif

@@ -34,7 +34,7 @@
 #include "nsIRDFService.h"
 #include "nsRDFCID.h"
 
-// gecko
+// goanna
 #include "nsLayoutCID.h"
 #include "nsIContentViewer.h"
 

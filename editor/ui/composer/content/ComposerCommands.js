@@ -3632,7 +3632,7 @@ var nsJoinTableCellsCommand =
         // We need a cell and either > 1 selected cell or a cell to the right
         //  (this cell may originate in a row spanned from above current row)
         // Note that editor returns "td" for "th" also.
-        // (this is a pain! Editor and gecko use lowercase tagNames, JS uses uppercase!)
+        // (this is a pain! Editor and goanna use lowercase tagNames, JS uses uppercase!)
         if (cell && (tagNameObj.value == "td"))
         {
           // Selected cells

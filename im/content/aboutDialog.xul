@@ -46,7 +46,7 @@
           versionField.value = versionField.value + xai.version
                              + ' (' + xai.appBuildID + ')';
 
-          versionField = document.getElementById("geckoVersionField");
+          versionField = document.getElementById("goannaVersionField");
           versionField.value = versionField.value + xai.platformVersion
                              + ' (' + xai.platformBuildID + ')';
 
@@ -109,8 +109,8 @@
         <vbox id="versionWrapper" flex="1">
           <textbox id="versionField" readonly="true" class="plain" tabindex="2"
                    value="&aboutVersion; "/>
-          <textbox id="geckoVersionField" readonly="true" class="plain"
-                   tabindex="3" value="&geckoVersion; "/>
+          <textbox id="goannaVersionField" readonly="true" class="plain"
+                   tabindex="3" value="&goannaVersion; "/>
           <textbox id="libpurpleVersionField" readonly="true" class="plain"
                    tabindex="4" value="&libpurpleVersion; "/>
         </vbox>

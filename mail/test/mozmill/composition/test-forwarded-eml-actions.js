@@ -36,7 +36,7 @@ var setupModule = function(module) {
     "From - Mon Apr  16 22:55:33 2012\n" +
     "Date: Mon, 16 Apr 2012 22:55:33 +0300\n" +
     "From: Mr Example <example@invalid>\n" +
-    "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:14.0) Gecko/20120331 Thunderbird/14.0a1\n" +
+    "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:14.0) Goanna/20120331 Thunderbird/14.0a1\n" +
     "MIME-Version: 1.0\n" +
     "To: example@invalid\n" +
     "Subject: Fwd: " + msgsubject + "\n" +
@@ -67,7 +67,7 @@ var setupModule = function(module) {
     "Message-ID: <4F8C78F5.4000704@invalid>\n" +
     "Date: Mon, 16 Apr 2012 22:54:29 +0300\n" +
     "From: Mr Example <example@invalid>\n" +
-    "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:14.0) Gecko/20120331 Thunderbird/14.0a1\n" +
+    "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:14.0) Goanna/20120331 Thunderbird/14.0a1\n" +
     "MIME-Version: 1.0\n" +
     "To: example@invalid\n" +
     "Subject: mail client suggestions\n" +

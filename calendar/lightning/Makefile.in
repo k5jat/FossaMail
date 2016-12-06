@@ -43,7 +43,7 @@ ifeq (nightly,$(subst aurora,nightly,$(MOZ_UPDATE_CHANNEL)))
 DEFINES += -DLIGHTNING_UPDATE_LOCATION=https://calendar.mozilla.org/update.php
 endif
 
-# Gecko milestone
+# Goanna milestone
 GRE_MILESTONE = $(shell $(PYTHON) $(MOZILLA_SRCDIR)/config/printconfigsetting.py $(LIBXUL_DIST)/bin/platform.ini Build Milestone)
 ifdef GRE_MILESTONE
 DEFINES += -DGRE_MILESTONE=$(GRE_MILESTONE)

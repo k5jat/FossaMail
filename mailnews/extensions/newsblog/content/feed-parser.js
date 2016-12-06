@@ -25,7 +25,7 @@ FeedParser.prototype =
     let doc = aDOM.documentElement;
     if (doc.namespaceURI == FeedUtils.MOZ_PARSERERROR_NS)
     {
-      // Gecko caught a basic parsing error.
+      // Goanna caught a basic parsing error.
       let errStr = doc.firstChild.textContent + "\n" +
                    doc.firstElementChild.textContent;
       FeedUtils.log.info("FeedParser.parseFeed: - " + errStr);

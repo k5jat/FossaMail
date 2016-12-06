@@ -49,7 +49,7 @@ MailNewsDLF::CreateInstance(const char* aCommand,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsAutoCString contractID;
-  rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", TEXT_HTML,
+  rv = catMan->GetCategoryEntry("Goanna-Content-Viewers", TEXT_HTML,
                                 getter_Copies(contractID));
   NS_ENSURE_SUCCESS(rv, rv);
 

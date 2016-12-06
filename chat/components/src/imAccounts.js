@@ -335,7 +335,7 @@ imAccount.prototype = {
       let appInfo = Services.appinfo;
       let header =
         `${appInfo.name} ${appInfo.version} (${appInfo.appBuildID}), ` +
-        `Gecko ${appInfo.platformVersion} (${appInfo.platformBuildID}) ` +
+        `Goanna ${appInfo.platformVersion} (${appInfo.platformBuildID}) ` +
         `on ${HttpProtocolHandler.oscpu}`;
       messages.unshift(this._createDebugMessage(header));
     }

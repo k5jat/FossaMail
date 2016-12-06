@@ -186,7 +186,7 @@ ICAL.helpers = {
         return console.log(input);
       }
     } else {
-      ICAL.helpers.dumpn = function geckoDumpn(input) {
+      ICAL.helpers.dumpn = function goannaDumpn(input) {
         dump(input + '\n');
       }
     }

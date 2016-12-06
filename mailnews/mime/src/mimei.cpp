@@ -323,7 +323,7 @@ bool mime_is_allowed_class(const MimeObjectClass *clazz,
         clazz == (MimeObjectClass *)&mimeInlineTextPlainFlowedClass ||
         clazz == (MimeObjectClass *)&mimeInlineTextHTMLSanitizedClass ||
         clazz == (MimeObjectClass *)&mimeInlineTextHTMLAsPlaintextClass ||
-           /* The latter 2 classes bear some risk, because they use the Gecko
+           /* The latter 2 classes bear some risk, because they use the Goanna
               HTML parser, but the user has the option to make an explicit
               choice in this case, via html_as. */
         clazz == (MimeObjectClass *)&mimeMultipartMixedClass ||

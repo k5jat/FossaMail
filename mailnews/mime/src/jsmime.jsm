@@ -7,7 +7,7 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 
 /**
  * This file exports the JSMime code, polyfilling code as appropriate for use in
- * Gecko.
+ * Goanna.
  */
 
 // Load the core MIME parser. Since it doesn't define EXPORTED_SYMBOLS, we must

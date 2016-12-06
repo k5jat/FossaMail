@@ -12,7 +12,7 @@
 -->
 <!ENTITY credit.translation "">
 
-<!ENTITY credit.poweredByGecko "Powered by Gecko&trade; and libpurple">
+<!ENTITY credit.poweredByGoanna "Powered by Goanna&trade; and libpurple">
 
 <!-- copied from what used to be
 toolkit/locales/en-US/chrome/global/license.dtd in mozilla 1.9.2 -->

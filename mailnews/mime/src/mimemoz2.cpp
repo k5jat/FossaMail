@@ -2188,7 +2188,7 @@ nsresult GetMailNewsFont(MimeObject *obj, bool styleFixed,  int32_t *fontPixelSi
 }
 
 /* This function syncronously converts an HTML document (as string)
-   to plaintext (as string) using the Gecko converter.
+   to plaintext (as string) using the Goanna converter.
 
    flags: see nsIDocumentEncoder.h
 */
@@ -2205,7 +2205,7 @@ HTML2Plaintext(const nsString& inString, nsString& outString,
 
 
 /* This function syncronously sanitizes an HTML document (string->string)
-   using the Gecko nsTreeSanitizer.
+   using the Goanna nsTreeSanitizer.
 */
 // copied from HTML2Plaintext above
 nsresult

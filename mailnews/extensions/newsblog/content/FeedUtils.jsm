@@ -673,7 +673,7 @@ var FeedUtils = {
       return "";
 
     try {
-      // Valid urls with an icon image gecko cannot render will cause a throw.
+      // Valid urls with an icon image goanna cannot render will cause a throw.
       FeedUtils.mFaviconService.setAndFetchFaviconForPage(
         uri, iconUri, false, FeedUtils.mFaviconService.FAVICON_LOAD_NON_PRIVATE);
     }
