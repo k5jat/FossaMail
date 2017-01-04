@@ -9,6 +9,7 @@
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource:///modules/displayNameUtils.js");
 Components.utils.import("resource:///modules/mailServices.js");
 Components.utils.import("resource:///modules/gloda/utils.js");
 let {Status: statusUtils} =
@@ -180,7 +181,7 @@ function initializeHeaderViewTables()
   for (index = 0; index < extraHeaders.length; index++) {
     var extraHeader = extraHeaders[index];
     gExpandedHeaderView[extraHeader.toLowerCase()] =
-      new createNewHeaderView(extraHeader, extraHeader);
+      new HeaderView(extraHeader, extraHeader);
   }
 
   if (Services.prefs.getBoolPref("mailnews.headers.showOrganization")) {
@@ -252,17 +253,16 @@ function OnLoadMsgHeaderPane()
   // Only offer openInTab and openInNewWindow if this window supports tabs...
   // (i.e. is not a standalone message window), since those actions are likely
   // to be significantly less common in that case.
-  let opensAreHidden = document.getElementById("tabmail") ? false : true;
-  let openInTab = document.getElementById("otherActionsOpenInNewTab");
-  let openInNewWindow = document.getElementById("otherActionsOpenInNewWindow");
-  openInTab.hidden = openInNewWindow.hidden = opensAreHidden;
+  if (document.getElementById("otherActionsOpenIn")) {
+    let opensAreHidden = document.getElementById("tabmail") ? false : true;
+    document.getElementById("otherActionsOpenIn").hidden = opensAreHidden;
+  }
 
   // Dispatch an event letting any listeners know that we have loaded
   // the message pane.
-  var event = document.createEvent("Events");
-  event.initEvent("messagepane-loaded", false, true);
   var headerViewElement = document.getElementById("msgHeaderView");
-  headerViewElement.dispatchEvent(event);
+  headerViewElement.dispatchEvent(new Event("messagepane-loaded",
+    { bubbles: false, cancelable: true }));
 
   initInlineToolbox("header-view-toolbox", "header-view-toolbar",
                     "CustomizeHeaderToolbar", function() {
@@ -340,10 +340,9 @@ function OnUnloadMsgHeaderPane()
 
   // dispatch an event letting any listeners know that we have unloaded
   // the message pane
-  var event = document.createEvent("Events");
-  event.initEvent("messagepane-unloaded", false, true);
   var headerViewElement = document.getElementById("msgHeaderView");
-  headerViewElement.dispatchEvent(event);
+  headerViewElement.dispatchEvent(new Event("messagepane-unloaded",
+    { bubbles: false, cancelable: true }));
 }
 
 const MsgHdrViewObserver =
@@ -433,7 +432,6 @@ var messageHeaderSink = {
       gBuiltExpandedView = false;
       gBuildAttachmentsForCurrentMsg = false;
       ClearAttachmentList();
-      ClearEditMessageBox();
       gMessageNotificationBar.clearMsgNotifications();
 
       for (let index in gMessageListeners)
@@ -447,6 +445,12 @@ var messageHeaderSink = {
       for (let index in gMessageListeners)
         if ("onBeforeShowHeaderPane" in gMessageListeners[index])
           gMessageListeners[index].onBeforeShowHeaderPane();
+
+      // Load feed web page if so configured. This entry point works for
+      // messagepane loads in 3pane folder tab, 3pane message tab, and the
+      // standalone message window.
+      if (!FeedMessageHandler.shouldShowSummary(gMessageDisplay.displayedMessage, false))
+        FeedMessageHandler.setContent(gMessageDisplay.displayedMessage, false);
 
       ShowMessageHeaderPane();
       // WARNING: This is the ONLY routine inside of the message Header Sink
@@ -464,7 +468,7 @@ var messageHeaderSink = {
         UpdateExpandedMessageHeaders();
       }
 
-      ShowEditMessageBox();
+      gMessageNotificationBar.setDraftEditMessage();
       UpdateJunkButton();
 
       for (let index in gMessageListeners)
@@ -711,9 +715,10 @@ var messageHeaderSink = {
           }
 
           img.addEventListener("load", function(event) {
-            if (this.clientWidth > this.parentNode.clientWidth &&
-                this.hasAttribute("shrinktofit"))
-              this.setAttribute("isshrunk", true);
+            if (this.clientWidth > this.parentNode.clientWidth) {
+              img.setAttribute("overflowing", "true");
+              img.setAttribute("shrinktofit", "true");
+            }
           });
         }
       }
@@ -726,9 +731,9 @@ var messageHeaderSink = {
       OnMsgLoaded(url);
     },
 
-    onMsgHasRemoteContent: function(aMsgHdr)
+    onMsgHasRemoteContent: function(aMsgHdr, aContentURI)
     {
-      gMessageNotificationBar.setRemoteContentMsg(aMsgHdr);
+      gMessageNotificationBar.setRemoteContentMsg(aMsgHdr, aContentURI);
     },
 
     mSecurityInfo  : null,
@@ -917,8 +922,7 @@ function EnsureMinimumNumberOfHeaders (headerTable)
     // header widget for them.
     while (numEmptyHeaders) {
       var dummyHeaderId = "Dummy-Header" + gDummyHeaderIdIndex;
-      gExpandedHeaderView[dummyHeaderId] = new createNewHeaderView(dummyHeaderId,
-                                                                   "");
+      gExpandedHeaderView[dummyHeaderId] = new HeaderView(dummyHeaderId, "");
       gExpandedHeaderView[dummyHeaderId].valid = true;
 
       gDummyHeaderIdIndex++;
@@ -997,37 +1001,45 @@ function updateHeaderValue(aHeaderEntry, aHeaderValue)
  *                             used to construct element ids
  * @param {String} label       name of the header as displayed in the UI
  */
-function createNewHeaderView(headerName, label)
+function HeaderView(headerName, label)
 {
-  var idName = "expanded" + headerName + "Box";
+  let rowId = "expanded" + headerName + "Row";
+  let idName = "expanded" + headerName + "Box";
+  let newHeaderNode;
+  // If a row for this header already exists, do not create another one.
+  let newRowNode = document.getElementById(rowId);
+  if (!newRowNode) {
+    // Create new collapsed row.
+    newRowNode = document.createElement("row");
+    newRowNode.setAttribute("id", rowId);
+    newRowNode.collapsed = true;
 
-  // create new collapsed row
-  let newRowNode = document.createElement("row");
-  newRowNode.setAttribute("id", "expanded" + headerName + "Row");
-  newRowNode.collapsed = true;
+    // Create and append the label which contains the header name.
+    let newLabelNode = document.createElement("label");
+    newLabelNode.setAttribute("id", "expanded" + headerName + "Label");
+    newLabelNode.setAttribute("value", label);
+    newLabelNode.setAttribute("class", "headerName");
+    newLabelNode.setAttribute("control", idName);
+    newRowNode.appendChild(newLabelNode);
 
-  // create and append the label which contains the header name
-  let newLabelNode = document.createElement("label");
-  newLabelNode.setAttribute("id", "expanded" + headerName + "Label");
-  newLabelNode.setAttribute("value", label);
-  newLabelNode.setAttribute("class", "headerName");
-  newLabelNode.setAttribute("control", idName);
-  newRowNode.appendChild(newLabelNode);
+    // Create and append the new header value.
+    newHeaderNode = document.createElement("mail-headerfield");
+    newHeaderNode.setAttribute("id", idName);
+    newHeaderNode.setAttribute("flex", "1");
 
-  // create and append the new header value
-  var newHeaderNode = document.createElement("mail-headerfield");
-  newHeaderNode.setAttribute("id", idName);
-  newHeaderNode.setAttribute("flex", "1");
+    newRowNode.appendChild(newHeaderNode);
 
-  newRowNode.appendChild(newHeaderNode);
-
-  // this new element needs to be inserted into the view...
-  let topViewNode = document.getElementById("expandedHeader2Rows");
-  topViewNode.appendChild(newRowNode);
+    // This new element needs to be inserted into the view...
+    let topViewNode = document.getElementById("expandedHeader2Rows");
+    topViewNode.appendChild(newRowNode);
+    this.isNewHeader = true;
+  } else {
+    newHeaderNode = document.getElementById(idName);
+    this.isNewHeader = false;
+  }
 
   this.enclosingBox = newHeaderNode;
   this.enclosingRow = newRowNode;
-  this.isNewHeader = true;
   this.valid = false;
   this.useToggle = false;
   this.outputFunction = updateHeaderValue;
@@ -1042,7 +1054,7 @@ function RemoveNewHeaderViews(aHeaderTable)
 {
   for each (let [, headerEntry] in Iterator(aHeaderTable)) {
     if (headerEntry.isNewHeader)
-      headerEntry.enclosingRow.parentNode.removeChild(headerEntry.enclosingRow);
+      headerEntry.enclosingRow.remove();
   }
 }
 
@@ -1062,7 +1074,7 @@ function UpdateExpandedMessageHeaders() {
   // that attachment-splitter causes if it's moved high enough to affect
   // the header box:
   document.getElementById("msgHeaderView").removeAttribute("height");
-  // This height attribute may be set by toggleWrap() if the user clicked 
+  // This height attribute may be set by toggleWrap() if the user clicked
   // the "more" button" in the header.
   // Remove it so that the height is determined automatically.
   document.getElementById("expandedHeaderView").removeAttribute("height");
@@ -1089,8 +1101,7 @@ function UpdateExpandedMessageHeaders() {
       // displayed below the message header toolbar.
       else if (headerName != "x-mozilla-localizeddate") {
         gExpandedHeaderView[headerName] =
-          new createNewHeaderView(headerName,
-                                  currentHeaderData[headerName].headerName);
+          new HeaderView(headerName, currentHeaderData[headerName].headerName);
       }
 
       headerEntry = gExpandedHeaderView[headerName];
@@ -1154,7 +1165,7 @@ function HideMessageHeaderPane()
   document.getElementById("attachmentView").collapsed = true;
   document.getElementById("attachment-splitter").collapsed = true;
 
-  ClearEditMessageBox();
+  gMessageNotificationBar.clearMsgNotifications();
 }
 
 /**
@@ -1213,6 +1224,8 @@ function OutputEmailAddresses(headerEntry, emailAddresses)
                              .parseHeadersWithArray(emailAddresses, addresses,
                                                     names, fullNames);
   var index = 0;
+  if (headerEntry.useToggle)
+    headerEntry.enclosingBox.resetAddressView(); // make sure we start clean
   while (index < numAddresses) {
     // If we want to include short/long toggle views and we have a long view,
     // always add it. If we aren't including a short/long view OR if we are and
@@ -1243,59 +1256,9 @@ function updateEmailAddressNode(emailAddressNode, address)
   UpdateEmailNodeDetails(address.emailAddress, emailAddressNode);
 }
 
-/**
- * Take an email address and compose a sensible display name based on the
- * header display name and/or the display name from the address book. If no
- * appropriate name can be made (e.g. there is no card for this address),
- * returns |null|.
- *
- * @param aEmailAddress       the email address to format
- * @param aHeaderDisplayName  the display name from the header, if any
- * @param aContext            the field being formatted (e.g. "to", "from")
- * @param aCard               the address book card, if any
- * @return  The formatted display name, or null
- */
-function FormatDisplayName(aEmailAddress, aHeaderDisplayName, aContext, aCard)
-{
-  var displayName = null;
-  var identity = getBestIdentity(accountManager.allIdentities, aEmailAddress);
-  var card = aCard || getCardForEmail(aEmailAddress).card;
-
-  // If this address is one of the user's identities...
-  if (aEmailAddress == identity.email) {
-    var bundle = document.getElementById("bundle_messenger");
-    // ...pick a localized version of the word "Me" appropriate to this
-    // specific header; fall back to the version used by the "to" header
-    // if nothing else is available.
-    try {
-      displayName = bundle.getString("header" + aContext + "FieldMe");
-    } catch (ex) {
-      displayName = bundle.getString("headertoFieldMe");
-    }
-
-    // Make sure we have an unambiguous name if there are multiple identities
-    if (accountManager.allIdentities.length > 1)
-      displayName += " <"+identity.email+">";
-  }
-
-  // If we don't have a card, refuse to generate a display name. Places calling
-  // this are then responsible for falling back to something else (e.g. the
-  // value from the message header).
-  if (card) {
-    if (!displayName && aHeaderDisplayName)
-      displayName = aHeaderDisplayName;
-
-    // getProperty may return a "1" or "0" string, we want a boolean
-    if (!displayName || card.getProperty("PreferDisplayName", true) != false)
-      displayName = card.displayName || null;
-  }
-
-  return displayName;
-}
-
 function UpdateEmailNodeDetails(aEmailAddress, aDocumentNode, aCardDetails) {
   // If we haven't been given specific details, search for a card.
-  var cardDetails = aCardDetails || getCardForEmail(aEmailAddress);
+  var cardDetails = aCardDetails || GetCardForEmail(aEmailAddress);
   aDocumentNode.cardDetails = cardDetails;
 
   if (!cardDetails.card) {
@@ -1620,8 +1583,9 @@ function EditContact(emailAddressNode)
  * in there and opens a compose window with that address.
  *
  * @param addressNode  a node which has a "fullAddress" or "newsgroup" attribute
+ * @param aEvent       the event object when user triggers the menuitem
  */
-function SendMailToNode(addressNode)
+function SendMailToNode(addressNode, aEvent)
 {
   let fields = Components.classes["@mozilla.org/messengercompose/composefields;1"]
                          .createInstance(Components.interfaces.nsIMsgCompFields);
@@ -1629,10 +1593,20 @@ function SendMailToNode(addressNode)
                          .createInstance(Components.interfaces.nsIMsgComposeParams);
 
   fields.newsgroups = addressNode.getAttribute("newsgroup");
-  fields.to = addressNode.getAttribute("fullAddress");
+  if (addressNode.hasAttribute("fullAddress")) {
+    let addresses = MailServices.headerParser.makeFromDisplayAddress(
+      addressNode.getAttribute("fullAddress"), {});
+    fields.to = MailServices.headerParser.makeMimeHeader(addresses, 1);
+  }
 
   params.type = Components.interfaces.nsIMsgCompType.New;
-  params.format = Components.interfaces.nsIMsgCompFormat.Default;
+
+  // If aEvent is passed, check if Shift key was pressed for composition in
+  // non-default format (HTML vs. plaintext).
+  params.format = (aEvent && aEvent.shiftKey) ? 
+    Components.interfaces.nsIMsgCompFormat.OppositeOfDefault :
+    Components.interfaces.nsIMsgCompFormat.Default;
+
   if (gFolderDisplay.displayedFolder) {
     params.identity = accountManager.getFirstIdentityForServer(
                         gFolderDisplay.displayedFolder.server);
@@ -1659,14 +1633,17 @@ function CopyEmailNewsAddress(addressNode)
 
 /**
  * Causes the filter dialog to pop up, prefilled for the specified e-mail
- * address.
+ * address or header value.
  *
- * @param emailAddressNode  a node which has an "emailAddress" attribute
+ * @param aHeaderNode  A node which has an "emailAddress" attribute
+ *                     or a "headerName" attribute.
  */
-function CreateFilter(emailAddressNode)
+function CreateFilter(aHeaderNode)
 {
-  let emailAddress = emailAddressNode.getAttribute("emailAddress");
-  top.MsgFilters(emailAddress, GetFirstSelectedMsgFolder());
+  let nodeIsAddress = aHeaderNode.hasAttribute("emailAddress");
+  let nodeValue = nodeIsAddress ? aHeaderNode.getAttribute("emailAddress") :
+                                  document.getAnonymousNodes(aHeaderNode)[0].textContent;
+  top.MsgFilters(nodeValue, null, aHeaderNode.getAttribute("headerName"));
 }
 
 /**
@@ -1796,7 +1773,6 @@ function AttachmentInfo(contentType, url, name, uri,
                         isExternalAttachment, size)
 {
   this.contentType = contentType;
-  this.url = url;
   this.name = name;
   this.uri = uri;
   this.isExternalAttachment = isExternalAttachment;
@@ -1804,6 +1780,11 @@ function AttachmentInfo(contentType, url, name, uri,
 
   let match = GlodaUtils.PART_RE.exec(url);
   this.partID = match && match[1];
+  // Remove [?&]part= from remote urls, after getting the partID.
+  if (url.startsWith("http") || url.startsWith("file"))
+    url = url.replace(new RegExp("[?&]part=" + this.partID + "$"), "");
+
+  this.url = url;
 }
 
 AttachmentInfo.prototype = {
@@ -2419,8 +2400,8 @@ function FillAttachmentListPopup(aEvent, aPopup)
 function ClearAttachmentMenu(popup)
 {
   if (popup) {
-    while (popup.childNodes[0].localName == "menu")
-      popup.removeChild(popup.childNodes[0]);
+    while (popup.firstChild.localName == "menu")
+      popup.firstChild.remove();
   }
 }
 
@@ -2454,14 +2435,17 @@ function addAttachmentToPopup(popup, attachment, attachmentIndex)
   var indexOfSeparator = 0;
   while (popup.childNodes[indexOfSeparator].localName != "menuseparator")
     indexOfSeparator++;
-
+  // We increment the attachmentIndex here since we only use it for the
+  // label and accesskey attributes, and we want the accesskeys for the
+  // attachments list in the menu to be 1-indexed.
+  attachmentIndex++;
   var displayName = SanitizeAttachmentDisplayName(attachment);
   var label = document.getElementById("bundle_messenger")
                       .getFormattedString("attachmentDisplayNameFormat",
                                           [attachmentIndex, displayName]);
   item.setAttribute("crop", "center");
   item.setAttribute("label", label);
-  item.setAttribute("accesskey", attachmentIndex);
+  item.setAttribute("accesskey", attachmentIndex % 10);
 
   // Each attachment in the list gets its own menupopup with options for
   // saving, deleting, detaching, etc.
@@ -2691,7 +2675,7 @@ function ClearAttachmentList()
   list.selectedItems.length = 0;
 
   while (list.hasChildNodes())
-    list.removeChild(list.lastChild);
+    list.lastChild.remove();
 }
 
 var attachmentListDNDObserver = {
@@ -2712,25 +2696,6 @@ var attachmentNameDNDObserver = {
       attachmentList.getItemAtIndex(0).attachment);
   }
 };
-
-function ShowEditMessageBox()
-{
-  // It would be nice if we passed in the msgHdr from the back end.
-  var msgHdr = gFolderDisplay.selectedMessage;
-  if (!msgHdr || !msgHdr.folder)
-    return;
-
-  const nsMsgFolderFlags = Components.interfaces.nsMsgFolderFlags;
-  if (msgHdr.folder.isSpecialFolder(nsMsgFolderFlags.Drafts, true))
-    document.getElementById("editMessageBox").collapsed = false;
-}
-
-function ClearEditMessageBox()
-{
-  var editBox = document.getElementById("editMessageBox");
-  if (editBox)
-    editBox.collapsed = true;
-}
 
 /**
  * CopyWebsiteAddress takes the website address title button, extracts
@@ -2774,7 +2739,7 @@ nsDummyMsgHeader.prototype =
   markHasAttachments : function(hasAttachments) {},
   messageSize : 0,
   recipients : null,
-  from : null,
+  author: null,
   subject : "",
   get mime2DecodedSubject() { return this.subject; },
   ccList : null,
@@ -2795,8 +2760,8 @@ function onShowOtherActionsPopup()
 
   let openConversation = document.getElementById("otherActionsOpenConversation");
   openConversation.disabled = !glodaEnabled;
-  if (glodaEnabled && gFolderDisplay.selectedMessages.length > 0) {
-    let message = gFolderDisplay.selectedMessages[0];
+  if (glodaEnabled && gFolderDisplay.selectedCount > 0) {
+    let message = gFolderDisplay.selectedMessage;
     let isMessageIndexed = Gloda.isMessageIndexed(message);
     openConversation.disabled = !isMessageIndexed;
   }
@@ -2829,8 +2794,8 @@ ConversationOpener.prototype = {
     let glodaEnabled = Services.prefs
       .getBoolPref("mailnews.database.global.indexer.enabled");
 
-    if (glodaEnabled && gFolderDisplay.selectedMessages.length > 0) {
-      let message = gFolderDisplay.selectedMessages[0];
+    if (glodaEnabled && gFolderDisplay.selectedCount > 0) {
+      let message = gFolderDisplay.selectedMessage;
       return Gloda.isMessageIndexed(message);
     }
     return false;

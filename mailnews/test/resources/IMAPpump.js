@@ -18,8 +18,8 @@ var EXPORTED_SYMBOLS = [
 ];
 
 Components.utils.import("resource:///modules/mailServices.js");
-Components.utils.import("resource:///modules/Services.jsm");
-Components.utils.import("resource:///modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://testing-common/mailnews/localAccountUtils.js");
 Components.utils.import("resource://testing-common/mailnews/maild.js");
 Components.utils.import("resource://testing-common/mailnews/auth.js");
@@ -35,6 +35,7 @@ var IMAPPump = {
   mailbox: null         // imap fake server mailbox
 };
 var Ci = Components.interfaces;
+var Cc = Components.classes;
 
 function setupIMAPPump(extensions)
 {
@@ -43,9 +44,6 @@ function setupIMAPPump(extensions)
 
   // These are copied from imap's head_server.js to here so we can run
   //   this from any directory.
-
-  const IMAP_PORT = 1024 + 143;
-
   function makeServer(daemon, infoString) {
     if (infoString in configurations)
       return makeServer(daemon, configurations[infoString].join(","));
@@ -62,13 +60,13 @@ function setupIMAPPump(extensions)
       return handler;
     }
     var server = new nsMailServer(createHandler, daemon);
-    server.start(IMAP_PORT);
+    server.start();
     return server;
   }
 
   function createLocalIMAPServer() {
-    let server = localAccountUtils.create_incoming_server("imap", IMAP_PORT,
-							  "user", "password");
+    let server = localAccountUtils.create_incoming_server("imap",
+      IMAPPump.server.port, "user", "password");
     server.QueryInterface(Ci.nsIImapIncomingServer);
     return server;
   }
@@ -114,18 +112,23 @@ function setupIMAPPump(extensions)
   IMAPPump.inbox instanceof Ci.nsIMsgImapMailFolder;
 }
 
+// This will clear not only the imap accounts but also local accounts.
 function teardownIMAPPump()
 {
-  IMAPPump.inbox = null;
-  IMAPPump.server.resetTest();
-  try {
-    IMAPPump.incomingServer.closeCachedConnections();
-    let serverSink = IMAPPump.incomingServer.QueryInterface(Ci.nsIImapServerSink);
-    serverSink.abortQueuedUrls();
-  } catch (ex) {dump(ex);}
-  IMAPPump.server.performTest();
-  IMAPPump.server.stop();
+  // try to finish any pending operations
   let thread = gThreadManager.currentThread;
   while (thread.hasPendingEvents())
     thread.processNextEvent(true);
+
+  IMAPPump.inbox = null;
+  try {
+    let serverSink = IMAPPump.incomingServer.QueryInterface(Ci.nsIImapServerSink);
+    serverSink.abortQueuedUrls();
+    IMAPPump.incomingServer.closeCachedConnections();
+    IMAPPump.server.resetTest();
+    IMAPPump.server.stop();
+    MailServices.accounts.removeIncomingServer(IMAPPump.incomingServer, false);
+    localAccountUtils.clearAll();
+  } catch (ex) {dump(ex);}
+
 }

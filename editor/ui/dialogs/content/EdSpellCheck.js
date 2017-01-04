@@ -107,6 +107,8 @@ function spellCheckStarted() {
   //  no misspelled word is found
   //  (different message when used for the first time)
   gFirstTime = false;
+
+  window.sizeToContent();
 }
 
 function InitLanguageMenu(aCurLang)
@@ -198,7 +200,7 @@ function InitLanguageMenu(aCurLang)
   // Remove any languages from the list.
   var languageMenuPopup = gDialog.LanguageMenulist.firstChild;
   while (languageMenuPopup.firstChild.localName != "menuseparator")
-    languageMenuPopup.removeChild(languageMenuPopup.firstChild);
+    languageMenuPopup.firstChild.remove();
 
   var defaultItem = null;
 
@@ -266,7 +268,7 @@ function NextWord()
 
 function SetWidgetsForMisspelledWord()
 {
-  gDialog.MisspelledWord.setAttribute("value", TruncateStringAtWordEnd(gMisspelledWord, 30, true));
+  gDialog.MisspelledWord.setAttribute("value", gMisspelledWord);
 
 
   // Initial replace word is misspelled word
@@ -418,6 +420,11 @@ function SelectLanguage()
   var item = gDialog.LanguageMenulist.selectedItem;
   if (item.value != "more-cmd") {
     gSpellChecker.SetCurrentDictionary(item.value);
+    // For compose windows we need to set the "lang" attribute so the
+    // core editor uses the correct dictionary for the inline spell check.
+    if (window.arguments[1]) {
+      window.opener.document.documentElement.setAttribute("lang", item.value);
+    }
     gLastSelectedLang = item;
   }
   else {
@@ -442,6 +449,10 @@ function Recheck()
   try {
     recheckLanguage = gSpellChecker.GetCurrentDictionary();
     gSpellChecker.UninitSpellChecker();
+    // Clear the ignore all list.
+    Components.classes["@mozilla.org/spellchecker/personaldictionary;1"]
+              .getService(Components.interfaces.mozIPersonalDictionary)
+              .endSession();
     gSpellChecker.InitSpellChecker(GetCurrentEditor(), false, finishRecheck);
   } catch(ex) {
     Components.utils.reportError(ex);

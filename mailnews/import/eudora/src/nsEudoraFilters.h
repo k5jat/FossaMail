@@ -8,6 +8,7 @@
 
 #include "nsIImportFilters.h"
 #include "nsIFile.h"
+#include "nsIMutableArray.h"
 #include "nsCOMPtr.h"
 #include "nsMsgFilterCore.h"
 
@@ -16,7 +17,6 @@ class nsIMsgFolder;
 class nsEudoraFilters : public nsIImportFilters {
 public:
   nsEudoraFilters();
-  virtual ~nsEudoraFilters();
 
   static nsresult Create(nsIImportFilters** aImport);
 
@@ -27,9 +27,10 @@ public:
   NS_DECL_NSIIMPORTFILTERS
 
 private:
+  virtual ~nsEudoraFilters();
   nsCOMPtr<nsIFile> m_pLocation;
-  nsCOMPtr<nsISupportsArray> m_pServerArray;
-  nsCOMPtr<nsISupportsArray> m_pFilterArray;
+  nsCOMPtr<nsIMutableArray> m_pServerArray;
+  nsCOMPtr<nsIMutableArray> m_pFilterArray;
   nsCOMPtr<nsIMsgFolder> m_pMailboxesRoot;
 
   nsString m_errorLog;

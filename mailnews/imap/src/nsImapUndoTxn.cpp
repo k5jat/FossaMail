@@ -83,7 +83,7 @@ nsImapMoveCopyMsgTxn::~nsImapMoveCopyMsgTxn()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsImapMoveCopyMsgTxn, nsMsgTxn, nsIUrlListener)
+NS_IMPL_ISUPPORTS_INHERITED(nsImapMoveCopyMsgTxn, nsMsgTxn, nsIUrlListener)
 
 NS_IMETHODIMP
 nsImapMoveCopyMsgTxn::UndoTransaction(void)
@@ -488,7 +488,7 @@ nsImapOfflineTxn::nsImapOfflineTxn(nsIMsgFolder* srcFolder, nsTArray<nsMsgKey>* 
   Init(srcFolder, srcKeyArray, srcMsgIdString, dstFolder, true,
        isMove);
 
-  m_opType = opType; 
+  m_opType = opType;
   m_flags = 0;
   m_addFlags = false;
   if (opType == nsIMsgOfflineImapOperation::kDeletedMsg)
@@ -501,8 +501,7 @@ nsImapOfflineTxn::nsImapOfflineTxn(nsIMsgFolder* srcFolder, nsTArray<nsMsgKey>* 
     {
       nsMsgKey pseudoKey;
       nsCOMPtr <nsIMsgDBHdr> copySrcHdr;
-      int32_t i = srcHdrs.Count();
-      for (i = 0; i < srcHdrs.Count(); i++)
+      for (int32_t i = 0; i < srcHdrs.Count(); i++)
       {
         srcDB->GetNextPseudoMsgKey(&pseudoKey);
         pseudoKey--;

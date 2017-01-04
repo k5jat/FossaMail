@@ -63,7 +63,7 @@ function fillMailContextMenu(event)
   goUpdateCommand('cmd_print');
 
   updateCheckedStateForIgnoreAndWatchThreadCmds();
-  
+
   gContextMenu = new nsContextMenu(event.target, event.shiftKey);
   return gContextMenu.shouldDisplay;
 }
@@ -289,8 +289,29 @@ function folderPaneOnPopupHiding()
   RestoreSelectionWithoutContentLoad(document.getElementById("folderTree"));
 }
 
-function fillFolderPaneContextMenu()
+function fillFolderPaneContextMenu(aEvent)
 {
+  let target = document.popupNode;
+  // If a column header was clicked, show the column picker.
+  if (target.localName == "treecol") {
+    let treecols = target.parentNode;
+    let nodeList = document.getAnonymousNodes(treecols);
+    let treeColPicker = null;
+    for (let i = 0; i < nodeList.length; i++) {
+      if (nodeList.item(i).localName == "treecolpicker") {
+        treeColPicker = nodeList.item(i);
+        break;
+      }
+    }
+    if (treeColPicker) {
+      let popup = document.getAnonymousElementByAttribute(treeColPicker, "anonid", "popup");
+      treeColPicker.buildPopup(popup);
+      popup.openPopup(target, "after_start", 0, 0, true);
+    }
+    return false;
+  }
+
+  // Do not show menu if rows are selected.
   var bundle = document.getElementById("bundle_messenger");
   var folders = gFolderTreeView.getSelectedFolders();
   if (!folders.length)
@@ -324,7 +345,8 @@ function fillFolderPaneContextMenu()
   var haveOnlySubscribableFolders = folders.every(checkCanSubscribeToFolder);
 
   function checkIsNewsgroup(folder) {
-    return !folder.isServer && folder.server.type == "nntp";
+    return !folder.isServer && folder.server.type == "nntp" &&
+           !folder.getFlag(nsMsgFolderFlags.Virtual);
   }
   var haveOnlyNewsgroups = folders.every(checkIsNewsgroup);
 
@@ -505,7 +527,7 @@ function fillFolderPaneContextMenu()
   hideIfAppropriate("folderPaneContext-sep2");
   hideIfAppropriate("folderPaneContext-sep3");
 
-  return(true);
+  return true;
 }
 
 function ShowMenuItem(id, showItem)

@@ -22,15 +22,17 @@ class MailNewsDLF : public nsIDocumentLoaderFactory
 {
 public:
   MailNewsDLF();
-  virtual ~MailNewsDLF();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOCUMENTLOADERFACTORY
+
+private:
+  virtual ~MailNewsDLF();
 };
 }
 }
 
 #define MAILNEWSDLF_CATEGORIES \
-  { "Gecko-Content-Viewers", MESSAGE_RFC822, NS_MAILNEWSDLF_CONTRACTID }, \
+  { "Goanna-Content-Viewers", MESSAGE_RFC822, NS_MAILNEWSDLF_CONTRACTID }, \
 
 #endif

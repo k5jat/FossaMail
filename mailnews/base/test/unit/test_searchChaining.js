@@ -11,82 +11,32 @@
 load("../../../resources/messageGenerator.js");
 
 Components.utils.import("resource:///modules/mailServices.js");
+Components.utils.import("resource://testing-common/mailnews/IMAPpump.js");
+Components.utils.import("resource://testing-common/mailnews/imapd.js");
+Components.utils.import("resource://testing-common/mailnews/PromiseTestUtils.jsm");
 
-var gIMAPInbox;
-var gIMAPDaemon, gServer, gIMAPIncomingServer;
-
-function run_test()
+function *setupFolder()
 {
-  // Pull in the IMAP fake server code
-  load("../../../imap/test/unit/head_server.js");
-
-  localAccountUtils.loadLocalMailAccount();
-
-  /*
-   * Set up an IMAP server.
-   */
-  let IMAPDaemon = new imapDaemon();
-  gServer = makeServer(IMAPDaemon, "");
-  IMAPDaemon.createMailbox("secondFolder", {subscribed : true});
-  gIMAPIncomingServer = createLocalIMAPServer();
-  gIMAPIncomingServer.maximumConnectionsNumber = 1;
-
-  // We need an identity so that updateFolder doesn't fail
-  let localAccount = MailServices.accounts.createAccount();
-  let identity = MailServices.accounts.createIdentity();
-  localAccount.addIdentity(identity);
-  localAccount.defaultIdentity = identity;
-  localAccount.incomingServer = localAccountUtils.incomingServer;
-  MailServices.accounts.defaultAccount = localAccount;
-  
-  // Let's also have another account, using the same identity
-  let imapAccount = MailServices.accounts.createAccount();
-  imapAccount.addIdentity(identity);
-  imapAccount.defaultIdentity = identity;
-  imapAccount.incomingServer = gIMAPIncomingServer;
-  
-  // pref tuning: one connection only, turn off notifications
-  Services.prefs.setBoolPref("mail.biff.play_sound", false);
-  Services.prefs.setBoolPref("mail.biff.show_alert", false);
-  Services.prefs.setBoolPref("mail.biff.show_tray_icon", false);
-  Services.prefs.setBoolPref("mail.biff.animate_dock_icon", false);
-
   // add a single message to the imap inbox.
   let messages = [];
-  let gMessageGenerator = new MessageGenerator();
-  messages = messages.concat(gMessageGenerator.makeMessage());
-  gSynthMessage = messages[0];
+  let messageGenerator = new MessageGenerator();
+  messages = messages.concat(messageGenerator.makeMessage());
+  let synthMessage = messages[0];
 
   let msgURI =
     Services.io.newURI("data:text/plain;base64," +
-                       btoa(gSynthMessage.toMessageString()),
+                       btoa(synthMessage.toMessageString()),
                        null, null);
-  let imapInbox =  IMAPDaemon.getMailbox("INBOX")
-  gMessage = new imapMessage(msgURI.spec, imapInbox.uidnext++, []);
-  imapInbox.addMessage(gMessage);
-
-  // Get the IMAP inbox...
-  let rootFolder = gIMAPIncomingServer.rootFolder;
-  gIMAPInbox = rootFolder.getFolderWithFlags(Ci.nsMsgFolderFlags.Inbox)
-                         .QueryInterface(Ci.nsIMsgImapMailFolder);
+  let message = new imapMessage(msgURI.spec, IMAPPump.mailbox.uidnext++, []);
+  IMAPPump.mailbox.addMessage(message);
 
   // update folder to download header.
-  gIMAPInbox.updateFolderWithListener(null, UrlListener);
-  do_test_pending();
+  let listener = new PromiseTestUtils.PromiseUrlListener();
+  IMAPPump.inbox.updateFolderWithListener(null, listener);
+  yield listener.promise;
 }
 
-var UrlListener = 
-{
-  OnStartRunningUrl: function(url) { },
-  OnStopRunningUrl: function(url, rc)
-  {
-    // Check for ok status.
-    do_check_eq(rc, 0);
-    searchTest();
-  }
-};
-
-function searchTest()
+function *searchTest()
 {
   // Get the IMAP inbox...
   var emptyLocal1 = localAccountUtils.rootFolder.createLocalSubfolder("empty 1");
@@ -98,42 +48,45 @@ function searchTest()
   searchTerm.matchAll = true;
   searchSession.appendTerm(searchTerm);
   searchSession.addScopeTerm(Ci.nsMsgSearchScope.offlineMail, emptyLocal1);
-  searchSession.addScopeTerm(Ci.nsMsgSearchScope.onlineMail, gIMAPInbox);
-  searchSession.registerListener(searchListener);
+  searchSession.addScopeTerm(Ci.nsMsgSearchScope.onlineMail, IMAPPump.inbox);
+  let listener = new PromiseTestUtils.PromiseSearchNotify(
+                       searchSession, searchListener);
   searchSession.search(null);
-}
+  yield listener.promise;
 
-var numTotalMessages;
+  // After the search completes, there still seem to be active URLs, so we
+  //   have to wait before we are done and clear.
+  yield PromiseTestUtils.promiseDelay(1000);
+}
 
 // nsIMsgSearchNotify implementation
 var searchListener =
-{ 
+{
+  numTotalMessages: 0,
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIMsgSearchNotify]),
   onNewSearch: function() 
   {
-    numTotalMessages = 0;
+    this.numTotalMessages = 0;
   },
   onSearchHit: function(dbHdr, folder)
   {
-    numTotalMessages++;
+    this.numTotalMessages++;
   },
   onSearchDone: function(status)
   { 
-    do_check_eq(numTotalMessages, 1);
-    do_timeout(1000, endTest);
+    Assert.equal(this.numTotalMessages, 1);
     return true;
   }
 };
 
-function endTest()
-{
-  // Cleanup, null out everything, close all cached connections and stop the
-  // server
-  gIMAPIncomingServer.closeCachedConnections();
-  gServer.stop();
+let tests = [
+  setupIMAPPump,
+  setupFolder,
+  searchTest,
+  teardownIMAPPump
+];
 
-  var thread = gThreadManager.currentThread;
-  while (thread.hasPendingEvents())
-    thread.processNextEvent(true);
-
-  do_test_finished();
+function run_test() {
+  tests.forEach(add_task);
+  run_next_test();
 }

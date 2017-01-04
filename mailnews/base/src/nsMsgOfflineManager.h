@@ -26,9 +26,8 @@ class nsMsgOfflineManager
 public:
 
   nsMsgOfflineManager();
-  virtual ~nsMsgOfflineManager();
   
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
  
   /* nsIMsgOfflineManager methods */
   
@@ -56,6 +55,8 @@ public:
   } offlineManagerOperation;
 
 private:
+  virtual ~nsMsgOfflineManager();
+
   nsresult AdvanceToNextState(nsresult exitStatus);
   nsresult SynchronizeOfflineImapChanges();
   nsresult StopRunning(nsresult exitStatus);

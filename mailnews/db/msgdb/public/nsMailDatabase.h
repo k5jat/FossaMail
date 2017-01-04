@@ -6,6 +6,7 @@
 #ifndef _nsMailDatabase_H_
 #define _nsMailDatabase_H_
 
+#include "mozilla/Attributes.h"
 #include "nsMsgDatabase.h"
 #include "nsMsgMessageFlags.h"
 #include "nsIFile.h"
@@ -21,26 +22,28 @@ class nsMailDatabase : public nsMsgDatabase
 public:
   nsMailDatabase();
   virtual ~nsMailDatabase();
-  NS_IMETHOD  ForceClosed();
-  NS_IMETHOD DeleteMessages(uint32_t aNumKeys, nsMsgKey* nsMsgKeys, nsIDBChangeListener *instigator);
+  NS_IMETHOD  ForceClosed() override;
+  NS_IMETHOD DeleteMessages(uint32_t aNumKeys, nsMsgKey* nsMsgKeys,
+                            nsIDBChangeListener *instigator) override;
 
-  NS_IMETHOD StartBatch();
-  NS_IMETHOD EndBatch();
+  NS_IMETHOD StartBatch() override;
+  NS_IMETHOD EndBatch() override;
 
-  nsresult  Open(nsIFile *aSummaryFile, bool create, bool upgrading);
+  nsresult  Open(nsMsgDBService* aDBService, nsIFile *aSummaryFile, bool create, bool upgrading) override;
   virtual nsMailDatabase  *GetMailDB() {return this;}
 
-  virtual uint32_t  GetCurVersion() {return kMsgDBVersion;}
+  virtual uint32_t  GetCurVersion() override {return kMsgDBVersion;}
   
-  NS_IMETHOD  GetOfflineOpForKey(nsMsgKey opKey, bool create, nsIMsgOfflineImapOperation **op);
-  NS_IMETHOD  RemoveOfflineOp(nsIMsgOfflineImapOperation *op);
+  NS_IMETHOD  GetOfflineOpForKey(nsMsgKey opKey, bool create,
+                                 nsIMsgOfflineImapOperation **op) override;
+  NS_IMETHOD  RemoveOfflineOp(nsIMsgOfflineImapOperation *op) override;
 
-  NS_IMETHOD  SetSummaryValid(bool valid);
-  NS_IMETHOD  GetSummaryValid(bool *valid);
+  NS_IMETHOD  SetSummaryValid(bool valid) override;
+  NS_IMETHOD  GetSummaryValid(bool *valid) override;
 	
-  NS_IMETHOD    EnumerateOfflineOps(nsISimpleEnumerator **enumerator);
-  NS_IMETHOD    ListAllOfflineOpIds(nsTArray<nsMsgKey> *offlineOpIds);
-  NS_IMETHOD    ListAllOfflineDeletes(nsTArray<nsMsgKey> *offlineDeletes);
+  NS_IMETHOD    EnumerateOfflineOps(nsISimpleEnumerator **enumerator) override;
+  NS_IMETHOD    ListAllOfflineOpIds(nsTArray<nsMsgKey> *offlineOpIds) override;
+  NS_IMETHOD    ListAllOfflineDeletes(nsTArray<nsMsgKey> *offlineDeletes) override;
 
   friend class nsMsgOfflineOpEnumerator;
 protected:

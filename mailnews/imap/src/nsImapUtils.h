@@ -43,9 +43,8 @@ class nsImapMailboxSpec : public nsIMailboxSpec
 {
 public:
   nsImapMailboxSpec();
-  virtual ~nsImapMailboxSpec();
   
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIMAILBOXSPEC
     
   nsImapMailboxSpec& operator= (const nsImapMailboxSpec& aCopy);
@@ -70,6 +69,9 @@ public:
   bool      mOnlineVerified;
   
   nsImapProtocol *mConnection;	// do we need this? It seems evil
+
+private:
+  virtual ~nsImapMailboxSpec();
 };
 
 #endif //NS_IMAPUTILS_H

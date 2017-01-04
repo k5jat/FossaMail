@@ -3,19 +3,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'calbase'
-
 DIRS = [
     'build'
 ]
 
-XPIDL_SOURCES += [
-    'calIDateTime.idl',
-]
-
-XPIDL_MODULE = 'caldatetime_libical'
-
-CPP_SOURCES += [
+SOURCES += [
     'calDateTime.cpp',
     'calDuration.cpp',
     'calICSService.cpp',
@@ -25,3 +17,4 @@ CPP_SOURCES += [
     'calUtils.cpp',
 ]
 
+FINAL_LIBRARY = 'calbasecomps'

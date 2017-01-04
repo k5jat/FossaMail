@@ -7,7 +7,6 @@
 #include "prprf.h"
 #include "plstr.h"
 #include "prmem.h"
-#include "nsISupportsObsolete.h"
 #include "nsIComponentManager.h"
 #include "nsIServiceManager.h"
 #include "nsCRTGlue.h"
@@ -26,7 +25,7 @@
 #include "nsMsgUtils.h"
 #include "nsArrayUtils.h"
 
-NS_IMPL_ISUPPORTS1(nsMsgAccount, nsIMsgAccount)
+NS_IMPL_ISUPPORTS(nsMsgAccount, nsIMsgAccount)
 
 nsMsgAccount::nsMsgAccount()
   : mTriedToGetServer(false)

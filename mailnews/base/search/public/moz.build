@@ -10,6 +10,7 @@ XPIDL_SOURCES += [
     'nsIMsgFilterList.idl',
     'nsIMsgFilterPlugin.idl',
     'nsIMsgFilterService.idl',
+    'nsIMsgOperationListener.idl',
     'nsIMsgSearchAdapter.idl',
     'nsIMsgSearchCustomTerm.idl',
     'nsIMsgSearchNotify.idl',
@@ -25,12 +26,6 @@ XPIDL_SOURCES += [
 ]
 
 XPIDL_MODULE = 'msgsearch'
-
-XPIDL_FLAGS += [
-    '-I$(topsrcdir)/mailnews/base/public',
-]
-
-MODULE = 'msgbase'
 
 EXPORTS += [
     'nsMsgBodyHandler.h',

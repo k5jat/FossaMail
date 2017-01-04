@@ -89,7 +89,7 @@ nsNNTPNewsgroupList::~nsNNTPNewsgroupList()
   CleanUp();
 }
 
-NS_IMPL_ISUPPORTS2(nsNNTPNewsgroupList, nsINNTPNewsgroupList, nsIMsgFilterHitNotify)
+NS_IMPL_ISUPPORTS(nsNNTPNewsgroupList, nsINNTPNewsgroupList, nsIMsgFilterHitNotify)
 
 nsresult
 nsNNTPNewsgroupList::Initialize(nsINntpUrl *runningURL, nsIMsgNewsFolder *newsFolder)
@@ -312,7 +312,7 @@ nsNNTPNewsgroupList::GetRangeOfArtsToDownload(nsIMsgWindow *aMsgWindow,
     rv = bundleService->CreateBundle(NEWS_MSGS_URL, getter_AddRefs(bundle));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = bundle->GetStringFromName(NS_LITERAL_STRING("noNewMessages").get(), getter_Copies(statusString));
+    rv = bundle->GetStringFromName(MOZ_UTF16("noNewMessages"), getter_Copies(statusString));
     NS_ENSURE_SUCCESS(rv, rv);
 
     SetProgressStatus(statusString.get());
@@ -501,8 +501,6 @@ nsNNTPNewsgroupList::ParseLine(char *line, uint32_t * message_number)
 {
   nsresult rv = NS_OK;
   nsCOMPtr <nsIMsgDBHdr> newMsgHdr;
-  char *dateStr = nullptr;  // keep track of date str, for filters
-  char *authorStr = nullptr; // keep track of author str, for filters
 
   if (!line || !message_number) {
     return NS_ERROR_NULL_POINTER;
@@ -551,7 +549,6 @@ nsNNTPNewsgroupList::ParseLine(char *line, uint32_t * message_number)
 
   GET_TOKEN (); /* author */
   if (line) {
-    authorStr = line;
     rv = newMsgHdr->SetAuthor(line);
     if (NS_FAILED(rv))
       return rv;
@@ -559,7 +556,6 @@ nsNNTPNewsgroupList::ParseLine(char *line, uint32_t * message_number)
 
   GET_TOKEN ();
   if (line) {
-    dateStr = line;
     PRTime date;
     PRStatus status = PR_ParseTimeString (line, false, &date);
     if (PR_SUCCESS == status) {
@@ -650,6 +646,9 @@ NS_IMETHODIMP nsNNTPNewsgroupList::ApplyFilterHit(nsIMsgFilter *aFilter, nsIMsgW
     nsMsgRuleActionType actionType;
     if (NS_SUCCEEDED(filterAction->GetType(&actionType)))
     {
+      if (loggingEnabled)
+        (void) aFilter->LogRuleHit(filterAction, m_newMsgHdr);
+
       switch (actionType)
       {
       case nsMsgFilterAction::Delete:
@@ -737,9 +736,6 @@ NS_IMETHODIMP nsNNTPNewsgroupList::ApplyFilterHit(nsIMsgFilter *aFilter, nsIMsgW
         NS_ERROR("unexpected action");
         break;
       }
-
-      if (loggingEnabled)
-        (void) aFilter->LogRuleHit(filterAction, m_newMsgHdr);
     }
   }
   return NS_OK;
@@ -886,8 +882,8 @@ nsNNTPNewsgroupList::FinishXOVERLINE(int status, int *newstatus)
       rv = bundleService->CreateBundle(NEWS_MSGS_URL, getter_AddRefs(bundle));
       NS_ENSURE_SUCCESS(rv, rv);
 
-      const PRUnichar *formatStrings[2] = { firstStr.get(), lastStr.get() };
-      rv = bundle->FormatStringFromName(NS_LITERAL_STRING("downloadingArticles").get(), formatStrings, 2, getter_Copies(statusString));
+      const char16_t *formatStrings[2] = { firstStr.get(), lastStr.get() };
+      rv = bundle->FormatStringFromName(MOZ_UTF16("downloadingArticles"), formatStrings, 2, getter_Copies(statusString));
       NS_ENSURE_SUCCESS(rv, rv);
 
       SetProgressStatus(statusString.get());
@@ -1228,7 +1224,7 @@ nsNNTPNewsgroupList::SetProgressBarPercent(int32_t percent)
 }
 
 void
-nsNNTPNewsgroupList::SetProgressStatus(const PRUnichar *message)
+nsNNTPNewsgroupList::SetProgressStatus(const char16_t *aMessage)
 {
   if (!m_runningURL)
     return;
@@ -1239,7 +1235,25 @@ nsNNTPNewsgroupList::SetProgressStatus(const PRUnichar *message)
     mailnewsUrl->GetStatusFeedback(getter_AddRefs(feedback));
 
     if (feedback) {
-      feedback->ShowStatusString(nsDependentString(message));
+      // prepending the account name to the status message.
+      nsresult rv;
+      nsCOMPtr <nsIMsgIncomingServer> server;
+      rv = mailnewsUrl->GetServer(getter_AddRefs(server));
+      NS_ENSURE_SUCCESS_VOID(rv);
+      nsString accountName;
+      server->GetPrettyName(accountName);
+      nsString statusMessage;
+      nsCOMPtr<nsIStringBundleService> sbs =
+        mozilla::services::GetStringBundleService();
+      nsCOMPtr<nsIStringBundle> bundle;
+      rv = sbs->CreateBundle(MSGS_URL,
+                             getter_AddRefs(bundle));
+      NS_ENSURE_SUCCESS_VOID(rv);
+      const char16_t *params[] = { accountName.get(), aMessage };
+      bundle->FormatStringFromName(MOZ_UTF16("statusMessage"),
+                                   params, 2, getter_Copies(statusMessage));
+
+      feedback->ShowStatusString(statusMessage);
     }
   }
 }
@@ -1276,16 +1290,16 @@ nsNNTPNewsgroupList::UpdateStatus(bool filtering, int32_t numDLed, int32_t totTo
   if (filtering)
   {
     NS_ConvertUTF8toUTF16 header(m_filterHeaders[m_currentXHDRIndex]);
-    const PRUnichar *formatStrings[4] = { header.get(),
+    const char16_t *formatStrings[4] = { header.get(),
       numDownloadedStr.get(), totalToDownloadStr.get(), newsgroupName.get() };
-    rv = bundle->FormatStringFromName(NS_LITERAL_STRING("newNewsgroupFilteringHeaders").get(),
+    rv = bundle->FormatStringFromName(MOZ_UTF16("newNewsgroupFilteringHeaders"),
       formatStrings, 4, getter_Copies(statusString));
   }
   else
   {
-    const PRUnichar *formatStrings[3] = { numDownloadedStr.get(),
+    const char16_t *formatStrings[3] = { numDownloadedStr.get(),
       totalToDownloadStr.get(), newsgroupName.get() };
-    rv = bundle->FormatStringFromName(NS_LITERAL_STRING("newNewsgroupHeaders").get(),
+    rv = bundle->FormatStringFromName(MOZ_UTF16("newNewsgroupHeaders"),
       formatStrings, 3, getter_Copies(statusString));
   }
   if (!NS_SUCCEEDED(rv))

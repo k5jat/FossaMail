@@ -6,6 +6,7 @@
 #ifndef nsAbLDAPDirectory_h__
 #define nsAbLDAPDirectory_h__
 
+#include "mozilla/Attributes.h"
 #include "nsAbDirProperty.h"
 #include "nsAbLDAPDirectoryModify.h"
 #include "nsIAbDirectoryQuery.h"
@@ -27,25 +28,24 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   nsAbLDAPDirectory();
-  virtual ~nsAbLDAPDirectory();
 
-  NS_IMETHOD Init(const char *aUri);
+  NS_IMETHOD Init(const char *aUri) override;
 
   // nsIAbDirectory methods
-  NS_IMETHOD GetPropertiesChromeURI(nsACString &aResult);
-  NS_IMETHOD GetURI(nsACString &aURI);
-  NS_IMETHOD GetChildNodes(nsISimpleEnumerator* *result);
-  NS_IMETHOD GetChildCards(nsISimpleEnumerator* *result);
-  NS_IMETHOD GetIsQuery(bool *aResult);
-  NS_IMETHOD HasCard(nsIAbCard *cards, bool *hasCard);
-  NS_IMETHOD GetSupportsMailingLists(bool *aSupportsMailingsLists);
-  NS_IMETHOD GetReadOnly(bool *aReadOnly);
-  NS_IMETHOD GetIsRemote(bool *aIsRemote);
-  NS_IMETHOD GetIsSecure(bool *aIsRemote);
-  NS_IMETHOD UseForAutocomplete(const nsACString &aIdentityKey, bool *aResult);
-  NS_IMETHOD AddCard(nsIAbCard *aChildCard, nsIAbCard **aAddedCard);
-  NS_IMETHOD ModifyCard(nsIAbCard *aModifiedCard);
-  NS_IMETHOD DeleteCards(nsIArray *aCards);
+  NS_IMETHOD GetPropertiesChromeURI(nsACString &aResult) override;
+  NS_IMETHOD GetURI(nsACString &aURI) override;
+  NS_IMETHOD GetChildNodes(nsISimpleEnumerator* *result) override;
+  NS_IMETHOD GetChildCards(nsISimpleEnumerator* *result) override;
+  NS_IMETHOD GetIsQuery(bool *aResult) override;
+  NS_IMETHOD HasCard(nsIAbCard *cards, bool *hasCard) override;
+  NS_IMETHOD GetSupportsMailingLists(bool *aSupportsMailingsLists) override;
+  NS_IMETHOD GetReadOnly(bool *aReadOnly) override;
+  NS_IMETHOD GetIsRemote(bool *aIsRemote) override;
+  NS_IMETHOD GetIsSecure(bool *aIsRemote) override;
+  NS_IMETHOD UseForAutocomplete(const nsACString &aIdentityKey, bool *aResult) override;
+  NS_IMETHOD AddCard(nsIAbCard *aChildCard, nsIAbCard **aAddedCard) override;
+  NS_IMETHOD ModifyCard(nsIAbCard *aModifiedCard) override;
+  NS_IMETHOD DeleteCards(nsIArray *aCards) override;
 
   // nsIAbDirectorySearch methods
   NS_DECL_NSIABDIRECTORYSEARCH
@@ -53,6 +53,7 @@ public:
   NS_DECL_NSIABDIRSEARCHLISTENER
 
 protected:
+  virtual ~nsAbLDAPDirectory();
   nsresult Initiate();
 
   nsresult SplitStringList(const nsACString& aString,

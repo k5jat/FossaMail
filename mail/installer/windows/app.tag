@@ -1,4 +1,4 @@
 ;!@Install@!UTF-8!
-Title="FossaMail"
+Title="Mozilla Thunderbird"
 RunProgram="setup.exe"
 ;!@InstallEnd@!

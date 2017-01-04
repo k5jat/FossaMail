@@ -19,17 +19,17 @@ class nsAbLDAPDirectoryQuery : public nsIAbDirectoryQuery,
                              public nsIAbDirectoryQueryResultListener
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIABDIRECTORYQUERY
   NS_DECL_NSIABDIRECTORYQUERYRESULTLISTENER
 
   nsAbLDAPDirectoryQuery();
-  virtual ~nsAbLDAPDirectoryQuery();
 
 protected:
   nsCOMPtr<nsILDAPMessageListener> mListener;
 
 private:
+  virtual ~nsAbLDAPDirectoryQuery();
   nsCOMPtr<nsILDAPConnection> mConnection;
   nsCOMPtr<nsILDAPURL> mDirectoryUrl;
   nsCString mDirectoryId;

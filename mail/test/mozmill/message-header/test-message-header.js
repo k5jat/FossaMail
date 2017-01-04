@@ -2,9 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/*
- * Test that we can add a tag to a message without messing up the header.
+/**
+ * Test functionality in the message header, e.g. tagging, contact editing,
+ * the more button ...
  */
+
+// make SOLO_TEST=message-header/test-message-header.js mozmill-one
+
 var MODULE_NAME = 'test-message-header';
 
 var RELATIVE_ROOT = '../shared-modules';
@@ -61,6 +65,25 @@ function setupModule(module) {
   // back from, to force the more button to collapse again.
   let msg = create_message();
   add_message_to_folder(folder, msg);
+
+  // Some of these tests critically depends on the window width, collapse
+  // everything that might be in the way
+  collapse_panes(mc.e("folderpane_splitter"), true);
+  collapse_panes(mc.e("tabmail-container"), true);
+
+  // Disable animations on the panel, so that we don't have to deal with
+  // async openings.
+  let contactPanel = mc.eid('editContactPanel').getNode();
+  contactPanel.setAttribute("animate", false);
+}
+
+function teardownModule(module) {
+  let contactPanel = mc.eid('editContactPanel').getNode();
+  contactPanel.removeAttribute("animate");
+
+  // Now restore the panes we hid in setupModule
+  collapse_panes(mc.e("folderpane_splitter"), false);
+  collapse_panes(mc.e("tabmail-container"), false);
 }
 
 /**
@@ -201,7 +224,9 @@ function test_clicking_star_opens_inline_contact_editor()
   // Click on the star, and ensure that the inline contact
   // editing panel opens
   mc.click(mc.aid(lastAddr, {class: 'emailStar'}));
-  assert_equals(contactPanel.state, "open");
+  mc.waitFor(function() contactPanel.state == "open",
+             "Timeout waiting for contactPanel to open; state=" +
+             contactPanel.state);
   contactPanel.hidePopup();
 }
 
@@ -460,7 +485,7 @@ function test_more_widget() {
 
   // first test a message with so many addresses that they don't fit in the
   // more widget's tooltip text
-  let msg = select_click_row(0);
+  msg = select_click_row(0);
   wait_for_message_display_completion(mc);
   assert_selected_and_displayed(mc, msg);
   subtest_more_button_tooltip(msg);
@@ -699,15 +724,14 @@ function test_toolbar_collapse_and_expand() {
     // spin the event loop once
     mc.sleep(0);
 
-    let folderPaneWidth = mc.e("folderPaneBox").clientWidth;
     let fromWidth = mc.e("expandedfromRow").clientWidth;
 
     // This is the biggest we need to be.
-    let bigWidth = folderPaneWidth + fromWidth + toolbar.clientWidth;
+    let bigWidth = fromWidth + toolbar.clientWidth;
 
     // Now change to icons-only mode for a much smaller toolbar.
     toolbar.setAttribute("mode", "icons");
-    let smallWidth = folderPaneWidth + fromWidth + toolbar.clientWidth;
+    let smallWidth = fromWidth + toolbar.clientWidth;
 
     // Re-set the mode to its original value.
     toolbar.setAttribute("mode", mode);
@@ -886,14 +910,14 @@ if ("nsIAccessibleRole" in Ci) {
   {
     headerName: "Subject",
     headerValueElement: "mc.a('expandedsubjectBox', {class: 'headerValue'})",
-    expectedName: "mc.e('expandedsubjectLabel').value.slice(0,-1) + ': ' + " +
+    expectedName: "mc.e('expandedsubjectLabel').value + ': ' + " +
                   "headerValueElement.textContent",
     expectedRole: Ci.nsIAccessibleRole.ROLE_ENTRY
   },
   {
     headerName: "Content-Base",
     headerValueElement: "mc.a('expandedcontent-baseBox', {class: 'headerValue text-link headerValueUrl'})",
-    expectedName: "mc.e('expandedcontent-baseLabel').value.slice(0,-1) + ': ' + " +
+    expectedName: "mc.e('expandedcontent-baseLabel').value + ': ' + " +
                   "headerValueElement.textContent",
     expectedRole: Ci.nsIAccessibleRole.ROLE_ENTRY
   },
@@ -902,7 +926,7 @@ if ("nsIAccessibleRole" in Ci) {
     headerValueElement: "mc.window.document.getAnonymousElementByAttribute(" +
                         "mc.a('expandedfromBox', {tagName: 'mail-emailaddress'})," +
                         "'class', 'emailDisplayButton')",
-    expectedName: "mc.e('expandedfromLabel').value.slice(0,-1) + ': ' + " +
+    expectedName: "mc.e('expandedfromLabel').value + ': ' + " +
                   "headerValueElement.parentNode.getAttribute('fullAddress')",
     expectedRole: Ci.nsIAccessibleRole.ROLE_ENTRY
   },
@@ -911,7 +935,7 @@ if ("nsIAccessibleRole" in Ci) {
     headerValueElement: "mc.window.document.getAnonymousElementByAttribute(" +
                         "mc.a('expandedtoBox', {tagName: 'mail-emailaddress'})," +
                         "'class', 'emailDisplayButton')",
-    expectedName: "mc.e('expandedtoLabel').value.slice(0,-1) + ': ' + " +
+    expectedName: "mc.e('expandedtoLabel').value + ': ' + " +
                   "headerValueElement.parentNode.getAttribute('fullAddress')",
     expectedRole: Ci.nsIAccessibleRole.ROLE_ENTRY
   },
@@ -920,7 +944,7 @@ if ("nsIAccessibleRole" in Ci) {
     headerValueElement: "mc.window.document.getAnonymousElementByAttribute(" +
                         "mc.a('expandedccBox', {tagName: 'mail-emailaddress'})," +
                         "'class', 'emailDisplayButton')",
-    expectedName: "mc.e('expandedccLabel').value.slice(0,-1) + ': ' + " +
+    expectedName: "mc.e('expandedccLabel').value + ': ' + " +
                   "headerValueElement.parentNode.getAttribute('fullAddress')",
     expectedRole: Ci.nsIAccessibleRole.ROLE_ENTRY
   },
@@ -929,7 +953,7 @@ if ("nsIAccessibleRole" in Ci) {
     headerValueElement: "mc.window.document.getAnonymousElementByAttribute(" +
                         "mc.a('expandedbccBox', {tagName: 'mail-emailaddress'})," +
                         "'class', 'emailDisplayButton')",
-    expectedName: "mc.e('expandedbccLabel').value.slice(0,-1) + ': ' + " +
+    expectedName: "mc.e('expandedbccLabel').value + ': ' + " +
                   "headerValueElement.parentNode.getAttribute('fullAddress')",
     expectedRole: Ci.nsIAccessibleRole.ROLE_ENTRY
   },
@@ -938,7 +962,7 @@ if ("nsIAccessibleRole" in Ci) {
     headerValueElement: "mc.window.document.getAnonymousElementByAttribute(" +
                         "mc.a('expandedreply-toBox', {tagName: 'mail-emailaddress'})," +
                         "'class', 'emailDisplayButton')",
-    expectedName: "mc.e('expandedreply-toLabel').value.slice(0,-1) + ': ' + " +
+    expectedName: "mc.e('expandedreply-toLabel').value + ': ' + " +
                   "headerValueElement.parentNode.getAttribute('fullAddress')",
     expectedRole: Ci.nsIAccessibleRole.ROLE_ENTRY
   },
@@ -947,14 +971,14 @@ if ("nsIAccessibleRole" in Ci) {
     headerValueElement: "mc.window.document.getAnonymousElementByAttribute(" +
                         "mc.a('expandednewsgroupsBox', {tagName: 'mail-newsgroup'})," +
                         "'class', 'newsgrouplabel')",
-    expectedName: "mc.e('expandednewsgroupsLabel').value.slice(0,-1) + ': ' + " +
+    expectedName: "mc.e('expandednewsgroupsLabel').value + ': ' + " +
                   "headerValueElement.parentNode.parentNode.getAttribute('newsgroup')",
     expectedRole: Ci.nsIAccessibleRole.ROLE_ENTRY
   },
   {
     headerName: "Tags",
     headerValueElement: "mc.a('expandedtagsBox', {class: 'tagvalue blc-FF0000'})",
-    expectedName: "mc.e('expandedtagsLabel').value.slice(0,-1) + ': ' + " +
+    expectedName: "mc.e('expandedtagsLabel').value + ': ' + " +
                   "headerValueElement.getAttribute('value')",
     expectedRole: Ci.nsIAccessibleRole.ROLE_LABEL
   }

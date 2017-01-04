@@ -25,8 +25,6 @@
 #include "nsIPgpMimeProxy.h"
 #include "nsComponentManagerUtils.h"
 
-static NS_DEFINE_CID(kMimeObjectClassAccessCID, NS_MIME_OBJECT_CLASS_ACCESS_CID);
-
 #define MIME_SUPERCLASS mimeEncryptedClass
 MimeDefClass(MimeEncryptedPgp, MimeEncryptedPgpClass,
              mimeEncryptedPgpClass, &MIME_SUPERCLASS);
@@ -80,10 +78,10 @@ static void PgpMimeGetNeedsAddonString(nsCString &aResult)
     return;
 
   NS_ConvertUTF8toUTF16 url16(url);
-  const PRUnichar *formatStrings[] = { url16.get() };
+  const char16_t *formatStrings[] = { url16.get() };
 
   nsString result;
-  rv = stringBundle->FormatStringFromName(NS_LITERAL_STRING(PGPMIME_STR_NOT_SUPPORTED_ID).get(),
+  rv = stringBundle->FormatStringFromName(MOZ_UTF16(PGPMIME_STR_NOT_SUPPORTED_ID),
                                           formatStrings, 1, getter_Copies(result));
   if (NS_FAILED(rv))
     return;
@@ -123,6 +121,7 @@ public:
   {
   }
 
+private:
   virtual ~MimePgpeData()
   {
   }
@@ -222,7 +221,7 @@ MimePgpe_free(void *output_closure)
 
 
 ////////////////////////////////////////////////////////////////////////////
-NS_IMPL_THREADSAFE_ISUPPORTS5(nsPgpMimeProxy,
+NS_IMPL_ISUPPORTS(nsPgpMimeProxy,
                               nsIPgpMimeProxy,
                               nsIRequestObserver,
                               nsIStreamListener,
@@ -237,7 +236,6 @@ nsPgpMimeProxy::nsPgpMimeProxy()
     mLoadFlags(LOAD_NORMAL),
     mCancelStatus(NS_OK)
 {
-  NS_INIT_ISUPPORTS();
 }
 
 nsPgpMimeProxy::~nsPgpMimeProxy()
@@ -551,7 +549,6 @@ nsPgpMimeProxy::OnDataAvailable(nsIRequest* aRequest, nsISupports* aContext,
   NS_ENSURE_TRUE(mInitialized, NS_ERROR_NOT_INITIALIZED);
 
   NS_ENSURE_ARG(aInputStream);
-  NS_ENSURE_ARG_MIN(aLength, 0);
 
   char buf[kCharMax];
   uint32_t readCount, readMax;

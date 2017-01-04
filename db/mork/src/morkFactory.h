@@ -56,7 +56,6 @@ public: // state is public because the entire Mork system is private
 // { ===== begin morkNode interface =====
 public: // morkFactory virtual methods
   virtual void CloseMorkNode(morkEnv* ev); // CloseFactory() only if open
-  virtual ~morkFactory(); // assert that CloseFactory() executed earlier
 
 
 // { ===== begin nsIMdbFactory methods =====
@@ -176,6 +175,7 @@ public: // morkNode memory management operators
 private: // copying is not allowed
   morkFactory(const morkFactory& other);
   morkFactory& operator=(const morkFactory& other);
+  virtual ~morkFactory(); // assert that CloseFactory() executed earlier
 
 public: // dynamic type identification
   mork_bool IsFactory() const
@@ -185,7 +185,7 @@ public: // dynamic type identification
 public: // other factory methods
 
   void NonFactoryTypeError(morkEnv* ev);
-  morkEnv* GetInternalFactoryEnv(mdb_err* outErr);
+  morkEnv* GetInternalFactoryEnv(nsresult* outErr);
   mork_bool CanOpenMorkTextFile(morkEnv* ev, nsIMdbFile* ioFile);
   
 public: // typesafe refcounting inlines calling inherited morkNode methods

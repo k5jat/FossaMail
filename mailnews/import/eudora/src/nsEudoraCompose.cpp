@@ -98,10 +98,8 @@ public:
     m_done = false;
   }
 
-  virtual ~EudoraSendListener() {}
-
   // nsISupports interface
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
 
   /* void OnStartSending (in string aMsgID, in uint32_t aMsgSize); */
   NS_IMETHOD OnStartSending(const char *aMsgID, uint32_t aMsgSize) {return NS_OK;}
@@ -110,10 +108,10 @@ public:
   NS_IMETHOD OnProgress(const char *aMsgID, uint32_t aProgress, uint32_t aProgressMax) {return NS_OK;}
 
   /* void OnStatus (in string aMsgID, in wstring aMsg); */
-  NS_IMETHOD OnStatus(const char *aMsgID, const PRUnichar *aMsg) {return NS_OK;}
+  NS_IMETHOD OnStatus(const char *aMsgID, const char16_t *aMsg) {return NS_OK;}
 
   /* void OnStopSending (in string aMsgID, in nsresult aStatus, in wstring aMsg, in nsIFile returnFile); */
-  NS_IMETHOD OnStopSending(const char *aMsgID, nsresult aStatus, const PRUnichar *aMsg,
+  NS_IMETHOD OnStopSending(const char *aMsgID, nsresult aStatus, const char16_t *aMsg,
                nsIFile *returnFile) {
     m_done = true;
     m_location = returnFile;
@@ -133,10 +131,13 @@ public:
 public:
   bool m_done;
   nsCOMPtr <nsIFile> m_location;
+
+private:
+  virtual ~EudoraSendListener() {}
 };
 
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(EudoraSendListener, nsIMsgSendListener)
+NS_IMPL_ISUPPORTS(EudoraSendListener, nsIMsgSendListener)
 
 nsresult EudoraSendListener::CreateSendListener(nsIMsgSendListener **ppListener)
 {
@@ -612,7 +613,7 @@ nsresult nsEudoraCompose::SendTheMessage(nsIFile *pMailImportLocation, nsIFile *
   nsCOMPtr<nsIArray> pAttach;
   GetLocalAttachments(getter_AddRefs(pAttach));
   nsEudoraEditor eudoraEditor(m_pBody, pMailImportLocation);
-  nsCOMPtr<nsISupportsArray> embeddedObjects;
+  nsCOMPtr<nsIArray> embeddedObjects;
   if (eudoraEditor.HasEmbeddedContent())
     eudoraEditor.GetEmbeddedObjects(getter_AddRefs(embeddedObjects));
 
@@ -650,7 +651,7 @@ nsresult nsEudoraCompose::SendTheMessage(nsIFile *pMailImportLocation, nsIFile *
   rv = m_pMsgFields->GetTo(to);
   rv = m_pMsgFields->GetCc(cc);
   rv = m_pMsgFields->GetBcc(bcc);
-  bool createAsDraft = from.IsEmpty() || to.IsEmpty() && cc.IsEmpty() && bcc.IsEmpty();
+  bool createAsDraft = from.IsEmpty() || (to.IsEmpty() && cc.IsEmpty() && bcc.IsEmpty());
 
   nsCOMPtr<nsIImportService> impService(do_GetService(NS_IMPORTSERVICE_CONTRACTID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);

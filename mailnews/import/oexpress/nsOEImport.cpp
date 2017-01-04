@@ -9,11 +9,6 @@
   Outlook Express (Win32) import mail and addressbook interfaces
 
 */
-#ifdef MOZ_LOGGING
-// sorry, this has to be before the pre-compiled header
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif
-
 #include "nscore.h"
 #include "nsMsgUtils.h"
 #include "nsStringGlue.h"
@@ -30,6 +25,7 @@
 #include "nsIImportAddressBooks.h"
 #include "nsIImportABDescriptor.h"
 #include "nsIImportFieldMap.h"
+#include "nsIMutableArray.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "WabObject.h"
@@ -54,24 +50,23 @@ class ImportOEMailImpl : public nsIImportMail
 {
 public:
   ImportOEMailImpl();
-  virtual ~ImportOEMailImpl();
 
   static nsresult Create(nsIImportMail** aImport);
 
   // nsISupports interface
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
 
   // nsIImportmail interface
 
   /* void GetDefaultLocation (out nsIFile location, out boolean found, out boolean userVerify); */
   NS_IMETHOD GetDefaultLocation(nsIFile **location, bool *found, bool *userVerify);
 
-  /* nsISupportsArray FindMailboxes (in nsIFile location); */
-  NS_IMETHOD FindMailboxes(nsIFile *location, nsISupportsArray **_retval);
+  /* nsIArray FindMailboxes (in nsIFile location); */
+  NS_IMETHOD FindMailboxes(nsIFile *location, nsIArray **_retval);
 
   NS_IMETHOD ImportMailbox(nsIImportMailboxDescriptor *source,
                            nsIMsgFolder *dstFolder,
-                           PRUnichar **pErrorLog, PRUnichar **pSuccessLog,
+                           char16_t **pErrorLog, char16_t **pSuccessLog,
                            bool *fatalError);
 
   /* unsigned long GetImportProgress (); */
@@ -83,9 +78,10 @@ public:
   static void ReportSuccess(nsString& name, int32_t count, nsString *pStream);
   static void ReportError(int32_t errorNum, nsString& name, nsString *pStream);
   static void AddLinebreak(nsString *pStream);
-  static void SetLogs(nsString& success, nsString& error, PRUnichar **pError, PRUnichar **pSuccess);
+  static void SetLogs(nsString& success, nsString& error, char16_t **pError, char16_t **pSuccess);
 
 private:
+  virtual ~ImportOEMailImpl();
   uint32_t m_bytesDone;
 };
 
@@ -94,24 +90,23 @@ class ImportOEAddressImpl : public nsIImportAddressBooks
 {
 public:
     ImportOEAddressImpl();
-    virtual ~ImportOEAddressImpl();
 
   static nsresult Create(nsIImportAddressBooks** aImport);
 
-    // nsISupports interface
-    NS_DECL_ISUPPORTS
+  // nsISupports interface
+  NS_DECL_THREADSAFE_ISUPPORTS
 
     // nsIImportAddressBooks interface
 
   NS_IMETHOD GetSupportsMultiple(bool *_retval) { *_retval = false; return NS_OK;}
 
-  NS_IMETHOD GetAutoFind(PRUnichar **description, bool *_retval);
+  NS_IMETHOD GetAutoFind(char16_t **description, bool *_retval);
 
   NS_IMETHOD GetNeedsFieldMap(nsIFile *pLoc, bool *_retval) { *_retval = false; return NS_OK;}
 
   NS_IMETHOD GetDefaultLocation(nsIFile **location, bool *found, bool *userVerify);
 
-  NS_IMETHOD FindAddressBooks(nsIFile *location, nsISupportsArray **_retval);
+  NS_IMETHOD FindAddressBooks(nsIFile *location, nsIArray **_retval);
 
   NS_IMETHOD InitFieldMap(nsIImportFieldMap *fieldMap)
     { return NS_ERROR_FAILURE; }
@@ -120,18 +115,19 @@ public:
                                nsIAddrDatabase *destination,
                                nsIImportFieldMap *fieldMap,
                                nsISupports *aSupportService,
-                               PRUnichar **errorLog,
-                               PRUnichar **successLog,
+                               char16_t **errorLog,
+                               char16_t **successLog,
                                bool *fatalError);
 
   NS_IMETHOD GetImportProgress(uint32_t *_retval);
 
-  NS_IMETHOD GetSampleData(int32_t index, bool *pFound, PRUnichar **pStr)
+  NS_IMETHOD GetSampleData(int32_t index, bool *pFound, char16_t **pStr)
     { return NS_ERROR_FAILURE;}
 
   NS_IMETHOD SetSampleLocation(nsIFile *) { return NS_OK; }
 
 private:
+  virtual ~ImportOEAddressImpl();
   static void ReportSuccess(nsString& name, nsString *pStream);
 
 private:
@@ -159,9 +155,9 @@ nsOEImport::~nsOEImport()
   IMPORT_LOG0("nsOEImport Module Deleted\n");
 }
 
-NS_IMPL_ISUPPORTS1(nsOEImport, nsIImportModule)
+NS_IMPL_ISUPPORTS(nsOEImport, nsIImportModule)
 
-NS_IMETHODIMP nsOEImport::GetName(PRUnichar **name)
+NS_IMETHODIMP nsOEImport::GetName(char16_t **name)
 {
   NS_ENSURE_ARG_POINTER(name);
 
@@ -170,7 +166,7 @@ NS_IMETHODIMP nsOEImport::GetName(PRUnichar **name)
     return NS_OK;
 }
 
-NS_IMETHODIMP nsOEImport::GetDescription(PRUnichar **name)
+NS_IMETHODIMP nsOEImport::GetDescription(char16_t **name)
 {
   NS_ENSURE_ARG_POINTER(name);
 
@@ -284,7 +280,7 @@ ImportOEMailImpl::~ImportOEMailImpl()
 {
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(ImportOEMailImpl, nsIImportMail)
+NS_IMPL_ISUPPORTS(ImportOEMailImpl, nsIImportMail)
 
 NS_IMETHODIMP ImportOEMailImpl::TranslateFolderName(const nsAString & aFolderName, nsAString & _retval)
 {
@@ -327,7 +323,7 @@ NS_IMETHODIMP ImportOEMailImpl::GetDefaultLocation(nsIFile **ppLoc, bool *found,
 }
 
 
-NS_IMETHODIMP ImportOEMailImpl::FindMailboxes(nsIFile *pLoc, nsISupportsArray **ppArray)
+NS_IMETHODIMP ImportOEMailImpl::FindMailboxes(nsIFile *pLoc, nsIArray **ppArray)
 {
     NS_PRECONDITION(pLoc != nullptr, "null ptr");
     NS_PRECONDITION(ppArray != nullptr, "null ptr");
@@ -350,7 +346,7 @@ NS_IMETHODIMP ImportOEMailImpl::FindMailboxes(nsIFile *pLoc, nsISupportsArray **
 void ImportOEMailImpl::AddLinebreak(nsString *pStream)
 {
   if (pStream)
-    pStream->Append(PRUnichar('\n'));
+    pStream->Append(char16_t('\n'));
 }
 
 void ImportOEMailImpl::ReportSuccess(nsString& name, int32_t count, nsString *pStream)
@@ -358,8 +354,8 @@ void ImportOEMailImpl::ReportSuccess(nsString& name, int32_t count, nsString *pS
   if (!pStream)
     return;
   // load the success string
-  PRUnichar *pFmt = nsOEStringBundle::GetStringByID(OEIMPORT_MAILBOX_SUCCESS);
-  PRUnichar *pText = nsTextFormatter::smprintf(pFmt, name.get(), count);
+  char16_t *pFmt = nsOEStringBundle::GetStringByID(OEIMPORT_MAILBOX_SUCCESS);
+  char16_t *pText = nsTextFormatter::smprintf(pFmt, name.get(), count);
   pStream->Append(pText);
   nsTextFormatter::smprintf_free(pText);
   nsOEStringBundle::FreeString(pFmt);
@@ -371,8 +367,8 @@ void ImportOEMailImpl::ReportError(int32_t errorNum, nsString& name, nsString *p
   if (!pStream)
     return;
   // load the error string
-  PRUnichar *pFmt = nsOEStringBundle::GetStringByID(errorNum);
-  PRUnichar *pText = nsTextFormatter::smprintf(pFmt, name.get());
+  char16_t *pFmt = nsOEStringBundle::GetStringByID(errorNum);
+  char16_t *pText = nsTextFormatter::smprintf(pFmt, name.get());
   pStream->Append(pText);
   nsTextFormatter::smprintf_free(pText);
   nsOEStringBundle::FreeString(pFmt);
@@ -380,7 +376,7 @@ void ImportOEMailImpl::ReportError(int32_t errorNum, nsString& name, nsString *p
 }
 
 
-void ImportOEMailImpl::SetLogs(nsString& success, nsString& error, PRUnichar **pError, PRUnichar **pSuccess)
+void ImportOEMailImpl::SetLogs(nsString& success, nsString& error, char16_t **pError, char16_t **pSuccess)
 {
   if (pError)
     *pError = ToNewUnicode(error);
@@ -390,8 +386,8 @@ void ImportOEMailImpl::SetLogs(nsString& success, nsString& error, PRUnichar **p
 
 NS_IMETHODIMP ImportOEMailImpl::ImportMailbox(nsIImportMailboxDescriptor *pSource,
                                               nsIMsgFolder *dstFolder,
-                                              PRUnichar **pErrorLog,
-                                              PRUnichar **pSuccessLog,
+                                              char16_t **pErrorLog,
+                                              char16_t **pSuccessLog,
                                               bool *fatalError)
 {
   NS_ENSURE_ARG_POINTER(pSource);
@@ -478,7 +474,7 @@ ImportOEAddressImpl::~ImportOEAddressImpl()
     delete m_pWab;
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(ImportOEAddressImpl, nsIImportAddressBooks)
+NS_IMPL_ISUPPORTS(ImportOEAddressImpl, nsIImportAddressBooks)
 
 NS_IMETHODIMP ImportOEAddressImpl::GetDefaultLocation(nsIFile **aLocation,
                                                       bool *aFound,
@@ -505,7 +501,7 @@ NS_IMETHODIMP ImportOEAddressImpl::GetDefaultLocation(nsIFile **aLocation,
   return NS_OK;
 }
 
-NS_IMETHODIMP ImportOEAddressImpl::GetAutoFind(PRUnichar **description, bool *_retval)
+NS_IMETHODIMP ImportOEAddressImpl::GetAutoFind(char16_t **description, bool *_retval)
 {
   NS_PRECONDITION(description != nullptr, "null ptr");
   NS_PRECONDITION(_retval != nullptr, "null ptr");
@@ -521,13 +517,14 @@ NS_IMETHODIMP ImportOEAddressImpl::GetAutoFind(PRUnichar **description, bool *_r
 
 
 
-NS_IMETHODIMP ImportOEAddressImpl::FindAddressBooks(nsIFile *location, nsISupportsArray **_retval)
+NS_IMETHODIMP ImportOEAddressImpl::FindAddressBooks(nsIFile *location, nsIArray **_retval)
 {
   NS_PRECONDITION(_retval != nullptr, "null ptr");
   if (!_retval)
     return NS_ERROR_NULL_POINTER;
 
-  nsresult rv = NS_NewISupportsArray(_retval);
+  nsresult rv;
+  nsCOMPtr<nsIMutableArray> array(do_CreateInstance(NS_ARRAY_CONTRACTID, &rv));
   if (NS_FAILED(rv))
     return rv;
 
@@ -567,7 +564,7 @@ NS_IMETHODIMP ImportOEAddressImpl::FindAddressBooks(nsIFile *location, nsISuppor
         pID->SetSize(100);
         pID->SetPreferredName(str);
         rv = pID->QueryInterface(kISupportsIID, (void **) &pInterface);
-        (*_retval)->AppendElement(pInterface);
+        array->AppendElement(pInterface, false);
         pInterface->Release();
         pID->Release();
       }
@@ -578,6 +575,7 @@ NS_IMETHODIMP ImportOEAddressImpl::FindAddressBooks(nsIFile *location, nsISuppor
     delete m_pWab;
     m_pWab = nullptr;
   }
+  array.forget(_retval);
   return NS_OK;
 }
 
@@ -587,8 +585,8 @@ NS_IMETHODIMP ImportOEAddressImpl::ImportAddressBook(nsIImportABDescriptor *sour
                                                      nsIAddrDatabase *destination,
                                                      nsIImportFieldMap *fieldMap,
                                                      nsISupports *aSupportService,
-                                                     PRUnichar **errorLog,
-                                                     PRUnichar **successLog,
+                                                     char16_t **errorLog,
+                                                     char16_t **successLog,
                                                      bool *fatalError)
 {
     NS_PRECONDITION(source != nullptr, "null ptr");
@@ -650,8 +648,8 @@ void ImportOEAddressImpl::ReportSuccess(nsString& name, nsString *pStream)
   if (!pStream)
     return;
   // load the success string
-  PRUnichar *pFmt = nsOEStringBundle::GetStringByID(OEIMPORT_ADDRESS_SUCCESS);
-  PRUnichar *pText = nsTextFormatter::smprintf(pFmt, name.get());
+  char16_t *pFmt = nsOEStringBundle::GetStringByID(OEIMPORT_ADDRESS_SUCCESS);
+  char16_t *pText = nsTextFormatter::smprintf(pFmt, name.get());
   pStream->Append(pText);
   nsTextFormatter::smprintf_free(pText);
   nsOEStringBundle::FreeString(pFmt);

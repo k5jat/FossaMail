@@ -6,6 +6,7 @@
 /* This is where functions related to the standalone message window are kept */
 
 Components.utils.import("resource:///modules/jsTreeSelection.js");
+Components.utils.import("resource:///modules/MailUtils.js");
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource:///modules/MsgHdrSyntheticView.js");
@@ -100,7 +101,8 @@ StandaloneFolderDisplayWidget.prototype = {
    */
   onDisplayingFolder:
       function StandaloneFolderDisplayWidget_onDisplayingFolder() {
-    let msgDatabase = this.view.displayedFolder.msgDatabase;
+    let msgDatabase = this.view.displayedFolder &&
+                      this.view.displayedFolder.msgDatabase;
     if (msgDatabase) {
       msgDatabase.resetHdrCacheSize(this.PERF_HEADER_CACHE_SIZE);
     }
@@ -257,6 +259,8 @@ StandaloneMessageDisplayWidget.prototype = {
 
   onMessagesRemoved:
       function StandaloneMessageDisplayWidget_onMessagesRemoved() {
+    if (!this.folderDisplay.treeSelection)
+      return true;
     if (this.folderDisplay.treeSelection.count == 0 &&
         Services.prefs.getBoolPref("mail.close_message_window.on_delete")) {
       window.close();
@@ -338,6 +342,8 @@ function OnLoadMessageWindow()
     document.documentElement.setAttribute("screenX", screen.availLeft);
     document.documentElement.setAttribute("screenY", screen.availTop);
   }
+
+  ToolbarIconColor.init();
   setTimeout(delayedOnLoadMessageWindow, 0); // when debugging, set this to 5000, so you can see what happens after the window comes up.
 }
 
@@ -358,8 +364,6 @@ function delayedOnLoadMessageWindow()
     onEndHeaders: function() {
       if (gMessageDisplay.isDummy)
         gMessageDisplay.onDisplayingMessage(messageHeaderSink.dummyMsgHeader);
-      if (!FeedMessageHandler.shouldShowSummary(gMessageDisplay.displayedMessage, false))
-        FeedMessageHandler.setContent(gMessageDisplay.displayedMessage, false);
       UpdateMailToolbar(".eml/message from attachment finished loading");
     },
     onEndAttachments: function () {},
@@ -525,6 +529,8 @@ function ShowMenus()
 
 function HideMenus()
 {
+  // TODO: Seems to be a lot of repetitive code.
+  // Can we just fold this into an array of element IDs and loop over them?
   var message_menuitem=document.getElementById('menu_showMessage');
   if (message_menuitem)
     message_menuitem.setAttribute("hidden", "true");
@@ -540,6 +546,14 @@ function HideMenus()
   folderPane_menuitem = document.getElementById('appmenu_showFolderPane');
   if (folderPane_menuitem)
     folderPane_menuitem.setAttribute("hidden", "true");
+
+  let folderPaneCols_menuitem = document.getElementById("menu_showFolderPaneCols");
+  if (folderPaneCols_menuitem)
+    folderPaneCols_menuitem.setAttribute("hidden", "true");
+
+  folderPaneCols_menuitem = document.getElementById("appmenu_showFolderPaneCols");
+  if (folderPaneCols_menuitem)
+    folderPaneCols_menuitem.setAttribute("hidden", "true");
 
   var showSearch_showMessage_Separator = document.getElementById('menu_showSearch_showMessage_Separator');
   if (showSearch_showMessage_Separator)
@@ -706,6 +720,22 @@ function HideMenus()
   if (goRecentlyClosedTabsSeparator)
     goRecentlyClosedTabsSeparator.setAttribute("hidden", "true");
 
+  let goFolder = document.getElementById('goFolderMenu');
+  if (goFolder)
+    goFolder.hidden = true;
+
+  goFolder = document.getElementById('appmenu_goFolderMenu');
+  if (goFolder)
+    goFolder.hidden = true;
+
+  goFolder = document.getElementById("goFolderSeparator");
+  if (goFolder)
+    goFolder.hidden = true;
+
+  goFolder = document.getElementById("appmenu_goFolderSeparator");
+  if (goFolder)
+    goFolder.hidden = true;
+
   var goStartPage = document.getElementById('goStartPage');
   if (goStartPage)
    goStartPage.hidden = true;
@@ -735,6 +765,7 @@ function OnUnloadMessageWindow()
   // FIX ME - later we will be able to use onunload from the overlay
   OnUnloadMsgHeaderPane();
   gPhishingDetector.shutdown();
+  ToolbarIconColor.uninit();
   OnMailWindowUnload();
 }
 
@@ -828,6 +859,7 @@ var MessageWindowController =
       case "button_goForward":
       case "button_goBack":
         return gFolderDisplay.selectedMessage != null;
+      case "cmd_newMessage":
       case "cmd_reply":
       case "button_reply":
       case "cmd_replySender":
@@ -917,6 +949,7 @@ var MessageWindowController =
       case "cmd_replylist":
       case "button_replylist":
         return gFolderDisplay.selectedMessage && IsReplyListEnabled();
+      case "cmd_newMessage":
       case "cmd_replySender":
       case "cmd_replyGroup":
       case "button_followup":
@@ -961,7 +994,7 @@ var MessageWindowController =
         return CanMarkMsgAsRead(false);
       case "cmd_markAsFlagged":
       case "button_file":
-        return ( gFolderDisplay.selectedMessage != null);
+        return (gFolderDisplay.selectedMessage != null);
       case "cmd_printSetup":
         return true;
       case "cmd_getNewMessages":
@@ -1036,14 +1069,15 @@ var MessageWindowController =
 
   doCommand: function(command)
   {
-    // if the user invoked a key short cut then it is possible that we got here for a command which is
-    // really disabled. kick out if the command should be disabled.
-    if (!this.isCommandEnabled(command)) return;
+    // If the user invoked a key short cut then it is possible that we got here
+    // for a command which is really disabled. Kick out if the command should be disabled.
+    if (!this.isCommandEnabled(command))
+      return;
 
     var navigationType = nsMsgNavigationType.nextUnreadMessage;
 
-  switch ( command )
-  {
+    switch (command)
+    {
     case "cmd_getNewMessages":
       MsgGetMessage();
       break;
@@ -1061,6 +1095,9 @@ var MessageWindowController =
         break;
       case "cmd_archive":
         MsgArchiveSelectedMessages(null);
+        break;
+      case "cmd_newMessage":
+        MsgNewMessage(null);
         break;
       case "cmd_reply":
         MsgReplyMessage(null);
@@ -1090,11 +1127,12 @@ var MessageWindowController =
         MsgEditMessageAsNew();
         break;
       case "cmd_moveToFolderAgain":
-        var folderId = Services.prefs.getCharPref("mail.last_msg_movecopy_target_uri");
+        var folder = MailUtils.getFolderForURI(
+                       Services.prefs.getCharPref("mail.last_msg_movecopy_target_uri"));
         if (Services.prefs.getBoolPref("mail.last_msg_movecopy_was_move"))
-          MsgMoveMessage(GetMsgFolderFromUri(folderId));
+          MsgMoveMessage(folder);
         else
-          MsgCopyMessage(GetMsgFolderFromUri(folderId));
+          MsgCopyMessage(folder);
         break;
       case "cmd_createFilterFromPopup":
         break;// This does nothing because the createfilter is invoked from the popupnode oncommand.
@@ -1104,10 +1142,12 @@ var MessageWindowController =
       case "button_delete":
       case "cmd_delete":
         gFolderDisplay.doCommand(nsMsgViewCommandType.deleteMsg);
+        UpdateDeleteToolbarButton();
         break;
       case "button_shiftDelete":
       case "cmd_shiftDelete":
         gFolderDisplay.doCommand(nsMsgViewCommandType.deleteNoTrash);
+        UpdateDeleteToolbarButton();
         break;
       case "button_junk":
         MsgJunk();
@@ -1241,7 +1281,7 @@ var MessageWindowController =
       case "button_previous":
       case "cmd_previousUnreadMsg":
         performNavigation(nsMsgNavigationType.previousUnreadMessage);
-    break;
+        break;
       case "cmd_previousFlaggedMsg":
         performNavigation(nsMsgNavigationType.previousFlagged);
         break;

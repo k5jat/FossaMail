@@ -6,6 +6,7 @@
 #ifndef nsAbOSXDirectory_h___
 #define nsAbOSXDirectory_h___
 
+#include "mozilla/Attributes.h"
 #include "nsISupports.h"
 #include "nsAbBaseCID.h"
 #include "nsAbDirProperty.h"
@@ -50,60 +51,60 @@ public:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIAbOSXDirectory, NS_IABOSXDIRECTORY_IID)
 
-class nsAbOSXDirectory : public nsAbDirProperty,
+class nsAbOSXDirectory final : public nsAbDirProperty,
 public nsIAbDirSearchListener,
 public nsIAbOSXDirectory
 {
 public:
   nsAbOSXDirectory();
-  ~nsAbOSXDirectory();
   
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIABDIRSEARCHLISTENER
     
   // nsIAbOSXDirectory method
-  NS_IMETHOD Init(const char *aUri);
+  NS_IMETHOD Init(const char *aUri) override;
   
   // nsAbDirProperty methods
-  NS_IMETHOD GetReadOnly(bool *aReadOnly);
-  NS_IMETHOD GetChildCards(nsISimpleEnumerator **aCards);
-  NS_IMETHOD GetChildNodes(nsISimpleEnumerator **aNodes);
-  NS_IMETHOD GetIsQuery(bool *aResult);
-  NS_IMETHOD HasCard(nsIAbCard *aCard, bool *aHasCard);
-  NS_IMETHOD HasDirectory(nsIAbDirectory *aDirectory, bool *aHasDirectory);
-  NS_IMETHOD GetURI(nsACString &aURI);
+  NS_IMETHOD GetReadOnly(bool *aReadOnly) override;
+  NS_IMETHOD GetChildCards(nsISimpleEnumerator **aCards) override;
+  NS_IMETHOD GetChildNodes(nsISimpleEnumerator **aNodes) override;
+  NS_IMETHOD GetIsQuery(bool *aResult) override;
+  NS_IMETHOD HasCard(nsIAbCard *aCard, bool *aHasCard) override;
+  NS_IMETHOD HasDirectory(nsIAbDirectory *aDirectory, bool *aHasDirectory) override;
+  NS_IMETHOD GetURI(nsACString &aURI) override;
   NS_IMETHOD GetCardFromProperty(const char *aProperty,
                                  const nsACString &aValue,
                                  bool caseSensitive,
-                                 nsIAbCard **aResult);
+                                 nsIAbCard **aResult) override;
   NS_IMETHOD GetCardsFromProperty(const char *aProperty,
                                   const nsACString &aValue,
                                   bool aCaseSensitive,
-                                  nsISimpleEnumerator **aResult);
+                                  nsISimpleEnumerator **aResult) override;
   NS_IMETHOD CardForEmailAddress(const nsACString &aEmailAddress,
-                                 nsIAbCard **aResult);
+                                 nsIAbCard **aResult) override;
 
   // nsIAbOSXDirectory
-  nsresult AssertChildNodes();
+  nsresult AssertChildNodes() override;
   nsresult AssertDirectory(nsIAbManager *aManager,
-                           nsIAbDirectory *aDirectory);
+                           nsIAbDirectory *aDirectory) override;
   nsresult AssertCard(nsIAbManager *aManager,
-                      nsIAbCard *aCard);
+                      nsIAbCard *aCard) override;
   nsresult UnassertCard(nsIAbManager *aManager,
                         nsIAbCard *aCard,
-                        nsIMutableArray *aCardList);
+                        nsIMutableArray *aCardList) override;
   nsresult UnassertDirectory(nsIAbManager *aManager,
-                             nsIAbDirectory *aDirectory);
+                             nsIAbDirectory *aDirectory) override;
   
-  nsresult Update();
+  nsresult Update() override;
 
-  nsresult DeleteUid(const nsACString &aUid);
+  nsresult DeleteUid(const nsACString &aUid) override;
 
-  nsresult GetCardByUri(const nsACString &aUri, nsIAbOSXCard **aResult);
+  nsresult GetCardByUri(const nsACString &aUri, nsIAbOSXCard **aResult) override;
 
   nsresult GetRootOSXDirectory(nsIAbOSXDirectory **aResult);
 
 private:
+  ~nsAbOSXDirectory();
   nsresult FallbackSearch(nsIAbBooleanExpression *aExpression,
                           nsISimpleEnumerator **aCards);
 

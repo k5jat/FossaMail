@@ -26,7 +26,7 @@ nsMsgLocalStoreUtils::AddDirectorySeparator(nsIFile *path)
 bool
 nsMsgLocalStoreUtils::nsShouldIgnoreFile(nsAString& name)
 {
-  PRUnichar firstChar = name.First();
+  char16_t firstChar = name.First();
   if (firstChar == '.' || firstChar == '#' ||
       name.CharAt(name.Length() - 1) == '~')
     return true;
@@ -50,7 +50,8 @@ nsMsgLocalStoreUtils::nsShouldIgnoreFile(nsAString& name)
 
   // ignore RSS data source files
   if (name.LowerCaseEqualsLiteral("feeds.rdf") ||
-      name.LowerCaseEqualsLiteral("feeditems.rdf"))
+      name.LowerCaseEqualsLiteral("feeditems.rdf") ||
+      StringBeginsWith(name, NS_LITERAL_STRING("feeditems_error")))
     return true;
 
   // The .mozmsgs dir is for spotlight support
@@ -184,14 +185,14 @@ nsMsgLocalStoreUtils::UpdateFolderFlag(nsIMsgDBHdr *mailHdr, bool bSet,
 {
   uint32_t statusOffset;
   uint64_t msgOffset;
-  (void) mailHdr->GetStatusOffset(&statusOffset);
+  nsresult rv = mailHdr->GetStatusOffset(&statusOffset);
   // This probably means there's no x-mozilla-status header, so
   // we just ignore this.
-  if (statusOffset == 0)
+  if (NS_FAILED(rv) || (statusOffset == 0))
     return NS_OK;
-  (void)mailHdr->GetMessageOffset(&msgOffset);
+  rv = mailHdr->GetMessageOffset(&msgOffset);
+  NS_ENSURE_SUCCESS(rv, rv);
   uint64_t statusPos = msgOffset + statusOffset;
-  nsresult rv;
   nsCOMPtr<nsISeekableStream> seekableStream(do_QueryInterface(fileStream, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = seekableStream->Seek(nsISeekableStream::NS_SEEK_SET, statusPos);
@@ -242,8 +243,8 @@ nsMsgLocalStoreUtils::UpdateFolderFlag(nsIMsgDBHdr *mailHdr, bool bSet,
 
       if (flag & 0xFFFF0000)
       {
-        // time to upate x-mozilla-status2
-        // first find it by finding end of previous line, see bug 234935
+        // Time to update x-mozilla-status2,
+        // first find it by finding end of previous line, see bug 234935.
         seekableStream->Seek(nsISeekableStream::NS_SEEK_SET, status2Pos);
         do
         {

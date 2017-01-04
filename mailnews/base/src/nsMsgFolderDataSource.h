@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Attributes.h"
 #include "nsIRDFDataSource.h"
 #include "nsIRDFService.h"
 
@@ -24,70 +25,72 @@ public:
   NS_DECL_NSIFOLDERLISTENER
 
   nsMsgFolderDataSource(void);
-  virtual ~nsMsgFolderDataSource (void);
-  virtual nsresult Init();
-  virtual void Cleanup();
+  virtual nsresult Init() override;
+  virtual void Cleanup() override;
 
   // nsIRDFDataSource methods
-  NS_IMETHOD GetURI(char* *uri);
+  NS_IMETHOD GetURI(char* *uri) override;
 
   NS_IMETHOD GetSource(nsIRDFResource* property,
                        nsIRDFNode* target,
                        bool tv,
-                       nsIRDFResource** source /* out */);
+                       nsIRDFResource** source /* out */) override;
 
   NS_IMETHOD GetTarget(nsIRDFResource* source,
                        nsIRDFResource* property,
                        bool tv,
-                       nsIRDFNode** target);
+                       nsIRDFNode** target) override;
 
   NS_IMETHOD GetSources(nsIRDFResource* property,
                         nsIRDFNode* target,
                         bool tv,
-                        nsISimpleEnumerator** sources);
+                        nsISimpleEnumerator** sources) override;
 
   NS_IMETHOD GetTargets(nsIRDFResource* source,
                         nsIRDFResource* property,    
                         bool tv,
-                        nsISimpleEnumerator** targets);
+                        nsISimpleEnumerator** targets) override;
 
   NS_IMETHOD Assert(nsIRDFResource* source,
                     nsIRDFResource* property, 
                     nsIRDFNode* target,
-                    bool tv);
+                    bool tv) override;
 
   NS_IMETHOD Unassert(nsIRDFResource* source,
                       nsIRDFResource* property,
-                      nsIRDFNode* target);
+                      nsIRDFNode* target) override;
 
   NS_IMETHOD HasAssertion(nsIRDFResource* source,
                           nsIRDFResource* property,
                           nsIRDFNode* target,
                           bool tv,
-                          bool* hasAssertion);
+                          bool* hasAssertion) override;
 
-  NS_IMETHOD HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, bool *result);
+  NS_IMETHOD HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc,
+                       bool *result) override;
 
   NS_IMETHOD ArcLabelsIn(nsIRDFNode* node,
-                         nsISimpleEnumerator** labels);
+                         nsISimpleEnumerator** labels) override;
 
   NS_IMETHOD ArcLabelsOut(nsIRDFResource* source,
-                          nsISimpleEnumerator** labels); 
+                          nsISimpleEnumerator** labels) override; 
 
-  NS_IMETHOD GetAllResources(nsISimpleEnumerator** aResult);
+  NS_IMETHOD GetAllResources(nsISimpleEnumerator** aResult) override;
 
   NS_IMETHOD GetAllCmds(nsIRDFResource* source,
-                            nsISimpleEnumerator/*<nsIRDFResource>*/** commands);
+                            nsISimpleEnumerator/*<nsIRDFResource>*/** commands
+                        ) override;
 
   NS_IMETHOD IsCommandEnabled(nsISupportsArray/*<nsIRDFResource>*/* aSources,
                               nsIRDFResource*   aCommand,
                               nsISupportsArray/*<nsIRDFResource>*/* aArguments,
-                              bool* aResult);
+                              bool* aResult) override;
 
   NS_IMETHOD DoCommand(nsISupportsArray/*<nsIRDFResource>*/* aSources,
                        nsIRDFResource*   aCommand,
-                       nsISupportsArray/*<nsIRDFResource>*/* aArguments);
+                       nsISupportsArray/*<nsIRDFResource>*/* aArguments) override;
 protected:
+  virtual ~nsMsgFolderDataSource();
 
   nsresult GetSenderName(nsAutoString& sender, nsAutoString *senderUserName);
 
@@ -173,14 +176,14 @@ protected:
 
   nsresult OnUnreadMessagePropertyChanged(nsIRDFResource *folderResource, int32_t oldValue, int32_t newValue);
   nsresult OnTotalMessagePropertyChanged(nsIRDFResource *folderResource, int32_t oldValue, int32_t newValue);
-  nsresult OnFolderSizePropertyChanged(nsIRDFResource *folderResource, int32_t oldValue, int32_t newValue);
+  nsresult OnFolderSizePropertyChanged(nsIRDFResource *folderResource, int64_t oldValue, int64_t newValue);
   nsresult OnFolderSortOrderPropertyChanged(nsIRDFResource *folderResource, int32_t oldValue, int32_t newValue);
   nsresult NotifyFolderTreeNameChanged(nsIMsgFolder *folder, nsIRDFResource *folderResource, int32_t aUnreadMessages);
   nsresult NotifyFolderTreeSimpleNameChanged(nsIMsgFolder *folder, nsIRDFResource *folderResource);
   nsresult NotifyFolderNameChanged(nsIMsgFolder *folder, nsIRDFResource *folderResource);
   nsresult NotifyAncestors(nsIMsgFolder *aFolder, nsIRDFResource *aPropertyResource, nsIRDFNode *aNode);
   nsresult GetNumMessagesNode(int32_t numMessages, nsIRDFNode **node);
-  nsresult GetFolderSizeNode(int32_t folderSize, nsIRDFNode **node);
+  nsresult GetFolderSizeNode(int64_t folderSize, nsIRDFNode **node);
   nsresult CreateLiterals(nsIRDFService *rdf);
 
   virtual nsresult GetFolderDisplayName(nsIMsgFolder *folder, nsString& folderName);
@@ -272,30 +275,32 @@ public:
   // constructor could take a filter to filter out folders.
   nsMsgFlatFolderDataSource();
   virtual ~nsMsgFlatFolderDataSource();
-  virtual nsresult Init();
-  virtual void Cleanup();
+  virtual nsresult Init() override;
+  virtual void Cleanup() override;
 
-  NS_IMETHOD GetURI(char* *uri);
+  NS_IMETHOD GetURI(char* *uri) override;
   NS_IMETHOD GetTargets(nsIRDFResource* source,
                         nsIRDFResource* property,    
                         bool tv,
-                        nsISimpleEnumerator** targets);
+                        nsISimpleEnumerator** targets) override;
   NS_IMETHOD GetTarget(nsIRDFResource* source,
                        nsIRDFResource* property,
                        bool tv,
-                       nsIRDFNode** target);
+                       nsIRDFNode** target) override;
 
   NS_IMETHOD HasAssertion(nsIRDFResource* source,
                             nsIRDFResource* property,
                             nsIRDFNode* target,
                             bool tv,
-                            bool* hasAssertion);
+                            bool* hasAssertion) override;
 protected:
-  virtual nsresult GetFolderDisplayName(nsIMsgFolder *folder, nsString& folderName);
+  virtual nsresult GetFolderDisplayName(nsIMsgFolder *folder,
+                                        nsString& folderName) override;
   virtual void EnsureFolders();
   virtual bool WantsThisFolder(nsIMsgFolder *folder);
           bool ResourceIsOurRoot(nsIRDFResource *resource);
-  virtual nsresult OnItemAddedOrRemoved(nsIMsgFolder *parentItem, nsISupports *item, bool added);
+  virtual nsresult OnItemAddedOrRemoved(nsIMsgFolder *parentItem, nsISupports *item,
+                                        bool added) override;
 
   nsCOMArray <nsIMsgFolder> m_folders;
   nsCOMPtr<nsIRDFResource>  m_rootResource; // the resource for our root
@@ -311,9 +316,9 @@ public:
   virtual ~nsMsgUnreadFoldersDataSource() {}
   virtual nsresult NotifyPropertyChanged(nsIRDFResource *resource, 
                     nsIRDFResource *propertyResource, nsIRDFNode *newNode, 
-                    nsIRDFNode *oldNode = nullptr);
+                    nsIRDFNode *oldNode = nullptr) override;
 protected:
-  virtual bool WantsThisFolder(nsIMsgFolder *folder);
+  virtual bool WantsThisFolder(nsIMsgFolder *folder) override;
 };
 
 class nsMsgFavoriteFoldersDataSource : public nsMsgFlatFolderDataSource
@@ -322,7 +327,7 @@ public:
   nsMsgFavoriteFoldersDataSource() {m_dsName = "mailnewsfavefolders";}
   virtual ~nsMsgFavoriteFoldersDataSource() {}
 protected:
-  virtual bool WantsThisFolder(nsIMsgFolder *folder);
+  virtual bool WantsThisFolder(nsIMsgFolder *folder) override;
 };
 
 class nsMsgRecentFoldersDataSource : public nsMsgFlatFolderDataSource
@@ -333,11 +338,11 @@ public:
   virtual ~nsMsgRecentFoldersDataSource() {}
   virtual nsresult NotifyPropertyChanged(nsIRDFResource *resource, 
                     nsIRDFResource *property, nsIRDFNode *newNode, 
-                    nsIRDFNode *oldNode);
-  NS_IMETHOD OnItemAdded(nsIMsgFolder *parentItem, nsISupports *item);
-  virtual void Cleanup();
+                    nsIRDFNode *oldNode) override;
+  NS_IMETHOD OnItemAdded(nsIMsgFolder *parentItem, nsISupports *item) override;
+  virtual void Cleanup() override;
 protected:
-  virtual void EnsureFolders();
+  virtual void EnsureFolders() override;
   uint32_t m_cutOffDate;
   uint32_t m_maxNumFolders;
 };

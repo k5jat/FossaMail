@@ -25,8 +25,6 @@ public:
   nsMsgSearchTerm();
   nsMsgSearchTerm (nsMsgSearchAttribValue, nsMsgSearchOpValue, nsIMsgSearchValue *, nsMsgSearchBooleanOperator, const char * arbitraryHeader);
 
-  virtual ~nsMsgSearchTerm ();
-
     NS_DECL_ISUPPORTS
     NS_DECL_NSIMSGSEARCHTERM
 
@@ -41,8 +39,6 @@ public:
   const char * GetArbitraryHeader() {return m_arbitraryHeader.get();}
 
   static char *  EscapeQuotesInStr(const char *str);
-
-  nsCOMPtr<nsIMsgHeaderParser> m_headerAddressParser;
 
   nsMsgSearchAttribValue m_attribute;
   nsMsgSearchOpValue m_operator;
@@ -61,13 +57,15 @@ public:
   nsCString m_customId; // id of custom search term
 
 protected:
+  virtual ~nsMsgSearchTerm();
+
   nsresult MatchString(const nsACString &stringToMatch, const char *charset,
                        bool *pResult);
+  nsresult MatchString(const nsAString &stringToMatch, bool *pResult);
   nsresult OutputValue(nsCString &outputStr);
   nsresult ParseAttribute(char *inStream, nsMsgSearchAttribValue *attrib);
   nsresult ParseOperator(char *inStream, nsMsgSearchOpValue *value);
   nsresult ParseValue(char *inStream);
-  nsresult InitHeaderAddressParser();
   /**
    * Switch a string to lower case, except for special database rows
    * that are not headers, but could be headers
@@ -76,7 +74,7 @@ protected:
    */
   void ToLowerCaseExceptSpecials(nsACString &aValue);
     nsresult InitializeAddressBook();
-  nsresult MatchInAddressBook(const nsACString &aAddress, bool *pResult);
+  nsresult MatchInAddressBook(const nsAString &aAddress, bool *pResult);
     // fields used by search in address book
     nsCOMPtr <nsIAbDirectory> mDirectory;
 

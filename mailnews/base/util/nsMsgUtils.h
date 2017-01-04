@@ -21,6 +21,7 @@
 #include "nsUnicharUtils.h"
 #include "nsIFile.h"
 
+class nsIChannel;
 class nsIFile;
 class nsIPrefBranch;
 class nsIMsgFolder;
@@ -34,6 +35,8 @@ class nsIProxyInfo;
 class nsIMsgWindow;
 class nsISupportsArray;
 class nsIStreamListener;
+
+#define MSGS_URL    "chrome://messenger/locale/messenger.properties"
 
 //These are utility functions that can used throughout the mailnews code
 
@@ -60,7 +63,7 @@ NS_MSG_BASE nsresult NS_MsgGetUntranslatedPriorityName(
 NS_MSG_BASE nsresult NS_MsgHashIfNecessary(nsAutoString &name);
 NS_MSG_BASE nsresult NS_MsgHashIfNecessary(nsAutoCString &name);
 
-NS_MSG_BASE nsresult FormatFileSize(uint64_t size, bool useKB, nsAString &formattedSize);
+NS_MSG_BASE nsresult FormatFileSize(int64_t size, bool useKB, nsAString &formattedSize);
 
 
 /**
@@ -132,11 +135,15 @@ NS_MSG_BASE nsresult NS_GetUnicharPreferenceWithDefault(nsIPrefBranch *prefBranc
                                                         const char *prefName,
                                                         const nsAString& defValue,
                                                         nsAString& prefValue);
- 
+
 NS_MSG_BASE nsresult NS_GetLocalizedUnicharPreferenceWithDefault(nsIPrefBranch *prefBranch,   //can be null, if so uses the root branch
                                                                  const char *prefName,
                                                                  const nsAString& defValue,
                                                                  nsAString& prefValue);
+
+NS_MSG_BASE nsresult NS_GetLocalizedUnicharPreference(nsIPrefBranch *prefBranch,   //can be null, if so uses the root branch
+                                                      const char *prefName,
+                                                      nsAString& prefValue);
 
   /**
    * this needs a listener, because we might have to create the folder
@@ -184,6 +191,9 @@ NS_MSG_BASE nsresult MsgReopenFileStream(nsIFile *file, nsIInputStream *fileStre
 // Automatically creates an output stream with a 4K buffer
 NS_MSG_BASE nsresult MsgNewBufferedFileOutputStream(nsIOutputStream **aResult, nsIFile *aFile, int32_t aIOFlags = -1, int32_t aPerm = -1);
 
+// Automatically creates an output stream with a 4K buffer, but write to a temporary file first, then rename to aFile
+NS_MSG_BASE nsresult MsgNewSafeBufferedFileOutputStream(nsIOutputStream **aResult, nsIFile *aFile, int32_t aIOFlags = -1, int32_t aPerm = -1);
+
 // fills in the position of the passed in keyword in the passed in keyword list
 // and returns false if the keyword isn't present
 NS_MSG_BASE bool MsgFindKeyword(const nsCString &keyword, nsCString &keywords, int32_t *aStartOfKeyword, int32_t *aLength);
@@ -213,13 +223,18 @@ NS_MSG_BASE nsresult MsgUnescapeString(const nsACString &aStr,
 NS_MSG_BASE nsresult MsgEscapeURL(const nsACString &aStr, uint32_t aFlags,
                                   nsACString &aResult);
 
-// Converts an array of nsMsgKeys plus a database, to an array of nsIMsgDBHdrs.
-NS_MSG_BASE nsresult MsgGetHeadersFromKeys(nsIMsgDatabase *aDB, 
+// Converts an nsTArray of nsMsgKeys plus a database, to an array of nsIMsgDBHdrs.
+NS_MSG_BASE nsresult MsgGetHeadersFromKeys(nsIMsgDatabase *aDB,
                                            const nsTArray<nsMsgKey> &aKeys,
                                            nsIMutableArray *aHeaders);
- 
-NS_MSG_BASE nsresult MsgExamineForProxy(const char *scheme, const char *host,
-                                        int32_t port, nsIProxyInfo **proxyInfo);
+// Converts an array of nsMsgKeys plus a database, to an array of nsIMsgDBHdrs.
+NS_MSG_BASE nsresult MsgGetHdrsFromKeys(nsIMsgDatabase *aDB,
+                                        nsMsgKey *aKeys,
+                                        uint32_t aNumKeys,
+                                        nsIMutableArray **aHeaders);
+
+NS_MSG_BASE nsresult MsgExamineForProxy(nsIChannel *channel,
+                                        nsIProxyInfo **proxyInfo);
 
 NS_MSG_BASE int32_t MsgFindCharInSet(const nsCString &aString,
                                      const char* aChars, uint32_t aOffset = 0);
@@ -423,7 +438,7 @@ NS_MSG_BASE void MsgCompressWhitespace(nsCString& aString);
 /// Equivalent of nsEscapeHTML(aString)
 NS_MSG_BASE char *MsgEscapeHTML(const char *aString);
 /// Equivalent of nsEscapeHTML2(aBuffer, aLen)
-NS_MSG_BASE PRUnichar *MsgEscapeHTML2(const PRUnichar *aBuffer, int32_t aLen);
+NS_MSG_BASE char16_t *MsgEscapeHTML2(const char16_t *aBuffer, int32_t aLen);
 // Existing replacement for IsUTF8
 NS_MSG_BASE bool MsgIsUTF8(const nsACString& aString);
 /// Equivalent of NS_NewAtom(aUTF8String)
@@ -439,7 +454,7 @@ inline already_AddRefed<nsIAtom> MsgGetAtom(const char* aUTF8String)
 NS_MSG_BASE void MsgReplaceSubstring(nsAString &str, const nsAString &what, const nsAString &replacement);
 NS_MSG_BASE void MsgReplaceSubstring(nsACString &str, const char *what, const char *replacement);
 /// Equivalent of ns(C)String::ReplaceChar(what, replacement)
-NS_MSG_BASE void MsgReplaceChar(nsString& str, const char *set, const PRUnichar replacement);
+NS_MSG_BASE void MsgReplaceChar(nsString& str, const char *set, const char16_t replacement);
 NS_MSG_BASE void MsgReplaceChar(nsCString& str, const char needle, const char replacement);
 // Equivalent of NS_NewInterfaceRequestorAggregation(aFirst, aSecond, aResult)
 NS_MSG_BASE nsresult MsgNewInterfaceRequestorAggregation(nsIInterfaceRequestor *aFirst,
@@ -499,7 +514,7 @@ do_QueryElementAt( nsISupportsArray* array, uint32_t aIndex, nsresult* aErrorPtr
  *
  */
 inline
-uint32_t MsgCountChar(nsACString &aString, PRUnichar aChar) {
+uint32_t MsgCountChar(nsACString &aString, char16_t aChar) {
   const char *begin, *end;
   uint32_t num_chars = 0;
   aString.BeginReading(&begin, &end);
@@ -511,11 +526,11 @@ uint32_t MsgCountChar(nsACString &aString, PRUnichar aChar) {
 }
 
 inline
-uint32_t MsgCountChar(nsAString &aString, PRUnichar aChar) {
-  const PRUnichar *begin, *end;
+uint32_t MsgCountChar(nsAString &aString, char16_t aChar) {
+  const char16_t *begin, *end;
   uint32_t num_chars = 0;
   aString.BeginReading(&begin, &end);
-  for (const PRUnichar *current = begin; current < end; ++current) {
+  for (const char16_t *current = begin; current < end; ++current) {
       if (*current == aChar)
         ++num_chars;
   }
@@ -523,5 +538,44 @@ uint32_t MsgCountChar(nsAString &aString, PRUnichar aChar) {
 }
 
 #endif
+
+/**
+ * Converts a hex string into an integer.
+ * Processes up to aNumChars characters or the first non-hex char.
+ * It is not an error if less than aNumChars valid hex digits are found.
+ */
+NS_MSG_BASE uint64_t MsgUnhex(const char *aHexString, size_t aNumChars);
+
+/**
+ * Checks if a string is a valid hex literal containing at least aNumChars digits.
+ */
+NS_MSG_BASE bool MsgIsHex(const char *aHexString, size_t aNumChars);
+
+/**
+ * Convert an uint32_t to a nsMsgKey.
+ * Currently they are mostly the same but we need to preserve the notion that
+ * nsMsgKey is an opaque value that can't be treated as a generic integer
+ * (except when storing it into the database). It enables type safety checks and
+ * may prevent coding errors.
+ */
+NS_MSG_BASE nsMsgKey msgKeyFromInt(uint32_t aValue);
+
+NS_MSG_BASE nsMsgKey msgKeyFromInt(uint64_t aValue);
+
+/**
+ * Helper macro for defining getter/setters. Ported from nsISupportsObsolete.h
+ */
+#define NS_IMPL_GETSET(clazz, attr, type, member) \
+  NS_IMETHODIMP clazz::Get##attr(type *result) \
+  { \
+    NS_ENSURE_ARG_POINTER(result); \
+    *result = member; \
+    return NS_OK; \
+  } \
+  NS_IMETHODIMP clazz::Set##attr(type aValue) \
+  { \
+    member = aValue; \
+    return NS_OK; \
+  }
 
 #endif

@@ -36,7 +36,7 @@ let autosyncModule =
 {
 
   _inQFolderList : [],
-  _runnning : false,
+  _running : false,
   _syncInfoPerFolder: {},
   _syncInfoPerServer: {},
   _lastMessage: {},
@@ -50,6 +50,12 @@ let autosyncModule =
     delete this.activityMgr;
     return this.activityMgr = Cc["@mozilla.org/activity-manager;1"]
                                 .getService(Ci.nsIActivityManager);
+  },
+
+  get autoSyncManager() {
+    delete this.autoSyncManager;
+    return this.autoSyncManager = Cc["@mozilla.org/imap/autosyncmgr;1"]
+                                    .getService(Ci.nsIAutoSyncManager);
   },
 
   get bundle() {
@@ -137,7 +143,7 @@ let autosyncModule =
 
   onStateChanged : function(running) {
     try {
-      this._runnning = running;
+      this._running = running;
       this.log.info("OnStatusChanged: " + (running ? "running" : "sleeping") + "\n");
     } catch (e) {
       this.log.error("onStateChanged: " + e);
@@ -194,6 +200,7 @@ let autosyncModule =
 
         let syncItem = this._syncInfoPerFolder[folder.URI];
         let process = syncItem.activity;
+        let canceled = false;
         if (process instanceof Components.interfaces.nsIActivityProcess)
         {
           canceled = (process.state == Components.interfaces.nsIActivityProcess.STATE_CANCELED);
@@ -325,24 +332,6 @@ let autosyncModule =
   onAutoSyncInitiated : function (folder) {
       this.log.info("onAutoSyncInitiated: " + folder.prettiestName + " of " +
                     folder.server.prettyName + " has been updated.\n");
-  },
-
-  getFolderListString : function() {
-    let folderList = [];
-    for (let folder of this._inQFolderList)
-      folderList.push(folder.prettiestName);
-
-    return folderList.join(", ");
-  },
-
-  getAccountListString : function() {
-    let accountList = [];
-    for (let folder of this._inQFolderList) {
-      // do not include already existing account names
-      if (accountList.indexOf(folder.server.prettyName) == -1)
-        accountList.push(folder.server.prettyName);
-    }
-    return accountList.join(", ");
   },
 
   init: function() {

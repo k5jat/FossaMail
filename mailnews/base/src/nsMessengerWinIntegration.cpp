@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
-/* This Source Code Form is subject to the terms of the Mozilla Public
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -46,7 +46,7 @@
 #include "nsComponentManagerUtils.h"
 #include "nsNativeCharsetUtils.h"
 #include "nsMsgUtils.h"
-#ifdef MOZ_THUNDERBIRD
+#ifdef MOZILLA_INTERNAL_API
 #include "mozilla/LookAndFeel.h"
 #endif
 #include "mozilla/Services.h"
@@ -89,7 +89,7 @@
 #define NIN_BALLOONUSERCLICK (WM_USER + 5)
 #endif
 
-#ifndef MOZ_THUNDERBIRD
+#ifndef MOZILLA_INTERNAL_API
 // from LookAndFeel.h
 #define NS_ALERT_HORIZONTAL 1
 #define NS_ALERT_LEFT       2
@@ -374,7 +374,7 @@ nsMessengerWinIntegration::Init()
   // get application path
   WCHAR appPath[_MAX_PATH] = {0};
   ::GetModuleFileNameW(nullptr, appPath, sizeof(appPath));
-  mAppName.Assign((PRUnichar *)appPath);
+  mAppName.Assign((char16_t *)appPath);
 
   rv = ResetCurrent();
   NS_ENSURE_SUCCESS(rv,rv);
@@ -389,7 +389,7 @@ nsMessengerWinIntegration::OnItemPropertyChanged(nsIMsgFolder *, nsIAtom *, char
 }
 
 NS_IMETHODIMP
-nsMessengerWinIntegration::OnItemUnicharPropertyChanged(nsIMsgFolder *, nsIAtom *, const PRUnichar *, const PRUnichar *)
+nsMessengerWinIntegration::OnItemUnicharPropertyChanged(nsIMsgFolder *, nsIAtom *, const char16_t *, const char16_t *)
 {
   return NS_OK;
 }
@@ -448,7 +448,9 @@ nsresult nsMessengerWinIntegration::ShowAlertMessage(const nsString& aAlertTitle
                                                 NS_ConvertASCIItoUTF16(aFolderURI), this,
                                                 EmptyString(),
                                                 NS_LITERAL_STRING("auto"),
-                                                EmptyString());
+                                                EmptyString(), EmptyString(),
+                                                nullptr,
+                                                false);
       mAlertInProgress = true;
     }
   }
@@ -488,7 +490,7 @@ nsresult nsMessengerWinIntegration::ShowNewAlertNotification(bool aUserInitiated
 
   // check if we are allowed to show a notification
   if (showAlert && mSHQueryUserNotificationState) {
-    MOZ_QUERY_USER_NOTIFICATION_STATE qstate;    
+    QUERY_USER_NOTIFICATION_STATE qstate;    
     if (SUCCEEDED(mSHQueryUserNotificationState(&qstate))) {
       if (qstate != QUNS_ACCEPTS_NOTIFICATIONS) {
         showAlert = false;
@@ -530,7 +532,7 @@ nsresult nsMessengerWinIntegration::ShowNewAlertNotification(bool aUserInitiated
     NS_ENSURE_TRUE(scriptableOrigin, NS_ERROR_FAILURE);
     scriptableOrigin->SetData(0);
     int32_t origin = 0;
-#ifdef MOZ_THUNDERBIRD
+#ifdef MOZILLA_INTERNAL_API
     origin = LookAndFeel::GetInt(LookAndFeel::eIntID_AlertNotificationOrigin);
 #else
     // Get task bar window handle
@@ -637,14 +639,29 @@ nsresult nsMessengerWinIntegration::AlertClicked()
   return NS_OK;
 }
 
+#ifdef MOZ_SUITE
+nsresult nsMessengerWinIntegration::AlertClickedSimple()
+{
+  mSuppressBiffIcon = true;
+  return NS_OK;
+}
+#endif MOZ_SUITE
+
 NS_IMETHODIMP
-nsMessengerWinIntegration::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* aData)
+nsMessengerWinIntegration::Observe(nsISupports* aSubject, const char* aTopic, const char16_t* aData)
 {
   if (strcmp(aTopic, "alertfinished") == 0)
       return AlertFinished();
 
   if (strcmp(aTopic, "alertclickcallback") == 0)
       return AlertClicked();
+
+#ifdef MOZ_SUITE
+  // SeaMonkey does most of the GUI work in JS code when clicking on a mail
+  // notification, so it needs an extra function here
+  if (strcmp(aTopic, "alertclicksimplecallback") == 0)
+      return AlertClickedSimple();
+#endif
 
   return NS_OK;
 }
@@ -709,16 +726,16 @@ void nsMessengerWinIntegration::FillToolTipInfo()
         nsAutoString numNewMsgsText;
         numNewMsgsText.AppendInt(numNewMessages);
 
-        const PRUnichar *formatStrings[] =
+        const char16_t *formatStrings[] =
         {
           numNewMsgsText.get(),
         };
 
         nsString finalText;
         if (numNewMessages == 1)
-          bundle->FormatStringFromName(NS_LITERAL_STRING("biffNotification_message").get(), formatStrings, 1, getter_Copies(finalText));
+          bundle->FormatStringFromName(MOZ_UTF16("biffNotification_message"), formatStrings, 1, getter_Copies(finalText));
         else
-          bundle->FormatStringFromName(NS_LITERAL_STRING("biffNotification_messages").get(), formatStrings, 1, getter_Copies(finalText));
+          bundle->FormatStringFromName(MOZ_UTF16("biffNotification_messages"), formatStrings, 1, getter_Copies(finalText));
 
         // the alert message is special...we actually only want to show the first account with
         // new mail in the alert.
@@ -878,7 +895,7 @@ nsMessengerWinIntegration::OnItemEvent(nsIMsgFolder *, nsIAtom *)
 }
 
 NS_IMETHODIMP
-nsMessengerWinIntegration::OnItemIntPropertyChanged(nsIMsgFolder *aItem, nsIAtom *aProperty, int32_t aOldValue, int32_t aNewValue)
+nsMessengerWinIntegration::OnItemIntPropertyChanged(nsIMsgFolder *aItem, nsIAtom *aProperty, int64_t aOldValue, int64_t aNewValue)
 {
   // if we got new mail show a icon in the system tray
   if (mBiffStateAtom == aProperty && mFoldersWithNewMail)

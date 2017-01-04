@@ -6,6 +6,7 @@
 #ifndef nsImapUrl_h___
 #define nsImapUrl_h___
 
+#include "mozilla/Attributes.h"
 #include "nsIImapUrl.h"
 #include "nsIImapMockChannel.h"
 #include "nsCOMPtr.h"
@@ -26,9 +27,9 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIURI override
-  NS_IMETHOD SetSpec(const nsACString &aSpec);
-  NS_IMETHOD SetQuery(const nsACString &aQuery);
-  NS_IMETHOD Clone(nsIURI **_retval);
+  NS_IMETHOD SetSpec(const nsACString &aSpec) override;
+  NS_IMETHOD SetQuery(const nsACString &aQuery) override;
+  NS_IMETHOD Clone(nsIURI **_retval) override;
 
   //////////////////////////////////////////////////////////////////////////////
   // we support the nsIImapUrl interface
@@ -36,16 +37,15 @@ public:
   NS_DECL_NSIIMAPURL
 
   // nsIMsgMailNewsUrl overrides
-  NS_IMETHOD IsUrlType(uint32_t type, bool *isType);
-  NS_IMETHOD GetFolder(nsIMsgFolder **aFolder);
-  NS_IMETHOD SetFolder(nsIMsgFolder *aFolder);
+  NS_IMETHOD IsUrlType(uint32_t type, bool *isType) override;
+  NS_IMETHOD GetFolder(nsIMsgFolder **aFolder) override;
+  NS_IMETHOD SetFolder(nsIMsgFolder *aFolder) override;
   // nsIMsgMessageUrl
   NS_DECL_NSIMSGMESSAGEURL
   NS_DECL_NSIMSGI18NURL
 
   // nsImapUrl
   nsImapUrl();
-  virtual ~nsImapUrl();
 
   static nsresult ConvertToCanonicalFormat(const char *folderName, char onlineDelimiter, char **resultingCanonicalPath);
   static nsresult EscapeSlashes(const char *sourcePath, char **resultPath);
@@ -53,6 +53,7 @@ public:
   static char *  ReplaceCharsInCopiedString(const char *stringToCopy, char oldChar, char newChar);
 
 protected:
+  virtual ~nsImapUrl();
   virtual nsresult ParseUrl();
 
   char *m_listOfMessageIds;

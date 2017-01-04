@@ -189,10 +189,14 @@ function ConvertSortTypeToColumnID(sortKey)
   var columnID;
 
   // Hack to turn this into an integer, if it was a string.
-  // It would be a string if it came from localStore.rdf
+  // It would be a string if it came from XULStore.json.
   sortKey = sortKey - 0;
 
   switch (sortKey) {
+    // In the case of None, we default to the date column
+    // This appears to be the case in such instances as
+    // Global search, so don't complain about it.
+    case nsMsgViewSortType.byNone:
     case nsMsgViewSortType.byDate:
       columnID = "dateCol";
       break;
@@ -343,6 +347,7 @@ function FolderPaneSelectionChange()
     return;
 
   gFolderDisplay.show(folders.length ? folders[0] : null);
+  SetGetMsgButtonTooltip();
 }
 
 function Undo()

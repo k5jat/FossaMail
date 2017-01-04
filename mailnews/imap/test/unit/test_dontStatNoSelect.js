@@ -29,7 +29,10 @@ function run_test() {
   addMessageToFolder(gFolder2Mailbox);
   gServer = makeServer(daemon, "");
 
-  gImapServer = createLocalIMAPServer();
+  gImapServer = createLocalIMAPServer(gServer.port);
+
+  // Bug 1050840: check a newly created server has the default number of connections
+  do_check_eq(gImapServer.maximumConnectionsNumber, 5);
   gImapServer.maximumConnectionsNumber = 1;
 
   localAccountUtils.loadLocalMailAccount();

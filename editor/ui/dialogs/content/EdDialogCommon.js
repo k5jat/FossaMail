@@ -14,7 +14,7 @@ const gPixel = 0;
 const gPercent = 1;
 
 const gMaxPixels  = 100000; // Used for image size, borders, spacing, and padding
-// Gecko code uses 1000 for maximum rowspan, colspan
+// Goanna code uses 1000 for maximum rowspan, colspan
 // Also, editing performance is really bad above this
 const gMaxRows    = 1000;
 const gMaxColumns = 1000;
@@ -212,8 +212,8 @@ function ClearListbox(listbox)
   if (listbox)
   {
     listbox.clearSelection();
-    while (listbox.firstChild)
-      listbox.removeChild(listbox.firstChild);
+    while (listbox.hasChildNodes())
+      listbox.lastChild.remove();
   }
 }
 
@@ -944,19 +944,24 @@ function FillLinkMenulist(linkMenulist, headingsArray)
     if (anchorList.length)
     {
       // case insensitive sort
-      function compare(a, b)
-      {
-        if(a.sortkey < b.sortkey) return -1;
-        if(a.sortkey > b.sortkey) return 1;
+      anchorList.sort(function compare(a, b) {
+        if (a.sortkey < b.sortkey) return -1;
+        if (a.sortkey > b.sortkey) return 1;
         return 0;
-      }
-      anchorList.sort(compare);
+      });
 
       for (i = 0; i < anchorList.length; i++)
         createMenuItem(menupopup,anchorList[i].anchor);
     }
     else
     {
+      // Don't bother with named anchors in Mail.
+      if (editor && (editor.flags & Components.interfaces.nsIPlaintextEditor.eEditorMailMask))
+      {
+        menupopup.remove();
+        linkMenulist.removeAttribute("enablehistory");
+        return;
+      }
       var item = createMenuItem(menupopup, GetString("NoNamedAnchorsOrHeadings"));
       item.setAttribute("disabled", "true");
     }

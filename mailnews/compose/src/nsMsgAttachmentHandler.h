@@ -68,7 +68,6 @@ class nsMsgAttachmentHandler
   typedef mozilla::mailnews::MimeEncoder MimeEncoder;
 public:
   nsMsgAttachmentHandler();
-  ~nsMsgAttachmentHandler();
 public:
   nsresult              SnarfAttachment(nsMsgCompFields *compFields);
   nsresult              PickEncoding(const char *charset, nsIMsgSend* mime_delivery_state);
@@ -77,7 +76,7 @@ public:
                                                     // (Currently only used for plaintext
                                                     // converted from HTML.) 
   nsresult              Abort();
-  nsresult              UrlExit(nsresult status, const PRUnichar* aMsg);
+  nsresult              UrlExit(nsresult status, const char16_t* aMsg);
   
   // if there's an intermediate temp file left, takes care to remove it from disk.
   //
@@ -86,6 +85,7 @@ public:
   void                  CleanupTempFile();
 
 private:
+  ~nsMsgAttachmentHandler();
 
   // use when a message (e.g. original message in a reply) is attached as a rfc822 attachment.
   nsresult              SnarfMsgAttachment(nsMsgCompFields *compFields);

@@ -23,14 +23,14 @@ class nsLDAPSyncQuery : public nsILDAPSyncQuery,
 {
   public:
 
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSILDAPMESSAGELISTENER
     NS_DECL_NSILDAPSYNCQUERY
 
     nsLDAPSyncQuery();
-    virtual ~nsLDAPSyncQuery();
 
   protected:
+    virtual ~nsLDAPSyncQuery();
 
     nsCOMPtr<nsILDAPConnection> mConnection; // connection used for search
     nsCOMPtr<nsILDAPOperation> mOperation;   // current ldap op

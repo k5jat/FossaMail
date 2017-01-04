@@ -19,6 +19,14 @@ CRCCheck on
 
 RequestExecutionLevel user
 
+; The commands inside this ifdef require NSIS 3.0a2 or greater so the ifdef can
+; be removed after we require NSIS 3.0a2 or greater.
+!ifdef NSIS_PACKEDVERSION
+  Unicode true
+  ManifestSupportedOS all
+  ManifestDPIAware true
+!endif
+
 !addplugindir ./
 
 ; On Vista and above attempt to elevate Standard Users in addition to users that
@@ -69,10 +77,12 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro GetPathFromString
 !insertmacro InitHashAppModelId
 !insertmacro IsHandlerForInstallDir
+!insertmacro IsPinnedToTaskBar
 !insertmacro IsUserAdmin
 !insertmacro LogDesktopShortcut
 !insertmacro LogQuickLaunchShortcut
 !insertmacro LogStartMenuShortcut
+!insertmacro PinnedToStartMenuLnkCount
 !insertmacro RegCleanMain
 !insertmacro RegCleanUninstall
 !insertmacro SetBrandNameVars
@@ -110,7 +120,7 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 
 Name "${BrandFullName}"
 OutFile "helper.exe"
-!ifdef HAVE_64BIT_OS
+!ifdef HAVE_64BIT_BUILD
   InstallDir "$PROGRAMFILES64\${BrandFullName}\"
 !else
   InstallDir "$PROGRAMFILES32\${BrandFullName}\"
@@ -213,9 +223,9 @@ Section "Uninstall"
     ${un.DeleteShortcuts}
   ${EndIf}
 
-  ${un.RegCleanAppHandler} "FossaMail.Url.mailto"
-  ${un.RegCleanAppHandler} "FossaMail.Url.news"
-  ${un.RegCleanAppHandler} "FossaMailEML"
+  ${un.RegCleanAppHandler} "Thunderbird.Url.mailto"
+  ${un.RegCleanAppHandler} "Thunderbird.Url.news"
+  ${un.RegCleanAppHandler} "ThunderbirdEML"
   ${un.RegCleanProtocolHandler} "mailto"
   ${un.RegCleanProtocolHandler} "news"
   ${un.RegCleanProtocolHandler} "nntp"
@@ -232,13 +242,13 @@ Section "Uninstall"
   DeleteRegValue HKLM "Software\Mozilla\${AppName}\TaskBarIDs" "$INSTDIR"
 
   ClearErrors
-  ReadRegStr $R9 HKCR "FossaMailEML" ""
+  ReadRegStr $R9 HKCR "ThunderbirdEML" ""
   ; Don't clean up the file handlers if the ThunderbirdEML key still exists
   ; since there could be a second installation that may be the default file
   ; handler.
   ${If} ${Errors}
-    ${un.RegCleanFileHandler}  ".eml"   "FossaMailEML"
-    ${un.RegCleanFileHandler}  ".wdseml" "FossaMailEML"
+    ${un.RegCleanFileHandler}  ".eml"   "ThunderbirdEML"
+    ${un.RegCleanFileHandler}  ".wdseml" "ThunderbirdEML"
     DeleteRegValue HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\explorer\KindMap" ".wdseml"
     ; It doesn't matter if the value didn't exist
     ClearErrors
@@ -311,7 +321,7 @@ Section "Uninstall"
   ${EndIf}
 
   ; Remove the updates directory for Vista and above
-  ${un.CleanUpdatesDir} "FossaMail"
+  ${un.CleanUpdatesDir} "Thunderbird"
 
   ; Remove files that may be left behind by the application in the
   ; VirtualStore directory.

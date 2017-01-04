@@ -23,14 +23,16 @@ public:
   NS_DECL_NSIOBSERVER
 
   nsStatusBarBiffManager(); 
-  virtual ~nsStatusBarBiffManager();
   nsresult Init();
 
 private:
+  virtual ~nsStatusBarBiffManager();
+
   bool     mInitialized;
   int32_t  mCurrentBiffState;
+  nsCString mServerType;
   nsCOMPtr<nsISound> mSound;
-  nsresult PlayBiffSound();
+  nsresult PlayBiffSound(const char *aPrefBranch);
 
 protected:
   static nsIAtom* kBiffStateAtom;

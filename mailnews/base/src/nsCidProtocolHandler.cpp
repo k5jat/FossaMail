@@ -17,7 +17,7 @@ nsCidProtocolHandler::~nsCidProtocolHandler()
 {
 }
 
-NS_IMPL_ISUPPORTS1(nsCidProtocolHandler, nsIProtocolHandler)
+NS_IMPL_ISUPPORTS(nsCidProtocolHandler, nsIProtocolHandler)
 
 NS_IMETHODIMP nsCidProtocolHandler::GetScheme(nsACString & aScheme)
 {
@@ -55,6 +55,13 @@ NS_IMETHODIMP nsCidProtocolHandler::NewURI(const nsACString & aSpec, const char 
 }
 
 NS_IMETHODIMP nsCidProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsCidProtocolHandler::NewChannel2(nsIURI *aURI,
+                                                nsILoadInfo* aLoadInfo,
+                                                nsIChannel **_retval)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }

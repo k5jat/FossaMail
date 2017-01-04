@@ -7,6 +7,7 @@
 #define _nsMsgLocalSearch_H
 
 // inherit interface here
+#include "mozilla/Attributes.h"
 #include "nsIMsgSearchAdapter.h"
 #include "nsIUrlListener.h"
 
@@ -24,16 +25,15 @@ class nsMsgSearchOfflineMail : public nsMsgSearchAdapter, public nsIUrlListener
 {
 public:
   nsMsgSearchOfflineMail (nsIMsgSearchScopeTerm*, nsISupportsArray *);
-  virtual ~nsMsgSearchOfflineMail ();
 
   NS_DECL_ISUPPORTS_INHERITED
 
   NS_DECL_NSIURLLISTENER
 
-  NS_IMETHOD ValidateTerms ();
-  NS_IMETHOD Search (bool *aDone);
-  NS_IMETHOD Abort ();
-  NS_IMETHOD AddResultElement (nsIMsgDBHdr *);
+  NS_IMETHOD ValidateTerms () override;
+  NS_IMETHOD Search (bool *aDone) override;
+  NS_IMETHOD Abort () override;
+  NS_IMETHOD AddResultElement (nsIMsgDBHdr *) override;
 
   static nsresult  MatchTermsForFilter(nsIMsgDBHdr * msgToMatch,
                                          nsISupportsArray *termList,
@@ -65,6 +65,7 @@ public:
                                bool Filtering,
                  bool *pResult);
 protected:
+  virtual ~nsMsgSearchOfflineMail();
   static nsresult MatchTerms(nsIMsgDBHdr *msgToMatch,
                                 nsISupportsArray *termList,
                                 const char *defaultCharset,
@@ -92,9 +93,9 @@ class nsMsgSearchOfflineNews : public nsMsgSearchOfflineMail
 public:
   nsMsgSearchOfflineNews (nsIMsgSearchScopeTerm*, nsISupportsArray *);
   virtual ~nsMsgSearchOfflineNews ();
-  NS_IMETHOD ValidateTerms ();
+  NS_IMETHOD ValidateTerms () override;
 
-  virtual nsresult OpenSummaryFile ();
+  virtual nsresult OpenSummaryFile () override;
 };
 
 

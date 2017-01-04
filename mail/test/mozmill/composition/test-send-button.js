@@ -66,8 +66,8 @@ function test_send_enabled_manual_address() {
   // On an empty window, Send must be disabled.
   check_send_commands_state(cwc, false);
 
-  // On any (even invalid) "To:" addressee input, Send must be enabled.
-  setupComposeWin(cwc, "recipient", "", "");
+  // On valid "To:" addressee input, Send must be enabled.
+  setupComposeWin(cwc, "recipient@fake.invalid", "", "");
   check_send_commands_state(cwc, true);
 
   // When the addressee is not in To, Cc, Bcc or Newsgroup, disable Send again.
@@ -127,12 +127,12 @@ function test_send_enabled_prefilled_address_from_identity() {
   let identityWithoutCC = account.identities.queryElementAt(1, Ci.nsIMsgIdentity);
   assert_false(identityWithoutCC.doCc);
   cwc.click_menus_in_sequence(cwc.e("msgIdentityPopup"),
-                              [ { value: identityWithoutCC.key } ]);
+                              [ { identitykey: identityWithoutCC.key } ]);
   check_send_commands_state(cwc, false);
 
   // Check the first identity again.
   cwc.click_menus_in_sequence(cwc.e("msgIdentityPopup"),
-                              [ { value: identityWithCC.key } ]);
+                              [ { identitykey: identityWithCC.key } ]);
   check_send_commands_state(cwc, true);
 
   close_compose_window(cwc);
@@ -161,6 +161,10 @@ function test_send_enabled_address_contacts_sidebar() {
   let sidebar = cwc.e("sidebar");
   wait_for_frame_load(sidebar,
     "chrome://messenger/content/addressbook/abContactsPanel.xul");
+
+  let abTree = sidebar.contentDocument.getElementById("abResultsTree");
+  click_tree_row(abTree, 0, cwc);
+
   sidebar.contentDocument.getElementById("ccButton").click();
 
   // The recipient is filled in, Send must be enabled.

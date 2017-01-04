@@ -5,3 +5,11 @@
 
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']
 
+GoannaCppUnitTests([
+    'TestMailCookie',
+])
+
+LOCAL_INCLUDES += [
+    '/mozilla/netwerk/test',
+    '/mozilla/xpcom/tests',
+]

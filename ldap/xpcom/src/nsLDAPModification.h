@@ -21,17 +21,18 @@
 class nsLDAPModification : public nsILDAPModification
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSILDAPMODIFICATION
 
   // constructor & destructor
   //
   nsLDAPModification();
-  virtual ~nsLDAPModification();
 
   nsresult Init();
 
 private:
+  virtual ~nsLDAPModification();
+
   int32_t mOperation;
   nsCString mType;
   nsCOMPtr<nsIMutableArray> mValues;

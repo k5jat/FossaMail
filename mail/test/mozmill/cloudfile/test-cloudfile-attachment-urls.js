@@ -300,7 +300,7 @@ function test_inserts_linebreak_on_empty_compose_with_signature() {
   Services.prefs.setBoolPref(kHtmlPrefKey, false);
 
   // Now let's try with plaintext mail.
-  let cw = open_compose_new_mail();
+  cw = open_compose_new_mail();
   cw.window.attachToCloud(provider);
   [root, list, urls] = wait_for_attachment_urls(cw, kFiles.length);
 
@@ -350,6 +350,8 @@ function subtest_removing_filelinks_removes_root_node() {
     let result = mailBody.querySelector(root.id);
     return (result == null);
   }, "Timed out waiting for attachment container to be removed");
+
+  close_window(cw);
 }
 
 /**
@@ -474,11 +476,10 @@ function subtest_adding_filelinks_to_reply_above(aText) {
   let cw = prepare_some_attachments_and_reply(aText, kFiles);
   let [root, list, urls] = wait_for_attachment_urls(cw, kFiles.length);
 
-  // So, we should have the root, followed by a br
-  let br = root.nextSibling;
-  assert_equals(br.localName, "br",
-                "The attachment URL containment node should be followed by " +
-                " a br");
+  // If there's any text written, then there's only a single break between the
+  // end of the text and the reply. Otherwise, there are two breaks.
+  let br = aText.length > 1 ? assert_next_nodes("br", root, 2)
+                            : assert_next_nodes("br", root, 1);
 
   // ... which is followed by a div with a class of "moz-cite-prefix".
   let div = br.nextSibling;
@@ -656,6 +657,8 @@ function subtest_adding_filelinks_to_forward(aText, aWithSig) {
     let mailBody = get_compose_body(cw);
     assert_equals(br, mailBody.firstChild);
   }
+
+  close_window(cw);
 }
 
 /**
@@ -697,6 +700,8 @@ function subtest_converting_filelink_updates_urls() {
     assert_not_equals(url, newUrl,
                       "The original URL should have been replaced");
   }
+
+  close_window(cw);
 }
 
 /**
@@ -737,6 +742,8 @@ function subtest_converting_filelink_to_normal_removes_url() {
   root = mailBody.querySelector("#cloudAttachmentListRoot");
   if (root)
     throw new Error("Should not have found the cloudAttachmentListRoot");
+
+  close_window(cw);
 }
 
 /**
@@ -764,12 +771,13 @@ function subtest_filelinks_work_after_manual_removal() {
   let [root, list, urls] = wait_for_attachment_urls(cw, kFiles.length);
 
   // Now remove the root node from the document body
-  let mailBody = get_compose_body(cw);
-  mailBody.removeChild(root);
+  root.remove();
 
   gMockFilePicker.returnFiles = collectFiles(["./data/testFile3"], __file__);
   cw.window.attachToCloud(provider);
   [root, list, urls] = wait_for_attachment_urls(cw, 1);
+
+  close_window(cw);
 }
 
 /**
@@ -811,4 +819,6 @@ function subtest_insertion_restores_caret_point() {
 
   // That text should be inserted just above the root attachment URL node.
   let textNode = assert_previous_text(root.previousSibling, [kTypedIn]);
+
+  close_window(cw);
 }

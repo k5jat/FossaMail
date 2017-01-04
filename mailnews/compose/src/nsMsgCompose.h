@@ -35,10 +35,9 @@ class nsMsgCompose : public nsIMsgCompose, public nsSupportsWeakReference
  public: 
 
 	nsMsgCompose();
-	virtual ~nsMsgCompose();
 
 	/* this macro defines QueryInterface, AddRef and Release for this class */
-	NS_DECL_ISUPPORTS
+	NS_DECL_THREADSAFE_ISUPPORTS
 
 	/*** nsIMsgCompose pure virtual functions */
 	NS_DECL_NSIMSGCOMPOSE
@@ -47,6 +46,7 @@ class nsMsgCompose : public nsIMsgCompose, public nsSupportsWeakReference
   NS_DECL_NSIMSGSENDLISTENER
 
 private:
+	virtual ~nsMsgCompose();
 
  // Deal with quoting issues...
 	nsresult                      QuoteOriginalMessage(); // New template
@@ -77,19 +77,24 @@ private:
                                        const nsAString &classStr);
 
  private:
-  nsresult _SendMsg(MSG_DeliverMode deliverMode, nsIMsgIdentity *identity, const char *accountKey, bool entityConversionDone);
+  nsresult _SendMsg(MSG_DeliverMode deliverMode, nsIMsgIdentity *identity, const char *accountKey);
   nsresult CreateMessage(const char * originalMsgURI, MSG_ComposeType type, nsIMsgCompFields* compFields);
   void CleanUpRecipients(nsString& recipients);
   nsresult GetABDirectories(const nsACString& aDirUri,
                             nsCOMArray<nsIAbDirectory> &aDirArray);
   nsresult BuildMailListArray(nsIAbDirectory* parentDir,
                               nsTArray<nsMsgMailList>& array);
-  nsresult GetMailListAddresses(nsString& name,
-                                nsTArray<nsMsgMailList>& mailListArray,
-                                nsIMutableArray** addresses);
   nsresult TagConvertible(nsIDOMNode *node,  int32_t *_retval);
   nsresult _BodyConvertible(nsIDOMNode *node, int32_t *_retval);
 
+// 3 = To, Cc, Bcc
+#define MAX_OF_RECIPIENT_ARRAY 3
+  typedef nsTArray<nsMsgRecipient> RecipientsArray[MAX_OF_RECIPIENT_ARRAY];
+  /**
+   * This method parses the compose fields and associates email addresses with
+   * the relevant cards from the address books.
+   */
+  nsresult LookupAddressBook(RecipientsArray &recipientList);
   bool IsLastWindow();
  
        // Helper function. Parameters are not checked.
@@ -148,7 +153,6 @@ public:
                                 bool charetOverride, 
                                 bool quoteOriginal,
                                 const nsACString& htmlToQuote);
-    virtual ~QuotingOutputStreamListener(void);
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIREQUESTOBSERVER
@@ -161,6 +165,7 @@ public:
     NS_IMETHOD AppendToMsgBody(const nsCString &inStr);
 
 private:
+    virtual ~QuotingOutputStreamListener();
     nsWeakPtr                 mWeakComposeObj;
     nsString       				    mMsgBody;
     nsString       				    mCitePrefix;
@@ -174,7 +179,7 @@ private:
     nsCOMPtr<nsIMimeConverter> mMimeConverter;
     nsCOMPtr<nsIUnicodeDecoder> mUnicodeDecoder;
     int32_t                   mUnicodeBufferCharacterLength;
-    PRUnichar*                mUnicodeConversionBuffer;
+    char16_t*                mUnicodeConversionBuffer;
     bool                      mQuoteOriginal;
     nsCString                 mHtmlToQuote;
 };
@@ -187,7 +192,6 @@ class nsMsgComposeSendListener : public nsIMsgComposeSendListener, public nsIMsg
 {
 public:
   nsMsgComposeSendListener(void);
-  virtual ~nsMsgComposeSendListener(void);
 
   // nsISupports interface
   NS_DECL_ISUPPORTS
@@ -208,6 +212,7 @@ public:
   nsresult    GetMsgFolder(nsIMsgCompose *compObj, nsIMsgFolder **msgFolder);
 
 private:
+  virtual ~nsMsgComposeSendListener();
   nsWeakPtr               mWeakComposeObj;
 	MSG_DeliverMode         mDeliverMode;
 };
@@ -219,7 +224,8 @@ struct nsMsgMailList
 {
   explicit nsMsgMailList(nsIAbDirectory* directory);
 
-  nsString mFullName;  /* full email address (name + email) */
+  nsString mName;
+  nsString mDescription;
   nsCOMPtr<nsIAbDirectory> mDirectory;
 };
 

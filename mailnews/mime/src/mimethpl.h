@@ -26,7 +26,10 @@ extern MimeInlineTextHTMLAsPlaintextClass mimeInlineTextHTMLAsPlaintextClass;
 
 struct MimeInlineTextHTMLAsPlaintext {
   MimeInlineTextPlain  plaintext;
-  nsString             *complete_buffer;  // Gecko parser expects wide strings
+  nsString             *complete_buffer;  // Goanna parser expects wide strings
 };
+
+#define MimeInlineTextHTMLAsPlaintextClassInitializer(ITYPE,CSUPER) \
+  { MimeInlineTextPlainClassInitializer(ITYPE,CSUPER) }
 
 #endif /* _MIMETHPL_H_ */

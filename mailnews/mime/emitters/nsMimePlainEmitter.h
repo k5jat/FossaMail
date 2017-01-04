@@ -5,6 +5,7 @@
 #ifndef _nsMimePlainEmitter_h_
 #define _nsMimePlainEmitter_h_
 
+#include "mozilla/Attributes.h"
 #include "prio.h"
 #include "nsMimeBaseEmitter.h"
 #include "nsMimeRebuffer.h"
@@ -20,11 +21,11 @@ public:
 
     // Header handling routines.
     NS_IMETHOD    StartHeader(bool rootMailHeader, bool headerOnly, const char *msgID,
-                              const char *outCharset);
-    NS_IMETHOD    AddHeaderField(const char *field, const char *value);
-    NS_IMETHOD    EndHeader();
+                              const char *outCharset) override;
+    NS_IMETHOD    AddHeaderField(const char *field, const char *value) override;
+    NS_IMETHOD    EndHeader(const nsACString &buf) override;
 
-    NS_IMETHOD    WriteBody(const nsACString &buf, uint32_t *amountWritten);
+    NS_IMETHOD    WriteBody(const nsACString &buf, uint32_t *amountWritten) override;
 };
 
 #endif /* _nsMimePlainEmitter_h_ */

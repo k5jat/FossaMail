@@ -1,6 +1,8 @@
+%if 0
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+%endif
 
 %include ../../../components/im/themes/chat.css
 
@@ -73,7 +75,13 @@
 
 .conv-textbox {
   -moz-appearance: none;
-  border: none;
+  /* Right/left margins so the borders show up on all sides. */
+  margin: 0 1px 0 1px;
+}
+
+.conv-counter[value^="-"] {
+  -moz-margin-end: 2px;
+  -moz-padding-end: 4px;
 }
 
 #contextPane {

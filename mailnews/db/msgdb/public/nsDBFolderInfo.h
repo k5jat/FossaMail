@@ -9,6 +9,7 @@
 #ifndef _nsDBFolderInfo_H
 #define _nsDBFolderInfo_H
 
+#include "mozilla/MemoryReporting.h"
 #include "nsStringGlue.h"
 #include "MailNewsTypes.h"
 #include "mdb.h"
@@ -31,7 +32,6 @@ public:
   friend class nsMsgDatabase;
   
   nsDBFolderInfo(nsMsgDatabase *mdb);
-  virtual ~nsDBFolderInfo();
   
   NS_DECL_ISUPPORTS
     // interface methods.
@@ -50,6 +50,7 @@ public:
   // get and set arbitrary property, aka row cell value.
   nsresult SetPropertyWithToken(mdb_token aProperty, const nsAString &propertyStr);
   nsresult SetUint32PropertyWithToken(mdb_token aProperty, uint32_t propertyValue);
+  nsresult SetUint64PropertyWithToken(mdb_token aProperty, uint64_t propertyValue);
   nsresult SetInt32PropertyWithToken(mdb_token aProperty, int32_t propertyValue);
   nsresult GetPropertyWithToken(mdb_token aProperty, nsAString &resultProperty);
   nsresult GetUint32PropertyWithToken(mdb_token aProperty, uint32_t &propertyValue, uint32_t defaultValue = 0);
@@ -60,15 +61,16 @@ public:
 
   nsTArray<nsMsgKey> m_lateredKeys; // list of latered messages
 
-  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   {
     return m_lateredKeys.SizeOfExcludingThis(aMallocSizeOf);
   }
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
   }
 protected:
+  virtual ~nsDBFolderInfo();
 
   // initialize from appropriate table and row in existing db.
   nsresult InitMDBInfo();
@@ -78,8 +80,8 @@ protected:
 
   void ReleaseExternalReferences(); // let go of any references to other objects.
 
-  uint64_t  m_folderSize;
-  int32_t   m_expungedBytes; // sum of size of deleted messages in folder
+  uint64_t  m_folderSize;    // TODO: In nsIMsgFolder folder size is int64_t.
+  int64_t   m_expungedBytes; // sum of size of deleted messages in folder
   uint32_t  m_folderDate;
   nsMsgKey  m_highWaterMessageKey; // largest news article number or imap uid whose header we've seen
 

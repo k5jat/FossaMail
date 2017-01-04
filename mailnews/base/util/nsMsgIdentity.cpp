@@ -17,7 +17,6 @@
 #include "nsIMsgAccountManager.h"
 #include "nsMsgBaseCID.h"
 #include "prprf.h"
-#include "nsISupportsObsolete.h"
 #include "nsISupportsPrimitives.h"
 #include "nsMsgUtils.h"
 #include "nsServiceManagerUtils.h"
@@ -28,7 +27,7 @@ static NS_DEFINE_CID(kRDFServiceCID, NS_RDFSERVICE_CID);
 
 #define REL_FILE_PREF_SUFFIX "-rel"
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsMsgIdentity,
+NS_IMPL_ISUPPORTS(nsMsgIdentity,
                    nsIMsgIdentity)
 
 /*

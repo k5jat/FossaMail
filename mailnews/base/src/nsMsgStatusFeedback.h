@@ -23,14 +23,15 @@ class nsMsgStatusFeedback : public nsIMsgStatusFeedback,
 {
 public:
   nsMsgStatusFeedback();
-  virtual ~nsMsgStatusFeedback();
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIMSGSTATUSFEEDBACK
   NS_DECL_NSIWEBPROGRESSLISTENER
   NS_DECL_NSIPROGRESSEVENTSINK
 
 protected:
+  virtual ~nsMsgStatusFeedback();
+
   bool             m_meteorsSpinning;
   int32_t          m_lastPercent;
   int64_t          m_lastProgressTime;

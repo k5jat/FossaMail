@@ -9,8 +9,6 @@
   %messengerDTD;
   <!ENTITY % msgViewPickerDTD SYSTEM "chrome://messenger/locale/msgViewPickerOverlay.dtd" >
   %msgViewPickerDTD;
-  <!ENTITY % msgFolderPickerDTD SYSTEM "chrome://messenger/locale/msgFolderPickerOverlay.dtd" >
-  %msgFolderPickerDTD;
   <!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd">
   %brandDTD;
 ]>
@@ -31,7 +29,7 @@
                  align="center"
                  flex="1"
                  class="chromeclass-toolbar-additional">
-        <textbox id="searchInput" 
+        <textbox id="searchInput"
                  flex="1"
                  type="glodacomplete"
                  searchbutton="true"
@@ -80,7 +78,6 @@
                    class="menulist-menupopup"
                    type="folder"
                    flex="1"
-                   fileHereLabel="&filemessageschoosethis.label;"
                    showFileHereLabel="true"
                    oncommand="gFolderTreeView.selectFolder(event.target._folder);"/>
       </menulist>

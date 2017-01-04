@@ -38,8 +38,6 @@ interface nsIDBFolderInfo;
 interface nsIMsgOfflineImapOperation;
 interface nsIMsgFolder;
 interface nsIMsgKeyArray;
-interface nsIOutputStream;
-interface nsIUrlListener;
 interface nsIFile;
 interface nsIArray;
 
@@ -103,7 +101,7 @@ interface nsMsgDBCommitType
  * The contract ID for this component is
  * <tt>\@mozilla.org/msgDatabase/msgDBService;1</tt>.
  */
-[scriptable, uuid(e4743a99-ca44-4647-87b4-d73a444226b3)]
+[scriptable, uuid(4cbbf024-3760-402d-89f3-6ababafeb07d)]
 interface nsIMsgDBService : nsISupports
 {
   /**
@@ -234,13 +232,19 @@ interface nsIMsgDBService : nsISupports
    */
   nsIMsgDatabase cachedDBForFolder(in nsIMsgFolder aFolder);
 
+  /**
+   * Close the db for a folder, if already open.
+   *
+   * @param aFolder   The folder to close the cached (open) db for.
+   */
+  void forceFolderDBClosed(in nsIMsgFolder aFolder);
+
   /// an enumerator to iterate over the open dbs.
   readonly attribute nsIArray openDBs;
 };
 
-[scriptable, uuid(09839bbb-d55c-4d38-a006-8f9eb4894774)]
+[scriptable, uuid(b64e66f8-4717-423a-be42-482658fb2199)]
 interface nsIMsgDatabase : nsIDBChangeAnnouncer {
-  void forceFolderDBClosed(in nsIMsgFolder aFolder);
   void Close(in boolean aForceCommit);
 
   void Commit(in nsMsgDBCommit commitType);
@@ -251,6 +255,9 @@ interface nsIMsgDatabase : nsIDBChangeAnnouncer {
   void resetHdrCacheSize(in unsigned long size);
 
   readonly attribute nsIDBFolderInfo  dBFolderInfo;
+
+  /// Size of the database file in bytes.
+  readonly attribute long long databaseSize;
 
   /// Folder this db was opened on.
   readonly attribute nsIMsgFolder folder;
@@ -293,6 +300,11 @@ interface nsIMsgDatabase : nsIDBChangeAnnouncer {
 
   nsIMsgDBHdr CopyHdrFromExistingHdr(in nsMsgKey key, in nsIMsgDBHdr existingHdr, in boolean addHdrToDB);
 
+  /**
+   * Returns all message keys stored in the database.
+   * Keys are returned in the order as stored in the database.
+   * The caller should sort them if it needs to.
+   */
   void ListAllKeys(in nsIMsgKeyArray array);
 
   nsISimpleEnumerator EnumerateMessages();

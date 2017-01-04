@@ -33,9 +33,9 @@ public:
   NS_DECL_NSIMSGSMIMECOMPFIELDS
 
   nsMsgSMIMEComposeFields();
-  virtual ~nsMsgSMIMEComposeFields();
 
 private:
+  virtual ~nsMsgSMIMEComposeFields();
   bool mSignMessage;
   bool mAlwaysEncryptMessage;
 };
@@ -55,10 +55,10 @@ public:
   NS_DECL_NSIMSGCOMPOSESECURE
 
   nsMsgComposeSecure();
-  virtual ~nsMsgComposeSecure();
   /* additional members */
   void GetOutputStream(nsIOutputStream **stream) { NS_IF_ADDREF(*stream = mStream);}
 private:
+  virtual ~nsMsgComposeSecure();
   typedef mozilla::mailnews::MimeEncoder MimeEncoder;
   nsresult MimeInitMultipartSigned(bool aOuter, nsIMsgSendReport *sendReport);
   nsresult MimeInitEncryption(bool aSign, nsIMsgSendReport *sendReport);
@@ -66,12 +66,12 @@ private:
   nsresult MimeFinishEncryption (bool aSign, nsIMsgSendReport *sendReport);
   nsresult MimeCryptoHackCerts(const char *aRecipients, nsIMsgSendReport *sendReport, bool aEncrypt, bool aSign);
   bool InitializeSMIMEBundle();
-  nsresult GetSMIMEBundleString(const PRUnichar *name,
-				PRUnichar **outString);
-  nsresult SMIMEBundleFormatStringFromName(const PRUnichar *name,
-					   const PRUnichar **params,
+  nsresult GetSMIMEBundleString(const char16_t *name,
+				char16_t **outString);
+  nsresult SMIMEBundleFormatStringFromName(const char16_t *name,
+					   const char16_t **params,
 					   uint32_t numParams,
-					   PRUnichar **outString);
+					   char16_t **outString);
   nsresult ExtractEncryptionState(nsIMsgIdentity * aIdentity, nsIMsgCompFields * aComposeFields, bool * aSignMessage, bool * aEncrypt);
 
   mimeDeliveryCryptoState mCryptoState;
@@ -97,8 +97,8 @@ private:
   uint32_t mBufferedBytes;
 
   bool mErrorAlreadyReported;
-  void SetError(nsIMsgSendReport *sendReport, const PRUnichar *bundle_string);
-  void SetErrorWithParam(nsIMsgSendReport *sendReport, const PRUnichar *bundle_string, const char *param);
+  void SetError(nsIMsgSendReport *sendReport, const char16_t *bundle_string);
+  void SetErrorWithParam(nsIMsgSendReport *sendReport, const char16_t *bundle_string, const char *param);
 };
 
 #endif

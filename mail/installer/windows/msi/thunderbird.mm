@@ -7,9 +7,9 @@
 
 <$AbortIf Condition=^not VersionNT OR (VersionNT < 400)^ Message=^Can only be installed on WinNT, Windows 2000, XP or greater.^>
 
-<$DirectoryTree Key="INSTALLDIR" DIR="[ProgramFilesFolder]\FossaMail Installer" CHANGE="\" PrimaryFolder="Y">
+<$DirectoryTree Key="INSTALLDIR" DIR="[ProgramFilesFolder]\Mozilla Thunderbird Installer" CHANGE="\" PrimaryFolder="Y">
 
-<$Feature "F_ThunderbirdMain" Title="Browser" Description="FossaMail installer files" Attributes="FavorLocal">
+<$Feature "F_ThunderbirdMain" Title="Browser" Description="Thunderbird installer files" Attributes="FavorLocal">
         
     <$Icon KEY="@Thunderbirdicon" "..\branding\thunderbird.ico">
 

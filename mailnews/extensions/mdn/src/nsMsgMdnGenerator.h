@@ -31,9 +31,10 @@ public:
   NS_DECL_NSIURLLISTENER
 
   nsMsgMdnGenerator();
-  virtual ~nsMsgMdnGenerator();
 
 private:
+  virtual ~nsMsgMdnGenerator();
+
   // Sanity Check methods
   bool ProcessSendMode(); // must called prior ValidateReturnPath
   bool ValidateReturnPath();
@@ -51,10 +52,10 @@ private:
   nsresult SendMdnMsg();
 
   // string bundle helper methods
-  nsresult GetStringFromName(const PRUnichar *aName, PRUnichar **aResultString);
-  nsresult FormatStringFromName(const PRUnichar *aName,
-                                const PRUnichar *aString,
-                                PRUnichar **aResultString);
+  nsresult GetStringFromName(const char16_t *aName, char16_t **aResultString);
+  nsresult FormatStringFromName(const char16_t *aName,
+                                const char16_t *aString,
+                                char16_t **aResultString);
 
   // other helper methods
   nsresult InitAndProcess(bool *needToAskUser);

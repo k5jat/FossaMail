@@ -137,7 +137,6 @@ public:
   // need to call Initialize after we do a new of nsNNTPProtocol
   nsNNTPProtocol(nsINntpIncomingServer *aServer, nsIURI *aURL,
                  nsIMsgWindow *aMsgWindow);
-  virtual ~nsNNTPProtocol();
 
   // stop binding is a "notification" informing us that the stream associated with aURL is going away.
   NS_IMETHOD OnStopRequest(nsIRequest *request, nsISupports * aCtxt, nsresult aStatus);
@@ -153,6 +152,7 @@ public:
   nsresult LoadUrl(nsIURI * aURL, nsISupports * aConsumer);
 
 private:
+  virtual ~nsNNTPProtocol();
   /**
    * Triggers the protocol state machine.
    * Most of the time, this machine will read as much input as it can before
@@ -251,8 +251,8 @@ private:
 
   nsCOMPtr<nsINntpIncomingServer> m_nntpServer;
 
-  nsresult GetNewsStringByName(const char *aName, PRUnichar **aString);
-  nsresult GetNewsStringByID(int32_t stringID, PRUnichar **aString);
+  nsresult GetNewsStringByName(const char *aName, char16_t **aString);
+  nsresult GetNewsStringByID(int32_t stringID, char16_t **aString);
 
   nsresult PostMessageInFile(nsIFile * filePath);
 
@@ -479,7 +479,7 @@ private:
   nsresult ParseURL(nsIURI *aURL, nsCString &aGroup, nsCString &aMessageID);
 
   void SetProgressBarPercent(uint32_t aProgress, uint32_t aProgressMax);
-  nsresult SetProgressStatus(const PRUnichar *aMessage);
+  nsresult SetProgressStatus(const char16_t *aMessage);
   nsresult InitializeNewsFolderFromUri(const char *uri);
   void TimerCallback();
 

@@ -7,14 +7,10 @@
  * folder-display/test-message-pane-visibility.js.
  */
 
-var MODULE_NAME = "test-session-store";
+const MODULE_NAME = "test-session-store";
 
-var RELATIVE_ROOT = "../shared-modules";
-var MODULE_REQUIRES = ["folder-display-helpers", "window-helpers"];
-
-var Cc = Components.classes;
-var Ci = Components.interfaces;
-var Cu = Components.utils;
+const RELATIVE_ROOT = "../shared-modules";
+const MODULE_REQUIRES = ["folder-display-helpers", "window-helpers"];
 
 var controller = {};
 Cu.import("resource://mozmill/modules/controller.js", controller);
@@ -25,10 +21,10 @@ Cu.import("resource:///modules/IOUtils.js");
 Cu.import("resource:///modules/sessionStoreManager.js");
 Cu.import("resource://gre/modules/Services.jsm");
 
-// the windowHelper module
-var windowHelper;
-
 var folderA, folderB;
+
+// With async file writes, use a delay larger than the session autosave timer.
+const asyncFileWriteDelayMS = 1000;
 
 /* ........ Helper Functions ................*/
 
@@ -50,36 +46,36 @@ function readFile() {
 }
 
 function waitForFileRefresh() {
-  controller.sleep(sessionStoreManager._sessionAutoSaveTimerIntervalMS);
+  controller.sleep(sessionStoreManager._sessionAutoSaveTimerIntervalMS +
+                   asyncFileWriteDelayMS);
   jumlib.assert(sessionStoreManager.sessionFile.exists(),
                 "file should exist");
 }
 
 function open3PaneWindow() {
-  windowHelper.plan_for_new_window("mail:3pane");
+  plan_for_new_window("mail:3pane");
   Services.ww.openWindow(null,
                          "chrome://messenger/content/messenger.xul", "",
                          "all,chrome,dialog=no,status,toolbar",
                          null);
-  return windowHelper.wait_for_new_window("mail:3pane");
+  return wait_for_new_window("mail:3pane");
 }
 
 function openAddressBook() {
-  windowHelper.plan_for_new_window("mail:addressbook");
+  plan_for_new_window("mail:addressbook");
   Services.ww.openWindow(null,
                          "chrome://messenger/content/addressbook/addressbook.xul", "",
                          "all,chrome,dialog=no,status,toolbar",
                          null);
-  return windowHelper.wait_for_new_window("mail:addressbook");
+  return wait_for_new_window("mail:addressbook");
 }
 
 /* :::::::: The Tests ::::::::::::::: */
 
 function setupModule(module) {
-  let folderDisplayHelper = collector.getModule('folder-display-helpers');
-  folderDisplayHelper.installInto(module);
-  windowHelper = collector.getModule('window-helpers');
-  windowHelper.installInto(module);
+  for (let lib of MODULE_REQUIRES) {
+    collector.getModule(lib).installInto(module);
+  }
 
   folderA = create_folder("SessionStoreA");
   make_new_sets_in_folder(folderA, [{count: 3}]);
@@ -89,9 +85,13 @@ function setupModule(module) {
 
   // clobber the default interval used by the session autosave timer so the
   // unit tests end up being as close to instantaneous as possible
-  sessionStoreManager._sessionAutoSaveTimerIntervalMS = 10;
+  sessionStoreManager._sessionAutoSaveTimerIntervalMS = 100;
 
   sessionStoreManager.stopPeriodicSave();
+
+  // Opt out of calendar promotion so we don't show the "ligthing now
+  // integrated" notification bar (which gives us unexpected heights).
+  Services.prefs.setBoolPref("calendar.integration.notify", false);
 }
 
 function teardownTest(test) {
@@ -103,6 +103,9 @@ function teardownModule(module) {
   // value
   sessionStoreManager._sessionAutoSaveTimerIntervalMS =
                               sessionStoreManager.SESSION_AUTO_SAVE_DEFAULT_MS;
+  folderA.Delete();
+  folderB.Delete();
+  Services.prefs.clearUserPref("calendar.integration.notify");
 }
 
 function test_periodic_session_persistence_simple() {
@@ -135,7 +138,8 @@ function test_periodic_nondirty_session_persistence() {
 
   // since we didn't change the state of the session, the session file
   // should not be re-created
-  controller.sleep(sessionStoreManager._sessionAutoSaveTimerIntervalMS);
+  controller.sleep(sessionStoreManager._sessionAutoSaveTimerIntervalMS +
+                   asyncFileWriteDelayMS);
   jumlib.assert(!sessionFile.exists(), "file should not exist");
 }
 
@@ -175,6 +179,9 @@ function test_restore_single_3pane_persistence() {
 
   // close the 3pane window
   mail3PaneWindow.close();
+  // Wait for window close async session write to finish.
+  controller.sleep(sessionStoreManager._sessionAutoSaveTimerIntervalMS +
+                   asyncFileWriteDelayMS);
 
   mc = open3PaneWindow();
   be_in_folder(folderA);
@@ -228,12 +235,15 @@ function test_message_pane_height_persistence() {
 
   // The 3pane window is closed.
   mail3PaneWindow.close();
+  // Wait for window close async session write to finish.
+  controller.sleep(sessionStoreManager._sessionAutoSaveTimerIntervalMS +
+                   asyncFileWriteDelayMS);
 
   mc = open3PaneWindow();
   be_in_folder(folderA);
   assert_message_pane_visible();
 
-  let actualHeight = mc.e("messagepaneboxwrapper").boxObject.height;
+  actualHeight = mc.e("messagepaneboxwrapper").boxObject.height;
 
   assert_equals(newHeight, actualHeight,
     "The message pane height should be " + newHeight + ", but is actually " +
@@ -244,12 +254,15 @@ function test_message_pane_height_persistence() {
 
   // The 3pane window is closed.
   mail3PaneWindow.close();
+  // Wait for window close async session write to finish.
+  controller.sleep(sessionStoreManager._sessionAutoSaveTimerIntervalMS +
+                   asyncFileWriteDelayMS);
 
   mc = open3PaneWindow();
   be_in_folder(folderA);
   assert_message_pane_visible();
 
-  let actualHeight = mc.e("messagepaneboxwrapper").boxObject.height;
+  actualHeight = mc.e("messagepaneboxwrapper").boxObject.height;
   assert_equals(oldHeight, actualHeight,
     "The message pane height should be " + oldHeight + ", but is actually " +
     actualHeight);
@@ -302,19 +315,22 @@ function test_message_pane_width_persistence() {
 
   // The 3pane window is closed.
   mail3PaneWindow.close();
+  // Wait for window close async session write to finish.
+  controller.sleep(sessionStoreManager._sessionAutoSaveTimerIntervalMS +
+                   asyncFileWriteDelayMS);
 
   mc = open3PaneWindow();
   be_in_folder(folderA);
   assert_message_pane_visible();
   assert_pane_layout(kVerticalMailLayout);
 
-  let actualWidth = mc.e("messagepaneboxwrapper").boxObject.width;
+  actualWidth = mc.e("messagepaneboxwrapper").boxObject.width;
   assert_equals(newWidth, actualWidth, "The message pane width should be " +
     newWidth + ", but is actually " + actualWidth);
 
   // The old width is restored.
   _move_splitter(mc.e("threadpane-splitter"), -diffWidth, 0);
-  let actualWidth = mc.e("messagepaneboxwrapper").boxObject.width;
+  actualWidth = mc.e("messagepaneboxwrapper").boxObject.width;
 
   // FIXME: For whatever reasons the new width is off by two pixels on Mac OSX
   // But this test case is not for testing moving around a splitter but for
@@ -327,13 +343,16 @@ function test_message_pane_width_persistence() {
 
   // The 3pane window is closed.
   mail3PaneWindow.close();
+  // Wait for window close async session write to finish.
+  controller.sleep(sessionStoreManager._sessionAutoSaveTimerIntervalMS +
+                   asyncFileWriteDelayMS);
 
   mc = open3PaneWindow();
   be_in_folder(folderA);
   assert_message_pane_visible();
   assert_pane_layout(kVerticalMailLayout);
 
-  let actualWidth = mc.e("messagepaneboxwrapper").boxObject.width;
+  actualWidth = mc.e("messagepaneboxwrapper").boxObject.width;
   assert_equals(oldWidth, actualWidth, "The message pane width should be " +
     oldWidth + ", but is actually " + actualWidth);
 
@@ -401,7 +420,11 @@ function test_bad_session_file_simple() {
   jumlib.assert(!sessionStoreManager._initialState,
                 "saved state is bad so state object should be null");
 
-  // the bad session file should have also been deleted
+  // Wait for bad file async rename to finish.
+  controller.sleep(sessionStoreManager._sessionAutoSaveTimerIntervalMS +
+                   asyncFileWriteDelayMS);
+
+  // The bad session file should now not exist.
   jumlib.assert(!sessionStoreManager.sessionFile.exists(),
                 "file should not exist");
 }
@@ -425,8 +448,12 @@ function test_clean_shutdown_session_persistence_simple() {
     if (!enumerator.hasMoreElements())
       lastWindowState = window.getWindowStateForSessionPersistence();
 
-    window.close();
+    close_window(new mozmill.controller.MozMillController(window));
   }
+
+  // Wait for window close async session write to finish.
+  controller.sleep(sessionStoreManager._sessionAutoSaveTimerIntervalMS +
+                   asyncFileWriteDelayMS);
 
   // load the saved state from disk
   let loadedState = readFile();

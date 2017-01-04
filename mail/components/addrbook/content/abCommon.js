@@ -1,3 +1,5 @@
+/* -*- Mode: javascript; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 ; js-indent-level: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10,10 +12,17 @@ var abList = 0;
 var gAbResultsTree = null;
 var gAbView = null;
 var gAddressBookBundle;
+// A boolean variable determining whether AB column should be shown in AB
+// sidebar in compose window.
+var gShowAbColumnInComposeSidebar = false;
 
 const kDefaultSortColumn = "GeneratedName";
 const kDefaultAscending = "ascending";
 const kDefaultDescending = "descending";
+// kDefaultYear will be used in birthday calculations when no year is given;
+// this is a leap year so that Feb 29th works.
+const kDefaultYear = 2000;
+const kAllDirectoryRoot = "moz-abdirectory://";
 const kLdapUrlPrefix = "moz-abldapdirectory://";
 const kPersonalAddressbookURI = "moz-abmdbdirectory://abook.mab";
 const kCollectedAddressbookURI = "moz-abmdbdirectory://history.mab";
@@ -33,10 +42,11 @@ var DirPaneController =
       case "cmd_selectAll":
       case "cmd_delete":
       case "button_delete":
-      case "button_edit":
+      case "cmd_properties":
       case "cmd_printcard":
       case "cmd_printcardpreview":
       case "cmd_newlist":
+      case "cmd_newCard":
         return true;
       default:
         return false;
@@ -63,8 +73,9 @@ var DirPaneController =
                                   "valueList" : "valueAddressBook");
 
         if (selectedDir &&
-	    (selectedDir != kPersonalAddressbookURI) &&
-	    (selectedDir != kCollectedAddressbookURI)) {
+            (selectedDir != kPersonalAddressbookURI) &&
+            (selectedDir != kCollectedAddressbookURI) &&
+            (selectedDir != (kAllDirectoryRoot + "?"))) {
           // If the directory is a mailing list, and it is read-only, return
           // false.
           var abDir = GetDirectoryFromURI(selectedDir);
@@ -94,17 +105,11 @@ var DirPaneController =
       case "cmd_printcard":
       case "cmd_printcardpreview":
         return (GetSelectedCardIndex() != -1);
-      case "button_edit":
+      case "cmd_properties":
         return (GetSelectedDirectory() != null);
       case "cmd_newlist":
-        selectedDir = GetSelectedDirectory();
-        if (selectedDir) {
-          var abDir = GetDirectoryFromURI(selectedDir);
-          if (abDir) {
-            return abDir.supportsMailingLists;
-          }
-        }
-        return false;
+      case "cmd_newCard":
+        return true;
       default:
         return false;
     }
@@ -123,11 +128,14 @@ var DirPaneController =
         if (gDirTree)
           AbDeleteSelectedDirectory();
         break;
-      case "button_edit":
+      case "cmd_properties":
         AbEditSelectedDirectory();
         break;
       case "cmd_newlist":
         AbNewList();
+        break;
+      case "cmd_newCard":
+        AbNewCard();
         break;
     }
   },
@@ -253,6 +261,12 @@ function InitCommonJS()
   gDirTree = document.getElementById("dirTree");
   abList = document.getElementById("addressbookList");
   gAddressBookBundle = document.getElementById("bundle_addressBook");
+
+  // Make an entry for "All Address Books".
+  if (abList) {
+    abList.insertItemAt(0, gAddressBookBundle.getString("allAddressBooks"),
+                        kAllDirectoryRoot + "?");
+  }
 }
 
 function AbDelete()
@@ -277,8 +291,28 @@ function AbDelete()
       confirmDeleteMessage = gAddressBookBundle.getString("confirmDeleteContacts");
   }
 
-  if (confirmDeleteMessage && Services.prompt.confirm(window, null, confirmDeleteMessage))
-    gAbView.deleteSelectedCards();
+  if (confirmDeleteMessage &&
+      Services.prompt.confirm(window, null, confirmDeleteMessage)) {
+    if (GetSelectedDirectory() != (kAllDirectoryRoot + "?")) {
+      gAbView.deleteSelectedCards();
+    } else {
+      let cards = GetSelectedAbCards();
+      for (let i = 0; i < cards.length; i++) {
+        let dirId = cards[i].directoryId
+                            .substring(0, cards[i].directoryId.indexOf("&"));
+        let directory = MailServices.ab.getDirectoryFromId(dirId);
+
+        let cardArray =
+          Components.classes["@mozilla.org/array;1"]
+                    .createInstance(Components.interfaces.nsIMutableArray);
+        cardArray.appendElement(cards[i], false);
+        if (directory)
+          directory.deleteCards(cardArray);
+      }
+
+      SetAbView(kAllDirectoryRoot + "?");
+    }
+  }
 }
 
 function AbNewCard()
@@ -384,26 +418,28 @@ function GetSelectedAddressesFromDirTree()
   return addresses;
 }
 
-// Generate a comma separated list of addresses from a given
-// set of cards.
+// Generate a comma separated list of addresses from a given set of
+// cards.
 function GetAddressesForCards(cards)
 {
   var addresses = "";
 
-  if (!cards)
+  if (!cards) {
+    Components.utils.reportError("GetAddressesForCards: |cards| is null.");
     return addresses;
+  }
 
   var count = cards.length;
-  if (count > 0)
-    addresses += GenerateAddressFromCard(cards[0]);
 
-  for (var i = 1; i < count; i++) {
-    var generatedAddress = GenerateAddressFromCard(cards[i]);
+  // We do not handle the case where there is one or more null-ish
+  // element in the Array.  Always non-null element is pushed into
+  // cards[] array.
 
-    if (generatedAddress)
-      addresses += "," + generatedAddress;
-  }
-  return addresses;
+  let generatedAddresses = cards.map(GenerateAddressFromCard)
+    .filter(function(aAddress) {
+      return aAddress;
+    });
+  return generatedAddresses.join(',');
 }
 
 function SelectFirstAddressBook()
@@ -445,25 +481,29 @@ function DirPaneDoubleClick(event)
 
 function DirPaneSelectionChange()
 {
+  let uri = GetSelectedDirectory();
   // clear out the search box when changing folders...
   onAbClearSearch();
   if (gDirTree && gDirTree.view.selection && gDirTree.view.selection.count == 1) {
     gPreviousDirTreeIndex = gDirTree.currentIndex;
-    ChangeDirectoryByURI(GetSelectedDirectory());
+    ChangeDirectoryByURI(uri);
+    document.getElementById("localResultsOnlyMessage")
+            .setAttribute("hidden",
+                          !gDirectoryTreeView.hasRemoteAB ||
+                          uri != kAllDirectoryRoot + "?");
   }
+
   goUpdateCommand('cmd_newlist');
+  goUpdateCommand('cmd_newCard');
 }
 
-function ChangeDirectoryByURI(uri)
+function ChangeDirectoryByURI(uri = kPersonalAddressbookURI)
 {
-  if (!uri)
-    uri = kPersonalAddressbookURI;
-
   SetAbView(uri);
 
-  // only select the first card if there is a first card
+  // Actively de-selecting if there are any pre-existing selections.
   if (gAbView && gAbView.getCardFromRow(0))
-    SelectFirstCard();
+    gAbView.selection.clearSelection();
   else
     // the selection changes if we were switching directories.
     ResultsPaneSelectionChanged()
@@ -484,10 +524,18 @@ function goNewListDialog(selectedAB)
 
 function goEditListDialog(abCard, listURI)
 {
+  let params = {
+    abCard: abCard,
+    listURI: listURI,
+    refresh: false, // This is an out param, true if OK in dialog is clicked.
+  };
   window.openDialog("chrome://messenger/content/addressbook/abEditListDialog.xul",
                     "",
                     "chrome,modal,resizable=no,centerscreen",
-                    {abCard:abCard, listURI:listURI});
+                    params);
+  if (params.refresh) {
+    ChangeDirectoryByURI(listURI); // force refresh
+  }
 }
 
 function goNewCardDialog(selectedAB)
@@ -552,7 +600,7 @@ function GenerateAddressFromCard(card)
   else
     email = card.primaryEmail;
 
-  return MailServices.headerParser.makeFullAddress(card.displayName, email);
+  return MailServices.headerParser.makeMimeAddress(card.displayName, email);
 }
 
 function GetDirectoryFromURI(uri)
@@ -594,11 +642,84 @@ function GetSelectedDirectory()
   }
 }
 
+/**
+ * There is an exact replica of this method in mailnews/.
+ * We need to remove this duplication with the help of a jsm in mailnews/
+ *
+ * Parse the multiword search string to extract individual search terms
+ * (separated on the basis of spaces) or quoted exact phrases to search
+ * against multiple fields of the addressbook cards.
+ *
+ * @param aSearchString The full search string entered by the user.
+ *
+ * @return an array of separated search terms from the full search string.
+ */
+function getSearchTokens(aSearchString)
+{
+  let searchString = aSearchString.trim();
+  if (searchString == "")
+    return [];
+
+  let quotedTerms = [];
+
+  // Split up multiple search words to create a *foo* and *bar* search against
+  // search fields, using the OR-search template from modelQuery for each word.
+  // If the search query has quoted terms as "foo bar", extract them as is.
+  let startIndex;
+  while ((startIndex = searchString.indexOf('"')) != -1) {
+    let endIndex = searchString.indexOf('"', startIndex + 1);
+    if (endIndex == -1)
+      endIndex = searchString.length;
+
+    quotedTerms.push(searchString.substring(startIndex + 1, endIndex));
+    let query = searchString.substring(0, startIndex);
+    if (endIndex < searchString.length)
+      query += searchString.substr(endIndex + 1);
+
+    searchString = query.trim();
+  }
+
+  let searchWords = [];
+  if (searchString.length != 0) {
+    searchWords = quotedTerms.concat(searchString.split(/\s+/));
+  } else {
+    searchWords = quotedTerms;
+  }
+
+  return searchWords;
+}
+
+/*
+ * Given a database model query and a list of search tokens,
+ * return query URI.
+ *
+ * @param aModelQuery database model query
+ * @param aSearchWords an array of search tokens.
+ *
+ * @return query URI.
+ */
+function generateQueryURI(aModelQuery, aSearchWords)
+{
+  // If there are no search tokens, we simply return an empty string.
+  if (!aSearchWords || aSearchWords.length == 0)
+    return "";
+
+  let queryURI = "";
+  aSearchWords.forEach(searchWord =>
+    queryURI += aModelQuery.replace(/@V/g, encodeABTermValue(searchWord)));
+
+  // queryURI has all the (or(...)) searches, link them up with (and(...)).
+  queryURI = "?(and" + queryURI + ")";
+
+  return queryURI;
+}
+
 function onAbClearSearch()
 {
   var searchInput = document.getElementById("peopleSearchInput");
   if (searchInput)
     searchInput.value = "";
+
   onEnterInSearchBar();
 }
 
@@ -610,251 +731,6 @@ function QuickSearchFocus()
     searchInput.focus();
     searchInput.select();
   }
-}
-
-var gQuickSearchFocusEl = null;
-var gIsOffline;
-var gSessionAdded;
-var gCurrentAutocompleteDirectory;
-var gAutocompleteSession;
-var gSetupLdapAutocomplete;
-var gLDAPSession;
-
-function setupLdapAutocompleteSession()
-{
-    var autocompleteLdap = false;
-    var autocompleteDirectory = null;
-    var prevAutocompleteDirectory = gCurrentAutocompleteDirectory;
-    var i;
-
-    autocompleteLdap = Services.prefs.getBoolPref("ldap_2.autoComplete.useDirectory");
-    if (autocompleteLdap)
-        autocompleteDirectory = Services.prefs.getCharPref(
-            "ldap_2.autoComplete.directoryServer");
-
-
-    // use a temporary to do the setup so that we don't overwrite the
-    // global, then have some problem and throw an exception, and leave the
-    // global with a partially setup session.  we'll assign the temp
-    // into the global after we're done setting up the session
-    //
-    var LDAPSession;
-    if (gLDAPSession) {
-        LDAPSession = gLDAPSession;
-    } else {
-        LDAPSession = Components.classes[
-            "@mozilla.org/autocompleteSession;1?type=ldap"].createInstance()
-            .QueryInterface(Components.interfaces.nsILDAPAutoCompleteSession);
-    }
-
-    if (autocompleteDirectory && !gIsOffline) {
-        // the compose window code adds an observer on the directory server
-        // prefs, but I don't think we need this here.
-        gCurrentAutocompleteDirectory = autocompleteDirectory;
-
-        // fill in the session params if there is a session
-        //
-        if (LDAPSession) {
-            let url =
-              Services.prefs.getComplexValue(autocompleteDirectory + ".uri",
-                Components.interfaces.nsISupportsString).data;
-
-            LDAPSession.serverURL = Services.io.newURI(url, null, null)
-              .QueryInterface(Components.interfaces.nsILDAPURL);
-
-            // get the login to authenticate as, if there is one
-            //
-            try {
-                LDAPSession.login = Services.prefs.getComplexValue(
-                    autocompleteDirectory + ".auth.dn",
-                    Components.interfaces.nsISupportsString).data;
-            } catch (ex) {
-                // if we don't have this pref, no big deal
-            }
-
-            try {
-                LDAPSession.saslMechanism = Services.prefs.getComplexValue(
-                    autocompleteDirectory + ".auth.saslmech",
-                    Components.interfaces.nsISupportsString).data;
-            } catch (ex) {
-                // if we don't have a mechanism, we'll just use simple binds
-            }
-
-            // don't search on non-CJK strings shorter than this
-            //
-            try {
-                LDAPSession.minStringLength = Services.prefs.getIntPref(
-                    autocompleteDirectory + ".autoComplete.minStringLength");
-            } catch (ex) {
-                // if this pref isn't there, no big deal.  just let
-                // nsLDAPAutoCompleteSession use its default.
-            }
-
-            // don't search on CJK strings shorter than this
-            //
-            try {
-                LDAPSession.cjkMinStringLength = Services.prefs.getIntPref(
-                  autocompleteDirectory + ".autoComplete.cjkMinStringLength");
-            } catch (ex) {
-                // if this pref isn't there, no big deal.  just let
-                // nsLDAPAutoCompleteSession use its default.
-            }
-
-            // we don't try/catch here, because if this fails, we're outta luck
-            //
-            var ldapFormatter = Components.classes[
-                "@mozilla.org/ldap-autocomplete-formatter;1?type=addrbook"]
-                .createInstance().QueryInterface(
-                    Components.interfaces.nsIAbLDAPAutoCompFormatter);
-
-            // override autocomplete name format?
-            //
-            try {
-                ldapFormatter.nameFormat =
-                    Services.prefs.getComplexValue(autocompleteDirectory +
-                        ".autoComplete.nameFormat",
-                        Components.interfaces.nsISupportsString).data;
-            } catch (ex) {
-                // if this pref isn't there, no big deal.  just let
-                // nsAbLDAPAutoCompFormatter use its default.
-            }
-
-            // override autocomplete mail address format?
-            //
-            try {
-                ldapFormatter.addressFormat =
-                    Services.prefs.getComplexValue(autocompleteDirectory +
-                        ".autoComplete.addressFormat",
-                        Components.interfaces.nsISupportsString).data;
-            } catch (ex) {
-                // if this pref isn't there, no big deal.  just let
-                // nsAbLDAPAutoCompFormatter use its default.
-            }
-
-            try {
-                // figure out what goes in the comment column, if anything
-                //
-                // 0 = none
-                // 1 = name of addressbook this card came from
-                // 2 = other per-addressbook format
-                //
-                var showComments = 0;
-                showComments = Services.prefs.getIntPref(
-                    "mail.autoComplete.commentColumn");
-
-                switch (showComments) {
-
-                case 1:
-                    // use the name of this directory
-                    //
-                    ldapFormatter.commentFormat = Services.prefs.getComplexValue(
-                        autocompleteDirectory + ".description",
-                        Components.interfaces.nsISupportsString).data;
-                    break;
-
-                case 2:
-                    // override ldap-specific autocomplete entry?
-                    //
-                    try {
-                        ldapFormatter.commentFormat =
-                            Services.prefs.getComplexValue(autocompleteDirectory +
-                                ".autoComplete.commentFormat",
-                                Components.interfaces.nsISupportsString).data;
-                    } catch (innerException) {
-                        // if nothing has been specified, use the ldap
-                        // organization field
-                        ldapFormatter.commentFormat = "[o]";
-                    }
-                    break;
-
-                case 0:
-                default:
-                    // do nothing
-                }
-            } catch (ex) {
-                // if something went wrong while setting up comments, try and
-                // proceed anyway
-            }
-
-            // set the session's formatter, which also happens to
-            // force a call to the formatter's getAttributes() method
-            // -- which is why this needs to happen after we've set the
-            // various formats
-            //
-            LDAPSession.formatter = ldapFormatter;
-
-            // override autocomplete entry formatting?
-            //
-            try {
-                LDAPSession.outputFormat =
-                    Services.prefs.getComplexValue(autocompleteDirectory +
-                        ".autoComplete.outputFormat",
-                        Components.interfaces.nsISupportsString).data;
-
-            } catch (ex) {
-                // if this pref isn't there, no big deal.  just let
-                // nsLDAPAutoCompleteSession use its default.
-            }
-
-            // override default search filter template?
-            //
-            try {
-                LDAPSession.filterTemplate = Services.prefs.getComplexValue(
-                    autocompleteDirectory + ".autoComplete.filterTemplate",
-                    Components.interfaces.nsISupportsString).data;
-
-            } catch (ex) {
-                // if this pref isn't there, no big deal.  just let
-                // nsLDAPAutoCompleteSession use its default
-            }
-
-            // override default maxHits (currently 100)
-            //
-            try {
-                // XXXdmose should really use .autocomplete.maxHits,
-                // but there's no UI for that yet
-                //
-                LDAPSession.maxHits =
-                    Services.prefs.getIntPref(autocompleteDirectory + ".maxHits");
-            } catch (ex) {
-                // if this pref isn't there, or is out of range, no big deal.
-                // just let nsLDAPAutoCompleteSession use its default.
-            }
-
-            if (!gSessionAdded) {
-                // if we make it here, we know that session initialization has
-                // succeeded; add the session for all recipients, and
-                // remember that we've done so
-                var autoCompleteWidget;
-                for (i=1; i <= awGetMaxRecipients(); i++)
-                {
-                    autoCompleteWidget = document.getElementById("addressCol1#" + i);
-                    if (autoCompleteWidget)
-                    {
-                      autoCompleteWidget.addSession(LDAPSession);
-                      // ldap searches don't insert a default entry with the default domain appended to it
-                      // so reduce the minimum results for a popup to 2 in this case.
-                      autoCompleteWidget.minResultsForPopup = 2;
-
-                    }
-                 }
-                gSessionAdded = true;
-            }
-        }
-    } else {
-      if (gCurrentAutocompleteDirectory) {
-        gCurrentAutocompleteDirectory = null;
-      }
-      if (gLDAPSession && gSessionAdded) {
-        for (i=1; i <= awGetMaxRecipients(); i++)
-          document.getElementById("addressCol1#" + i).
-              removeSession(gLDAPSession);
-        gSessionAdded = false;
-      }
-    }
-
-    gLDAPSession = LDAPSession;
-    gSetupLdapAutocomplete = true;
 }
 
 /**
@@ -1001,4 +877,23 @@ function makePhotoFile(aDir, aExtension) {
     newFile.append(filename);
   } while (newFile.exists());
   return newFile;
+}
+
+/**
+ * Encode the string passed as value into an addressbook search term.
+ * The '(' and ')' characters are special for the addressbook
+ * search query language, but are not escaped in encodeURIComponent()
+ * so must be done manually on top of it.
+ */
+function encodeABTermValue(aString) {
+  return encodeURIComponent(aString).replace(/\(/g, "%28").replace(/\)/g, "%29");
+}
+
+/**
+ * Validates the given year and returns it, if it looks sane.
+ * Returns kDefaultYear (a leap year), if no valid date is given.
+ * This ensures that month/day calculations still work.
+ */
+function saneBirthYear(aYear) {
+  return aYear && aYear < 10000 && aYear > 0 ? aYear : kDefaultYear;
 }

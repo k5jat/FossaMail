@@ -19,9 +19,8 @@ const int32_t kImapFlagAndUidStateSize =	100;
 class nsImapFlagAndUidState : public nsIImapFlagAndUidState
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     nsImapFlagAndUidState(int numberOfMessages);
-    virtual ~nsImapFlagAndUidState();
 
     NS_DECL_NSIIMAPFLAGANDUIDSTATE
 
@@ -36,12 +35,13 @@ public:
     uint16_t     GetSupportedUserFlags() { return fSupportedUserFlags; }
 
 private:
+  virtual ~nsImapFlagAndUidState();
 
   static PLDHashOperator FreeCustomFlags(const uint32_t &aKey, char *aData, void *closure);
     nsTArray<nsMsgKey>      fUids;
     nsTArray<imapMessageFlagsType> fFlags;
     // Hash table, mapping uids to extra flags
-    nsDataHashtable<nsUint32HashKey, char *> m_customFlagsHash;
+    nsDataHashtable<nsUint32HashKey, nsCString> m_customFlagsHash;
     // Hash table, mapping UID+customAttributeName to customAttributeValue.
     nsDataHashtable<nsCStringHashKey, nsCString> m_customAttributesHash;
     uint16_t                fSupportedUserFlags;

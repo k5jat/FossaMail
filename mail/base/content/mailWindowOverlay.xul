@@ -18,7 +18,7 @@
      disappear from Thunderbird entirely (bug 359748). -->
 <?xul-overlay href="chrome://communicator/content/utilityOverlay.xul"?>
 
-<?xul-overlay href="chrome://global/content/charsetOverlay.xul"?>
+<?xul-overlay href="chrome://communicator/content/charsetOverlay.xul"?>
 #ifdef XP_MACOSX
 <?xul-overlay href="chrome://messenger/content/macMenuOverlay.xul"?>
 #endif
@@ -37,7 +37,7 @@
   %baseMenuOverlayDTD;
   <!ENTITY % utilityDTD SYSTEM "chrome://communicator/locale/utilityOverlay.dtd">
   %utilityDTD;
-  <!ENTITY % charsetDTD SYSTEM "chrome://global/locale/charsetOverlay.dtd">
+  <!ENTITY % charsetDTD SYSTEM "chrome://global/locale/charsetMenu.dtd">
   %charsetDTD;
   <!ENTITY % viewZoomOverlayDTD SYSTEM "chrome://messenger/locale/viewZoomOverlay.dtd">
   %viewZoomOverlayDTD;
@@ -59,9 +59,9 @@
 <script type="application/javascript" src="chrome://messenger/content/plugins.js"/>
 <script type="application/javascript" src="chrome://global/content/viewZoomOverlay.js"/>
 <script type="application/javascript" src="chrome://messenger/content/newmailaccount/uriListener.js"/>
-<script type="application/javascript" src="chrome://messenger-newsblog/content/utils.js"/>
 
 <stringbundleset id="stringbundleset">
+  <stringbundle id="brand_bundle" src="chrome://branding/locale/brand.properties"/>
   <stringbundle id="bundle_messenger" src="chrome://messenger/locale/messenger.properties"/>
   <stringbundle id="bundle_offlinePrompts" src="chrome://messenger/locale/offline.properties"/>
 </stringbundleset>
@@ -89,6 +89,8 @@
             events="create-menu-file"
             oncommandupdate="goUpdateMailMenuItems(this)">
 
+    <command id="cmd_newFolder" oncommand="goDoCommand('cmd_newFolder')" disabled="true"/>
+    <command id="cmd_newVirtualFolder" oncommand="goDoCommand('cmd_newVirtualFolder')" disabled="true"/>
     <command id="cmd_getNewMessages" oncommand="goDoCommand('cmd_getNewMessages')" disabled="true"/>
     <command id="cmd_open" oncommand="goDoCommand('cmd_open')"/>
 
@@ -132,6 +134,7 @@
    <command id="cmd_viewWideMailLayout" oncommand="goDoCommand('cmd_viewWideMailLayout')" disabled="true"/>
    <command id="cmd_viewVerticalMailLayout" oncommand="goDoCommand('cmd_viewVerticalMailLayout')" disabled="true"/>
    <command id="cmd_toggleFolderPane" oncommand="goDoCommand('cmd_toggleFolderPane')" disabled="true"/>
+   <command id="cmd_toggleFolderPaneCols" oncommand="goDoCommand('cmd_toggleFolderPaneCols')" disabled="true"/>
    <command id="cmd_toggleMessagePane" oncommand="goDoCommand('cmd_toggleMessagePane')" disabled="true"/>
    <command id="cmd_viewAllMsgs" oncommand="goDoCommand('cmd_viewAllMsgs')" disabled="true"/>
    <command id="cmd_viewUnreadMsgs" oncommand="goDoCommand('cmd_viewUnreadMsgs')" disabled="true"/>
@@ -191,9 +194,9 @@
   <command id="cmd_selectThread" oncommand="goDoCommand('cmd_selectThread')"/>
   <command id="cmd_selectFlagged" oncommand="goDoCommand('cmd_selectFlagged')"/>
   <command id="cmd_properties" oncommand="goDoCommand('cmd_properties')"
-         valueNewsgroup="&folderPropsNewsgroupCmd.label;"
-         valueFolder="&folderPropsFolderCmd.label;"
-         valueGeneric="&folderPropsCmd.label;"/>
+         valueNewsgroup="&folderPropsNewsgroupCmd2.label;"
+         valueFolder="&folderPropsFolderCmd2.label;"
+         valueGeneric="&folderPropsCmd2.label;"/>
   <command id="cmd_find" oncommand="goDoCommand('cmd_find')" disabled="true"/>
   <command id="cmd_findAgain" oncommand="goDoCommand('cmd_findAgain')" disabled="true"/>
   <command id="cmd_findPrevious" oncommand="goDoCommand('cmd_findPrevious')"
@@ -222,9 +225,10 @@
   <command id="cmd_previousUnreadMsg" oncommand="goDoCommand('cmd_previousUnreadMsg')" disabled="true"/>
   <command id="cmd_previousFlaggedMsg" oncommand="goDoCommand('cmd_previousFlaggedMsg')" disabled="true"/>
   <command id="cmd_goStartPage" oncommand="goDoCommand('cmd_goStartPage');"/>
-  <command id="cmd_undoCloseTab" oncommand="goDoCommand('cmd_undoCloseTab');"/> 
+  <command id="cmd_undoCloseTab" oncommand="goDoCommand('cmd_undoCloseTab');"/>
   <command id="cmd_goForward" oncommand="goDoCommand('cmd_goForward')" disabled="true"/>
   <command id="cmd_goBack" oncommand="goDoCommand('cmd_goBack')" disabled="true"/>
+  <command id="cmd_goFolder" oncommand="gFolderTreeView.selectFolder(event.target._folder, true);" disabled="true"/>
   <command id="cmd_chat" oncommand="goDoCommand('cmd_chat')" disabled="true"/>
 </commandset>
 
@@ -233,6 +237,7 @@
             events="create-menu-message"
             oncommandupdate="goUpdateMailMenuItems(this)">
   <command id="cmd_archive" oncommand="goDoCommand('cmd_archive')"/>
+  <command id="cmd_newMessage" oncommand="MsgNewMessage(event)"/>
   <command id="cmd_reply" oncommand="MsgReplyMessage(event)"/>
   <command id="cmd_replySender" oncommand="MsgReplySender(event);"/>
   <command id="cmd_replyGroup" oncommand="MsgReplyGroup(event);"/>
@@ -255,6 +260,7 @@
             commandupdater="true"
             events="mail-toolbar"
             oncommandupdate="goUpdateMailMenuItems(this)">
+  <command id="cmd_newMessage"/>
   <command id="button_reply"/>
   <command id="button_replyall"/>
   <command id="button_replylist"/>
@@ -334,6 +340,9 @@
            valueMessageAccessKey="&filtersApplyToMessage.accesskey;"/>
   <command id="cmd_runJunkControls" oncommand="goDoCommand('cmd_runJunkControls');" disabled="true"/>
   <command id="cmd_deleteJunk" oncommand="goDoCommand('cmd_deleteJunk');" disabled="true"/>
+  <command id="cmd_joinChat" oncommand="goDoCommand('cmd_joinChat');" disabled="true"/>
+  <command id="cmd_chatStatus" oncommand="chatHandler.setStatusMenupopupCommand(event);" disabled="true"/>
+  <command id="cmd_addChatBuddy" oncommand="goDoCommand('cmd_addChatBuddy');" disabled="true"/>
 </commandset>
 
 #ifdef XP_MACOSX
@@ -407,12 +416,12 @@
   <key id="key_goBack" key="&goBackCmd.commandKey;"                  oncommand="goDoCommand('cmd_goBack')"/>
   <key id="key_goChat" key="&goChatCmd.key;"                         oncommand="goDoCommand('cmd_chat')" modifiers="accel,shift"/>
   <key id="key_goStartPage" keycode="VK_HOME"                        oncommand="goDoCommand('cmd_goStartPage')" modifiers="alt"/>
-  <key id="key_undoCloseTab" key="&undoCloseTabCmd.commandkey;"      oncommand="goDoCommand('cmd_undoCloseTab')" modifiers="accel, shift"/> 
+  <key id="key_undoCloseTab" key="&undoCloseTabCmd.commandkey;"      oncommand="goDoCommand('cmd_undoCloseTab')" modifiers="accel, shift"/>
   <key id="key_reply" key="&replyMsgCmd.key;"                        oncommand="goDoCommand('cmd_reply')" modifiers="accel"/>
   <key id="key_replyall" key="&replyToAllMsgCmd.key;"                oncommand="goDoCommand('cmd_replyall')" modifiers="accel, shift"/>
   <key id="key_replylist" key="&replyToListMsgCmd.key;"              oncommand="goDoCommand('cmd_replylist')" modifiers="accel, shift"/>
   <key id="key_forward" key="&forwardMsgCmd.key;"                    oncommand="goDoCommand('cmd_forward')" modifiers="accel"/>
-  <key id="key_editAsNew" key="&editMsgAsNewCmd.key;"                oncommand="goDoCommand('cmd_editAsNew')" modifiers="accel"/>
+  <key id="key_editAsNew" key="&editAsNewMsgCmd.key;"                oncommand="goDoCommand('cmd_editAsNew')" modifiers="accel"/>
   <key id="key_watchThread" key="&watchThreadMenu.key;"              oncommand="goDoCommand('cmd_watchThread')" />
   <key id="key_killThread" key="&killThreadMenu.key;"                oncommand="goDoCommand('cmd_killThread')" />
   <key id="key_killSubthread" key="&killSubthreadMenu.key;"          oncommand="goDoCommand('cmd_killSubthread')" modifiers="shift" />
@@ -507,8 +516,24 @@
        oncommand="goDoCommand('cmd_tag9');"/>
 
   <!-- Tools Keys -->
-  <key id="key_searchMail" key="&searchMailCmd.key;" oncommand="goDoCommand('cmd_search')" modifiers="accel, shift"/>
-  <key id="key_errorConsole" key="&errorConsoleCmd.commandkey;" oncommand="toJavaScriptConsole();" modifiers="accel,shift"/>
+  <key id="key_searchMail"
+       key="&searchMailCmd.key;"
+       oncommand="goDoCommand('cmd_search')"
+       modifiers="accel,shift"/>
+  <key id="key_errorConsole"
+       key="&errorConsoleCmd.commandkey;"
+       oncommand="toJavaScriptConsole();"
+       modifiers="accel,shift"/>
+  <key id="key_sanitizeHistory"
+       keycode="VK_DELETE"
+       oncommand="toSanitize();"
+       modifiers="accel,shift"/>
+#ifdef XP_MACOSX
+  <key id="key_sanitizeHistory_mac"
+       keycode="VK_BACK"
+       oncommand="toSanitize();"
+       modifiers="accel,shift"/>
+#endif
   <key id="key_addressbook"
        key="&addressBookCmd.key;"
        modifiers="accel, shift"
@@ -608,7 +633,7 @@
 
     <menuitem id="mailContext-searchTheWeb"
               label="[glodaComplete.webSearch1.label]"
-              oncommand="openSearchTab(event.target.value)"/>
+              oncommand="openWebSearch(event.target.value)"/>
 
     <!-- Spellchecking general menu items (enable, add dictionaries...) -->
     <menuseparator id="mailContext-spell-separator"/>
@@ -662,6 +687,10 @@
               label="&contextOpenConversation.label;"
               accesskey="&contextOpenConversation.accesskey;"
               oncommand="gConversationOpener.openConversationForMessages(gFolderDisplay.selectedMessages);"/>
+    <menuitem id="mailContext-openContainingFolder"
+              label="&contextOpenContainingFolder.label;"
+              accesskey="&contextOpenContainingFolder.accesskey;"
+              oncommand="OpenContainingFolder();"/>
     <menuseparator id="mailContext-sep-open2"/>
     <menuitem id="mailContext-replyNewsgroup"
               label="&contextReplyNewsgroup2.label;"
@@ -702,18 +731,18 @@
               accesskey="&contextMultiForwardAsAttachment.accesskey;"
               oncommand="MsgForwardAsAttachment(event);"/>
     <menuitem id="mailContext-editAsNew"
-              label="&contextEditAsNew.label;"
-              accesskey="&contextEditAsNew.accesskey;"
+              label="&contextEditMsgAsNew.label;"
+              accesskey="&contextEditMsgAsNew.accesskey;"
               oncommand="MsgEditMessageAsNew();"/>
     <menuseparator id="mailContext-sep-reply"/>
     <menu id="mailContext-tags" label="&tagMenu.label;" accesskey="&tagMenu.accesskey;">
       <menupopup id="mailContext-tagpopup"
                  onpopupshowing="InitMessageTags(this);">
-        <menuitem id="addNewTag"
+        <menuitem id="mailContext-addNewTag"
                   label="&addNewTag.label;"
                   accesskey="&addNewTag.accesskey;"
                   command="cmd_addTag"/>
-        <menuitem id="manageTags"
+        <menuitem id="mailContext-manageTags"
                   label="&manageTags.label;"
                   accesskey="&manageTags.accesskey;"
                   command="cmd_manageTags"/>
@@ -787,8 +816,6 @@
                  mode="filing"
                  showFileHereLabel="true"
                  showRecent="true"
-                 fileHereLabel="&fileHereMenu.label;"
-                 fileHereAccessKey="&fileHereMenu.accesskey;"
                  recentLabel="&contextMoveCopyMsgRecentMenu.label;"
                  recentAccessKey="&contextMoveCopyMsgRecentMenu.accesskey;"/>
     </menu>
@@ -801,8 +828,6 @@
                  mode="filing"
                  showFileHereLabel="true"
                  showRecent="true"
-                 fileHereLabel="&copyHereMenu.label;"
-                 fileHereAccessKey="&copyHereMenu.accesskey;"
                  recentLabel="&contextMoveCopyMsgRecentMenu.label;"
                  recentAccessKey="&contextMoveCopyMsgRecentMenu.accesskey;"/>
     </menu>
@@ -810,6 +835,10 @@
               command="cmd_moveToFolderAgain"
               label="&moveToFolderAgain.label;"
               accesskey="&moveToFolderAgain.accesskey;"/>
+
+    <menuitem id="mailContext-delete"
+              command="cmd_delete"/>
+
     <menuseparator id="paneContext-afterMove"/>
     <menuitem id="mailContext-ignoreThread"
               label="&contextKillThreadMenu.label;"
@@ -836,8 +865,7 @@
               accesskey="&contextPrint.accesskey;"
               observes="cmd_print"
               command="cmd_print"/>
-    <menuitem id="mailContext-delete"
-              command="cmd_delete"/>
+
     <menuitem id="downloadSelected"
               label="&downloadSelectedCmd.label;"
               accesskey="&downloadSelectedCmd.accesskey;"
@@ -881,7 +909,7 @@
   </menupopup>
 
   <menupopup id="folderPaneContext"
-             onpopupshowing="return fillFolderPaneContextMenu();"
+             onpopupshowing="return fillFolderPaneContextMenu(event);"
              onpopuphiding="if (event.target == this) folderPaneOnPopupHiding();">
     <menuitem id="folderPaneContext-getMessages"
               label="&folderContextGetMessages.label;"
@@ -950,15 +978,15 @@
               type="checkbox"
               label="&folderContextFavoriteFolder.label;"
               accesskey="&folderContextFavoriteFolder.accesskey;"
-              check="false"
+              checked="false"
               oncommand="ToggleFavoriteFolderFlag();"/>
     <menuitem id="folderPaneContext-properties"
-              label="&folderContextProperties.label;"
-              accesskey="&folderContextProperties.accesskey;"
+              label="&folderContextProperties2.label;"
+              accesskey="&folderContextProperties2.accesskey;"
               oncommand="gFolderTreeController.editFolder();"/>
     <menuitem id="folderPaneContext-settings"
-              label="&folderContextSettings.label;"
-              accesskey="&folderContextSettings.accesskey;"
+              label="&folderContextSettings2.label;"
+              accesskey="&folderContextSettings2.accesskey;"
               oncommand="gFolderTreeController.editFolder();"/>
   </menupopup>
 
@@ -971,6 +999,40 @@
               accesskey="&customizeToolbar.accesskey;"/>
   </menupopup>
 
+  <menupopup id="remoteContentOptions" value=""
+             onpopupshowing="onRemoteContentOptionsShowing(event);">
+    <menuitem id="remoteContentOptionAllowForMsg"
+              label="&remoteContentOptionsAllowForMsg.label;"
+              accesskey="&remoteContentOptionsAllowForMsg.accesskey;"
+              oncommand="LoadMsgWithRemoteContent();"/>
+    <menuseparator id="remoteContentSettingsMenuSeparator"/>
+    <menuitem id="editRemoteContentSettings"
+#ifdef XP_WIN
+              label="&editRemoteContentSettings.label;"
+              accesskey="&editRemoteContentSettings.accesskey;"
+#else
+              label="&editRemoteContentSettingsUnix.label;"
+              accesskey="&editRemoteContentSettingsUnix.accesskey;"
+#endif
+              oncommand="editRemoteContentSettings();"/>
+  </menupopup>
+
+  <menupopup id="phishingOptions">
+    <menuitem id="phishingOptionIgnore"
+              label="&phishingOptionIgnore.label;"
+              accesskey="&phishingOptionIgnore.accesskey;"
+              oncommand="IgnorePhishingWarning();"/>
+    <menuitem id="phishingOptionSettings"
+#ifdef XP_WIN
+              label="&phishingOptionSettings.label;"
+              accesskey="&phishingOptionSettings.accesskey;"
+#else
+              label="&phishingOptionSettingsUnix.label;"
+              accesskey="&phishingOptionSettingsUnix.accesskey;"
+#endif
+              oncommand="OpenPhishingSettings();"/>
+  </menupopup>
+
 <popupset id="mainPopupSet">
   <menupopup id="appmenu-popup"
              onpopupshowing="initAppMenuPopup(this, event);">
@@ -978,18 +1040,18 @@
       <vbox id="appmenuPrimaryPane">
         <splitmenu id="appmenu_newMessage"
                    label="&appmenuNewMsgCmd.label;"
-                   oncommand="MsgNewMessage(null);">
+                   command="cmd_newMessage">
             <menupopup id="appmenu_newMenupopup">
-              <menuitem id="newNewMsgCmd"
+              <menuitem id="appmenu_newNewMsgCmd"
                         label="&newNewMsgCmd.label;"
                         key="key_newMessage2"
-                        oncommand="MsgNewMessage(null);"/>
+                        command="cmd_newMessage"/>
               <menuitem id="appmenu_newFolder"
                         label="&newFolderCmd.label;"
-                        oncommand="gFolderTreeController.newFolder();"/>
+                        command="cmd_newFolder"/>
               <menuitem id="appmenu_newVirtualFolder"
                         label="&newVirtualFolderCmd.label;"
-                        oncommand="gFolderTreeController.newVirtualFolder();"/>
+                        command="cmd_newVirtualFolder"/>
               <menuseparator id="appmenu_newAccountPopupMenuSeparator"/>
               <menuitem id="appmenu_newCreateEmailAccountMenuItem"
                         label="&newCreateEmailAccountCmd.label;"
@@ -1013,7 +1075,7 @@
                         command="cmd_newCard"/>
               <menuitem id="appmenu_newIMContactMenuItem"
                         label="&newIMContactCmd.label;"
-                        oncommand="chatHandler.addBuddy();"/>
+                        command="cmd_addChatBuddy"/>
             </menupopup>
         </splitmenu>
         <menu id="appmenu_msgAttachmentMenu"
@@ -1159,39 +1221,44 @@
                       label="&allFolders.label;"
                       type="radio"
                       name="viewmessages"
-                      oncommand="gFolderTreeView.mode = this.value;"/>
+                      oncommand="gFolderTreeView.toggleMode(this.value);"/>
             <menuitem id="appmenu_smartFolders"
                       value="smart"
                       label="&unifiedFolders.label;"
                       type="radio"
                       name="viewmessages"
-                      oncommand="gFolderTreeView.mode = this.value;"/>
+                      oncommand="gFolderTreeView.toggleMode(this.value);"/>
             <menuitem id="appmenu_unreadFolders"
-                      label="&unreadFolders.label;"
                       value="unread"
+                      label="&unreadFolders.label;"
                       type="radio"
                       name="viewmessages"
-                      oncommand="gFolderTreeView.mode = this.value;"/>
+                      oncommand="gFolderTreeView.toggleMode(this.value);"/>
             <menuitem id="appmenu_favoriteFolders"
                       value="favorite"
                       label="&favoriteFolders.label;"
                       type="radio"
                       name="viewmessages"
-                      oncommand="gFolderTreeView.mode = this.value;"/>
+                      oncommand="gFolderTreeView.toggleMode(this.value);"/>
             <menuitem id="appmenu_recentFolders"
                       value="recent"
                       label="&recentFolders.label;"
                       type="radio"
                       name="viewmessages"
-                      oncommand="gFolderTreeView.mode = this.value;"/>
+                      oncommand="gFolderTreeView.toggleMode(this.value);"/>
+            <menuseparator id="appmenu_compactViewSeparator"/>
+            <menuitem id="appmenu_compactFolderView"
+                      label="&compactVersion.label;"
+                      type="checkbox"
+                      oncommand="gFolderTreeView.toggleCompact(this.getAttribute('checked') == 'true');"/>
             <menuseparator id="appmenu_favoritePropertiesSeparator"/>
             <menuitem id="appmenu_favoriteFolder"
                       type="checkbox"
                       label="&menuFavoriteFolder.label;"
-                      check="false"
+                      checked="false"
                       oncommand="ToggleFavoriteFolderFlag();"/>
             <menuitem id="appmenu_properties"
-                      label="&folderPropsCmd.label;"
+                      label="&folderPropsCmd2.label;"
                       command="cmd_properties"/>
           </menupopup>
         </menu>
@@ -1213,16 +1280,16 @@
                   label="&activitymanager.label;"
                   oncommand="openActivityMgr();"/>
         <splitmenu id="appmenu_filters"
-                  label="&filtersCmd.label;"
+                  label="&filtersCmd2.label;"
                   command="cmd_displayMsgFilters">
           <menupopup id="appmenu_FilterMenu">
             <menuitem id="appmenu_filtersCmd"
-                      label="&filtersCmd.label;"
+                      label="&filtersCmd2.label;"
                       command="cmd_displayMsgFilters"/>
-            <menuitem id="applyFilters"
+            <menuitem id="appmenu_applyFilters"
                       label="&filtersApply.label;"
                       command="cmd_applyFilters"/>
-            <menuitem id="applyFiltersToSelection"
+            <menuitem id="appmenu_applyFiltersToSelection"
                       label="&filtersApplyToMessage.label;"
                       command="cmd_applyFiltersToSelection"/>
           </menupopup>
@@ -1234,7 +1301,7 @@
                   oncommand="openAddonsMgr();"/>
         <splitmenu id="appmenu_customize"
 #ifdef XP_WIN
-                   label="&preferencesCmd.label;"
+                   label="&preferencesCmd2.label;"
 #else
                    label="&preferencesCmdUnix.label;"
 #endif
@@ -1243,26 +1310,21 @@
                      onpopupshowing="onViewToolbarsPopupShowing(event, 'mail-toolbox', document.getElementById('appmenu_quickFilterBar'));">
             <menuitem id="appmenu_preferences"
 #ifdef XP_WIN
-                      label="&preferencesCmd.label;"
+                      label="&preferencesCmd2.label;"
 #else
                       label="&preferencesCmdUnix.label;"
 #endif
                       oncommand="openOptionsDialog();"/>
             <menuitem id="appmenu_accountmgr"
-                      label="&accountManagerCmd.label;"
+                      label="&accountManagerCmd2.label;"
                       oncommand="MsgAccountManager(null);"/>
             <menuseparator/>
-            <menuitem id="appmenu_quickFilterBar"
-                      type="checkbox"
-                      label="&appmenuQFBMenu.label;"
-                      command="cmd_toggleQuickFilterBar">
-              <observes element="qfb-show-filter-bar" attribute="checked"/>
-            </menuitem>
             <menuitem id="appmenu_showStatusbar"
                       type="checkbox"
                       label="&showTaskbarCmd.label;"
                       oncommand="goToggleToolbar('status-bar', 'menu_showTaskbar')"
-                      checked="true"/>
+                      checked="true"
+                      observes="menu_showTaskbar"/>
             <menuseparator id="appmenu_toggleToolbarsSeparator"/>
             <menuitem id="appmenu_toolbarLayout"
                       label="&appmenuToolbarLayout.label;"
@@ -1292,6 +1354,10 @@
                           type="checkbox"
                           label="&showFolderPaneCmd.label;"
                           command="cmd_toggleFolderPane"/>
+                <menuitem id="appmenu_showFolderPaneCols"
+                          type="checkbox"
+                          label="&showFolderPaneColsCmd.label;"
+                          command="cmd_toggleFolderPaneCols"/>
                 <menuitem id="appmenu_showMessage"
                           type="checkbox"
                           label="&showMessageCmd.label;"
@@ -1366,7 +1432,7 @@
                           label="&synchronizeOfflineCmd.label;"
                           command="cmd_synchronizeOffline"/>
                 <menuitem id="appmenu_settingsOffline"
-                          label="&settingsOfflineCmd.label;"
+                          label="&settingsOfflineCmd2.label;"
                           command="cmd_settingsOffline"/>
                 <menuseparator id="app_offlineMenuAfterSettingsSeparator"/>
                 <menuitem id="appmenu_downloadFlagged"
@@ -1684,115 +1750,12 @@
               </menupopup>
             </menu>
             <menu id="appmenu_charsetMenu"
+                  onpopupshowing="UpdateCharsetMenu(msgWindow.mailCharacterSet, this);"
+                  oncommand="MailSetCharacterSet(event)"
                   label="&charsetMenu.label;"
-                  datasources="rdf:charset-menu"
-                  ref="NC:MailviewCharsetMenuRoot"
-                  oncommand="MailMultiplexHandler(event)"
-                  onpopupshowing="CreateMenu('mailview');UpdateMailMenus()"
-                  onpopupshown="CreateMenu('more-menu');"
-                  observes="isImage">
-                <template>
-                  <rule rdf:type="http://home.netscape.com/NC-rdf#BookmarkSeparator">
-                    <menupopup>
-                      <menuseparator uri="..." />
-                    </menupopup>
-                  </rule>
-                  <rule>
-                    <menupopup>
-                      <menuitem type="radio" name="charsetGroup" checked="rdf:http://home.netscape.com/NC-rdf#Checked" uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                    </menupopup>
-                  </rule>
-                </template>
-                <menupopup>
-                <menu label="&charsetMenuAutodet.label;"
-                      datasources="rdf:charset-menu" ref="NC:BrowserAutodetMenuRoot">
-                  <template>
-                    <rule rdf:type="http://home.netscape.com/NC-rdf#CharsetDetector">
-                      <menupopup>
-                        <menuitem type="radio" name="detectorGroup" checked="rdf:http://home.netscape.com/NC-rdf#Checked" uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                      </menupopup>
-                    </rule>
-                  </template>
-                  <menupopup>
-                  </menupopup>
-                </menu>
-                <menu label="&charsetMenuMore.label;"
-                      datasources="rdf:charset-menu" ref="NC:BrowserMoreCharsetMenuRoot">
-                  <template>
-                    <rule>
-                      <menupopup>
-                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                      </menupopup>
-                    </rule>
-                  </template>
-                  <menupopup>
-                    <menu label="&charsetMenuMore1.label;"
-                          datasources="rdf:charset-menu" ref="NC:BrowserMore1CharsetMenuRoot">
-                      <template>
-                        <rule>
-                          <menupopup>
-                            <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                          </menupopup>
-                        </rule>
-                      </template>
-                      <menupopup>
-                      </menupopup>
-                    </menu>
-                    <menu label="&charsetMenuMore2.label;"
-                          datasources="rdf:charset-menu" ref="NC:BrowserMore2CharsetMenuRoot">
-                      <template>
-                        <rule>
-                          <menupopup>
-                            <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                          </menupopup>
-                        </rule>
-                      </template>
-                      <menupopup>
-                      </menupopup>
-                    </menu>
-                    <menu label="&charsetMenuMore3.label;"
-                          datasources="rdf:charset-menu" ref="NC:BrowserMore3CharsetMenuRoot">
-                      <template>
-                        <rule>
-                          <menupopup>
-                            <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                          </menupopup>
-                        </rule>
-                      </template>
-                      <menupopup>
-                      </menupopup>
-                    </menu>
-                    <menu label="&charsetMenuMore4.label;"
-                          datasources="rdf:charset-menu" ref="NC:BrowserMore4CharsetMenuRoot">
-                      <template>
-                        <rule>
-                          <menupopup>
-                            <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                          </menupopup>
-                        </rule>
-                      </template>
-                      <menupopup>
-                      </menupopup>
-                    </menu>
-                    <menu label="&charsetMenuMore5.label;"
-                          datasources="rdf:charset-menu" ref="NC:BrowserMore5CharsetMenuRoot">
-                      <template>
-                        <rule>
-                          <menupopup>
-                            <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
-                          </menupopup>
-                        </rule>
-                      </template>
-                      <menupopup>
-                      </menupopup>
-                    </menu>
-                    <menuseparator />
-                  </menupopup>
-                </menu>
-                <menuitem name="charsetCustomize"
-                          label="&charsetCustomize.label;"
-                          oncommand="window.openDialog('chrome://global/content/customizeCharset.xul', 'PrefWindow', 'chrome,modal=yes,resizable=yes', 'browser');"/>
-              </menupopup>
+                  accesskey="&charsetMenu.accesskey;">
+              <menupopup id="appmenu_charsetPopup"
+                         onpopupshowing="CharsetMenu.build(this, true, this.getAttribute('detectors') != 'false');"/>
             </menu>
             <menuseparator id="appmenu_viewAfterCharsetSeparator"/>
             <menuitem id="appmenu_pageSourceMenuItem"
@@ -1858,11 +1821,10 @@
             <menuseparator id="appmenu_goChatSeparator"/>
             <menu id="appmenu_goFolderMenu"
                   label="&folderMenu.label;"
-                  oncommand="gFolderTreeView.selectFolder(event.target._folder, true)">
+                  command="cmd_goFolder">
               <menupopup id="appmenu_GoFolderPopup"
                          type="folder"
                          showFileHereLabel="true"
-                         fileHereLabel="&thisFolder.label;"
                          showRecent="true"
                          recentLabel="&contextMoveCopyMsgRecentMenu.label;"/>
             </menu>
@@ -1888,7 +1850,7 @@
             <menuitem id="appmenu_newMsgCmd"
                       label="&newMsgCmd.label;"
                       key="key_newMessage2"
-                      oncommand="MsgNewMessage(null);"/>
+                      command="cmd_newMessage"/>
             <menuitem id="appmenu_replyMainMenu"
                       label="&replyMsgCmd.label;"
                       key="key_reply"
@@ -1924,7 +1886,7 @@
               </menupopup>
             </menu>
             <menuitem id="appmenu_editMsgAsNew"
-                      label="&editMsgAsNewCmd.label;"
+                      label="&editAsNewMsgCmd.label;"
                       key="key_editAsNew"
                       command="cmd_editAsNew"/>
             <menuseparator id="appmenu_messageMenuAfterCompositionCommandsSeparator"/>
@@ -2031,7 +1993,6 @@
                          mode="filing"
                          showFileHereLabel="true"
                          showRecent="true"
-                         fileHereLabel="&fileHereMenu.label;"
                          recentLabel="&moveCopyMsgRecentMenu.label;"/>
             </menu>
             <menu id="appmenu_copyMenu"
@@ -2041,7 +2002,6 @@
                          mode="filing"
                          showFileHereLabel="true"
                          showRecent="true"
-                         fileHereLabel="&copyHereMenu.label;"
                          recentLabel="&moveCopyMsgRecentMenu.label;"/>
             </menu>
             <menuitem id="appmenu_moveToFolderAgain"
@@ -2091,7 +2051,7 @@
                       oncommand="openSavedFilesWnd();"/>
             <menu id="appmenu_imAccountsStatus"
                   label="&imAccountsStatus.label;"
-                  oncommand="chatHandler.setStatusMenupopupCommand(event);">
+                  command="cmd_chatStatus">
               <menupopup id="appmenu_imStatusMenupopup">
                 <menuitem id="appmenu_imStatusAvailable"
                           status="available"
@@ -2113,7 +2073,7 @@
             </menu>
             <menuitem id="appmenu_joinChatMenuItem"
                       label="&joinChatCmd.label;"
-                      oncommand="chatHandler.joinChat();"/>
+                      command="cmd_joinChat"/>
             <menuseparator id="appmenu_afterChatSeparator"/>
             <menuitem id="appmenu_runJunkControls"
                       label="&runJunkControls.label;"
@@ -2131,6 +2091,7 @@
                       oncommand="toJavaScriptConsole();"/>
             <menuitem id="appmenu_sanitizeHistory"
                       label="&clearRecentHistory.label;"
+                      key="key_sanitizeHistory"
                       oncommand="toSanitize();"/>
           </menupopup>
         </menu>
@@ -2185,14 +2146,16 @@
 #ifdef XP_MACOSX
            defaultset="menubar-items"
 #else
-          defaultset="menubar-items,spring"
+           defaultset="menubar-items,spring"
 #endif
 #ifndef XP_MACOSX
-          toolbarname="&menubarCmd.label;"
-          accesskey="&menubarCmd.accesskey;"
+           toolbarname="&menubarCmd.label;"
+           accesskey="&menubarCmd.accesskey;"
 #endif
-          context="toolbar-context-menu" mode="icons"
-          insertbefore="tabs-toolbar">
+           context="toolbar-context-menu"
+           mode="icons"
+           insertbefore="tabs-toolbar"
+           prependmenuitem="true">
     <toolbaritem id="menubar-items" align="center">
       <menubar id="mail-menubar" style="border:0px;padding:0px;margin:0px;-moz-appearance:none">
         <!-- File -->
@@ -2200,16 +2163,16 @@
           <menupopup id="menu_FilePopup" onpopupshowing="file_init();">
           <menu id="menu_New">
             <menupopup id="menu_NewPopup" onpopupshowing="menu_new_init();">
-              <menuitem id="newNewMsgCmd" label="&newNewMsgCmd.label;"
+              <menuitem id="menu_newNewMsgCmd" label="&newNewMsgCmd.label;"
                         accesskey="&newNewMsgCmd.accesskey;"
                         key="key_newMessage2"
-                        oncommand="MsgNewMessage(null);"/>
+                        command="cmd_newMessage"/>
               <menuitem id="menu_newFolder" label="&newFolderCmd.label;"
-                         oncommand="gFolderTreeController.newFolder();"
-                         accesskey="&newFolderCmd.accesskey;"/>
+                        command="cmd_newFolder"
+                        accesskey="&newFolderCmd.accesskey;"/>
               <menuitem id="menu_newVirtualFolder" label="&newVirtualFolderCmd.label;"
-                         oncommand="gFolderTreeController.newVirtualFolder();"
-                         accesskey="&newVirtualFolderCmd.accesskey;"/>
+                        command="cmd_newVirtualFolder"
+                        accesskey="&newVirtualFolderCmd.accesskey;"/>
               <menuseparator id="newAccountPopupMenuSeparator"/>
               <menuitem id="newCreateEmailAccountMenuItem"
                         label="&newCreateEmailAccountCmd.label;"
@@ -2236,7 +2199,7 @@
               <menuitem id="newIMContactMenuItem"
                         label="&newIMContactCmd.label;"
                         accesskey="&newIMContactCmd.accesskey;"
-                        oncommand="chatHandler.addBuddy();"/>
+                        command="cmd_addChatBuddy"/>
             </menupopup>
           </menu>
           <menuitem id="openMessageFileMenuitem" label="&openMessageFileCmd.label;"
@@ -2288,9 +2251,9 @@
                  accesskey="&renameFolder.accesskey;"
                  key="key_renameFolder"
                  command="cmd_renameFolder"/>
-          <menuitem id="menu_compactFolder" 
-                    label="&compactFolders.label;" 
-                    accesskey="&compactFolders.accesskey;" 
+          <menuitem id="menu_compactFolder"
+                    label="&compactFolders.label;"
+                    accesskey="&compactFolders.accesskey;"
                     command="cmd_compactFolder"/>
           <menuitem id="menu_emptyTrash" label="&emptyTrashCmd.label;"
                  accesskey="&emptyTrashCmd.accesskey;"
@@ -2306,8 +2269,8 @@
                         accesskey="&synchronizeOfflineCmd.accesskey;"
                         command="cmd_synchronizeOffline"/>
               <menuitem id="menu_settingsOffline"
-                        label="&settingsOfflineCmd.label;"
-                        accesskey="&settingsOfflineCmd.accesskey;"
+                        label="&settingsOfflineCmd2.label;"
+                        accesskey="&settingsOfflineCmd2.accesskey;"
                         command="cmd_settingsOffline"/>
               <menuseparator id="offlineMenuAfterSettingsSeparator"/>
               <menuitem id="menu_downloadFlagged"
@@ -2376,14 +2339,17 @@
                   type="checkbox"
                   label="&menuFavoriteFolder.label;"
                   accesskey="&menuFavoriteFolder.accesskey;"
-                  check="false"
+                  checked="false"
                   oncommand="ToggleFavoriteFolderFlag();"/>
-        <menuitem id="menu_properties" label="&folderPropsCmd.label;"
+        <menuitem id="menu_properties" label="&folderPropsCmd2.label;"
                   accesskey="&folderPropsCmd.accesskey;"
                   command="cmd_properties"/>
 #ifdef XP_UNIX
 #ifndef XP_MACOSX
-        <menuitem id="menu_accountmgr" label="&accountManagerCmd.label;" accesskey="&accountManagerCmdUnix.accesskey;" oncommand="MsgAccountManager(null);"/>
+        <menuitem id="menu_accountmgr"
+                  label="&accountManagerCmd2.label;"
+                  accesskey="&accountManagerCmdUnix2.accesskey;"
+                  oncommand="MsgAccountManager(null);"/>
         <menuitem id="menu_preferences" oncommand="openOptionsDialog()"/>
 #endif
 #endif
@@ -2414,6 +2380,8 @@
             <menuseparator id="viewMenuAfterPaneVerticalSeparator"/>
             <menuitem id="menu_showFolderPane" type="checkbox" label="&showFolderPaneCmd.label;"
                       accesskey="&showFolderPaneCmd.accesskey;" command="cmd_toggleFolderPane"/>
+            <menuitem id="menu_showFolderPaneCols" type="checkbox" label="&showFolderPaneColsCmd.label;"
+                      accesskey="&showFolderPaneColsCmd.accesskey;" command="cmd_toggleFolderPaneCols"/>
             <menuitem id="menu_showMessage" type="checkbox" label="&showMessageCmd.label;" key="key_toggleMessagePane"
                       accesskey="&showMessageCmd.accesskey;" command="cmd_toggleMessagePane"/>
           </menupopup>
@@ -2425,27 +2393,33 @@
                       label="&allFolders.label;"
                       accesskey="&allFolders.accesskey;"
                       type="radio" name="viewmessages"
-                      oncommand="gFolderTreeView.mode = this.value;"/>
+                      oncommand="gFolderTreeView.toggleMode(this.value);"/>
             <menuitem id="menu_smartFolders" value="smart"
                       label="&unifiedFolders.label;"
                       accesskey="&unifiedFolders.accesskey;"
                       type="radio" name="viewmessages"
-                      oncommand="gFolderTreeView.mode = this.value;"/>
-            <menuitem id="menu_unreadFolders"
-                      label="&unreadFolders.label;" value="unread"
+                      oncommand="gFolderTreeView.toggleMode(this.value);"/>
+            <menuitem id="menu_unreadFolders" value="unread"
+                      label="&unreadFolders.label;"
                       accesskey="&unreadFolders.accesskey;"
                       type="radio" name="viewmessages"
-                      oncommand="gFolderTreeView.mode = this.value;"/>
+                      oncommand="gFolderTreeView.toggleMode(this.value);"/>
             <menuitem id="menu_favoriteFolders" value="favorite"
                       label="&favoriteFolders.label;"
                       accesskey="&favoriteFolders.accesskey;"
                       type="radio" name="viewmessages"
-                      oncommand="gFolderTreeView.mode = this.value;"/>
+                      oncommand="gFolderTreeView.toggleMode(this.value);"/>
             <menuitem id="menu_recentFolders" value="recent"
                       label="&recentFolders.label;"
                       accesskey="&recentFolders.accesskey;"
                       type="radio" name="viewmessages"
-                      oncommand="gFolderTreeView.mode = this.value;"/>
+                      oncommand="gFolderTreeView.toggleMode(this.value);"/>
+            <menuseparator id="menu_compactViewSeparator"/>
+            <menuitem id="menu_compactFolderView"
+                      label="&compactVersion.label;"
+                      accesskey="&compactVersion.accesskey;"
+                      type="checkbox"
+                      oncommand="gFolderTreeView.toggleCompact(this.getAttribute('checked') == 'true');"/>
           </menupopup>
         </menu>
         <menuseparator id="viewSortMenuSeparator"/>
@@ -2536,10 +2510,10 @@
                         accesskey="&bodyAllParts.accesskey;" oncommand="MsgBodyAllParts()"/>
             </menupopup>
           </menu>
-          <menu id="viewFeedSummary" 
-                label="&bodyMenuFeed.label;" 
+          <menu id="viewFeedSummary"
+                label="&bodyMenuFeed.label;"
                 accesskey="&bodyMenuFeed.accesskey;">
-            <menupopup id="viewFeedSummaryPopupMenu" 
+            <menupopup id="viewFeedSummaryPopupMenu"
                        onpopupshowing="InitViewBodyMenu()">
               <menuitem id="bodyFeedGlobalWebPage"
                         type="radio"
@@ -2560,22 +2534,22 @@
                         accesskey="&viewFeedSummaryFeedPropsPref.accesskey;"
                         oncommand="FeedMessageHandler.onSelectPref = 2"/>
               <menuseparator id="viewFeedSummarySeparator"/>
-              <menuitem id="bodyFeedSummaryAllowHTML" 
-                        type="radio" 
+              <menuitem id="bodyFeedSummaryAllowHTML"
+                        type="radio"
                         name="viewFeedBodyHTMLGroup"
-                        label="&bodyAllowHTML.label;" 
+                        label="&bodyAllowHTML.label;"
                         accesskey="&bodyAllowHTML.accesskey;"
                         oncommand="MsgFeedBodyRenderPrefs(false, 0, 0)"/>
-              <menuitem id="bodyFeedSummarySanitized" 
-                        type="radio" 
+              <menuitem id="bodyFeedSummarySanitized"
+                        type="radio"
                         name="viewFeedBodyHTMLGroup"
-                        label="&bodySanitized.label;" 
+                        label="&bodySanitized.label;"
                         accesskey="&bodySanitized.accesskey;"
                         oncommand="MsgFeedBodyRenderPrefs(false, 3, gDisallow_classes_no_html)"/>
-              <menuitem id="bodyFeedSummaryAsPlaintext" 
-                        type="radio" 
+              <menuitem id="bodyFeedSummaryAsPlaintext"
+                        type="radio"
                         name="viewFeedBodyHTMLGroup"
-                        label="&bodyAsPlaintext.label;" 
+                        label="&bodyAsPlaintext.label;"
                         accesskey="&bodyAsPlaintext.accesskey;"
                         oncommand="MsgFeedBodyRenderPrefs(true, 1, gDisallow_classes_no_html)"/>
             </menupopup>
@@ -2605,7 +2579,9 @@
                         type="checkbox" command="cmd_fullZoomToggle" checked="false"/>
             </menupopup>
           </menu>
-          <menu id="mailviewCharsetMenu" />
+          <menu id="charsetMenu"
+                onpopupshowing="UpdateCharsetMenu(msgWindow.mailCharacterSet, this);"
+                oncommand="MailSetCharacterSet(event)"/>
           <menuseparator id="viewAfterCharsetSeparator"/>
           <menuitem id="pageSourceMenuItem" label="&pageSourceCmd.label;" key="key_viewPageSource" accesskey="&pageSourceCmd.accesskey;" command="cmd_viewPageSource"/>
         </menupopup>
@@ -2622,9 +2598,9 @@
                         key="key_nextUnreadMsg"/>
               <menuitem id="menu_nextFlaggedMsg" label="&nextStarredMsgCmd.label;" accesskey="&nextStarredMsgCmd.accesskey;" command="cmd_nextFlaggedMsg"/>
               <menuseparator id="goNextAfterFlaggedSeparator"/>
-              <menuitem id="menu_nextUnreadThread" 
-                        label="&nextUnreadThread.label;" 
-                        accesskey="&nextUnreadThread.accesskey;" 
+              <menuitem id="menu_nextUnreadThread"
+                        label="&nextUnreadThread.label;"
+                        accesskey="&nextUnreadThread.accesskey;"
                         command="cmd_nextUnreadThread"
                         key="key_nextUnreadThread"/>
             </menupopup>
@@ -2653,18 +2629,16 @@
           <menu id="goFolderMenu"
                 label="&folderMenu.label;"
                 accesskey="&folderMenu.accesskey;"
-                oncommand="gFolderTreeView.selectFolder(event.target._folder, true)">
+                command="cmd_goFolder">
             <menupopup id="menu_GoFolderPopup"
                        type="folder"
                        showFileHereLabel="true"
-                       fileHereLabel="&thisFolder.label;"
-                       fileHereAccessKey="&thisFolder.accesskey;"
                        showRecent="true"
                        recentLabel="&contextMoveCopyMsgRecentMenu.label;"
                        recentAccessKey="&contextMoveCopyMsgRecentMenu.accesskey;"/>
           </menu>
           <menuseparator id="goFolderSeparator"/>
-          
+
           <menu id="goRecentlyClosedTabs"
                 label="&goRecentlyClosedTabs.label;"
                 accesskey="&goRecentlyClosedTabs.accesskey;"
@@ -2673,7 +2647,7 @@
                        onpopupshowing="return InitRecentlyClosedTabsPopup(this)" />
           </menu>
           <menuseparator id="goRecentlyClosedTabsSeparator"/>
-               
+
           <menuitem id="goStartPage"
                     label="&startPageCmd.label;"
                     accesskey="&startPageCmd.accesskey;"
@@ -2688,7 +2662,7 @@
             <menuitem id="newMsgCmd" label="&newMsgCmd.label;"
                       accesskey="&newMsgCmd.accesskey;"
                       key="key_newMessage2"
-                      oncommand="MsgNewMessage(null);"/>
+                      command="cmd_newMessage"/>
             <menuitem id="replyMainMenu" label="&replyMsgCmd.label;"
                       accesskey="&replyMsgCmd.accesskey;"
                       key="key_reply"
@@ -2724,8 +2698,8 @@
                           command="cmd_forwardAttachment"/>
               </menupopup>
             </menu>
-            <menuitem id="menu_editMsgAsNew" label="&editMsgAsNewCmd.label;"
-                      accesskey="&editMsgAsNewCmd.accesskey;"
+            <menuitem id="menu_editMsgAsNew" label="&editAsNewMsgCmd.label;"
+                      accesskey="&editAsNewMsgCmd.accesskey;"
                       key="key_editAsNew"
                       command="cmd_editAsNew"/>
             <menuseparator id="messageMenuAfterCompositionCommandsSeparator"/>
@@ -2737,25 +2711,25 @@
                       command="cmd_openConversation"
                       accesskey="&openConversationCmd.accesskey;"
                       key="key_openConversation"/>
-            <menu id="openFeedMessage" 
+            <menu id="openFeedMessage"
                   label="&openFeedMessage1.label;"
                   accesskey="&openFeedMessage1.accesskey;">
               <menupopup id="menu_openFeedMessage">
                 <menuitem id="menu_openFeedWebPage"
                           type="radio"
-                          name="openFeedGroup" 
+                          name="openFeedGroup"
                           label="&openFeedWebPage.label;"
                           accesskey="&openFeedWebPage.accesskey;"
                           oncommand="FeedMessageHandler.onOpenPref = 0"/>
                 <menuitem id="menu_openFeedSummary"
                           type="radio"
-                          name="openFeedGroup" 
+                          name="openFeedGroup"
                           label="&openFeedSummary.label;"
                           accesskey="&openFeedSummary.accesskey;"
                           oncommand="FeedMessageHandler.onOpenPref = 1"/>
-                <menuitem id="menu_openFeedWebPageInMessagePane" 
+                <menuitem id="menu_openFeedWebPageInMessagePane"
                           type="radio"
-                          name="openFeedGroup" 
+                          name="openFeedGroup"
                           label="&openFeedWebPageInMP.label;"
                           accesskey="&openFeedWebPageInMP.accesskey;"
                           oncommand="FeedMessageHandler.onOpenPref = 2"/>
@@ -2772,11 +2746,11 @@
             <menu id="tagMenu" label="&tagMenu.label;" accesskey="&tagMenu.accesskey;" command="cmd_tag">
               <menupopup id="tagMenu-tagpopup"
                          onpopupshowing="InitMessageTags(this);">
-                <menuitem id="addNewTag"
+                <menuitem id="tagMenu-addNewTag"
                           label="&addNewTag.label;"
                           accesskey="&addNewTag.accesskey;"
                           command="cmd_addTag"/>
-                <menuitem id="manageTags"
+                <menuitem id="tagMenu-manageTags"
                           label="&manageTags.label;"
                           accesskey="&manageTags.accesskey;"
                           command="cmd_manageTags"/>
@@ -2833,9 +2807,9 @@
                   label="&moveMsgToMenu.label;"
                   accesskey="&moveMsgToMenu.accesskey;"
                   oncommand="MsgMoveMessage(event.target._folder)">
-              <menupopup type="folder" mode="filing" showFileHereLabel="true"
-                         showRecent="true" fileHereLabel="&fileHereMenu.label;"
-                         fileHereAccessKey="&fileHereMenu.accesskey;"
+              <menupopup type="folder" mode="filing"
+                         showFileHereLabel="true"
+                         showRecent="true"
                          recentLabel="&moveCopyMsgRecentMenu.label;"
                          recentAccessKey="&moveCopyMsgRecentMenu.accesskey;"/>
             </menu>
@@ -2843,9 +2817,9 @@
                   label="&copyMsgToMenu.label;"
                   accesskey="&copyMsgToMenu.accesskey;"
                   oncommand="MsgCopyMessage(event.target._folder)">
-              <menupopup type="folder" mode="filing" showFileHereLabel="true"
-                         showRecent="true" fileHereLabel="&copyHereMenu.label;"
-                         fileHereAccessKey="&copyHereMenu.accesskey;"
+              <menupopup type="folder" mode="filing"
+                         showFileHereLabel="true"
+                         showRecent="true"
                          recentLabel="&moveCopyMsgRecentMenu.label;"
                          recentAccessKey="&moveCopyMsgRecentMenu.accesskey;"/>
             </menu>
@@ -2901,7 +2875,7 @@
                   oncommand="openActivityMgr();"/>
         <menu id="imAccountsStatus" label="&imAccountsStatus.label;"
               accesskey="&imAccountsStatus.accesskey;"
-              oncommand="chatHandler.setStatusMenupopupCommand(event);">
+              command="cmd_chatStatus">
           <menupopup id="imStatusMenupopup">
             <menuitem id="imStatusAvailable" status="available" label="&imStatus.available;" class="menuitem-iconic"/>
             <menuitem id="imStatusUnavailable" status="unavailable" label="&imStatus.unavailable;" class="menuitem-iconic"/>
@@ -2914,11 +2888,11 @@
         <menuitem id="joinChatMenuItem"
                   label="&joinChatCmd.label;"
                   accesskey="&joinChatCmd.accesskey;"
-                  oncommand="chatHandler.joinChat();"/>
+                  command="cmd_joinChat"/>
 
         <menuseparator id="devToolsSeparator"/>
-        <menuitem id="filtersCmd" label="&filtersCmd.label;"
-                  accesskey="&filtersCmd.accesskey;"
+        <menuitem id="filtersCmd" label="&filtersCmd2.label;"
+                  accesskey="&filtersCmd2.accesskey;"
                   command="cmd_displayMsgFilters"/>
         <menuitem id="applyFilters"
                   label="&filtersApply.label;"
@@ -2941,20 +2915,34 @@
         <menuitem id="menu_import" label="&importCmd.label;"
                   accesskey="&importCmd.accesskey;"
                   oncommand="toImport();"/>
-        <menuitem id="javascriptConsole" label="&errorConsoleCmd.label;" accesskey="&errorConsoleCmd.accesskey;" key="key_errorConsole" oncommand="toJavaScriptConsole();"/>
+        <menuitem id="javascriptConsole"
+                  label="&errorConsoleCmd.label;"
+                  accesskey="&errorConsoleCmd.accesskey;"
+                  key="key_errorConsole"
+                  oncommand="toJavaScriptConsole();"/>
         <menuitem id="sanitizeHistory"
                   label="&clearRecentHistory.label;"
                   accesskey="&clearRecentHistory.accesskey;"
+                  key="key_sanitizeHistory"
                   oncommand="toSanitize();"/>
 #ifndef XP_UNIX
         <menuseparator id="prefSep"/>
-        <menuitem id="menu_accountmgr" label="&accountManagerCmd.label;" accesskey="&accountManagerCmd.accesskey;" oncommand="MsgAccountManager(null);"/>
+        <menuitem id="menu_accountmgr"
+                  label="&accountManagerCmd2.label;"
+                  accesskey="&accountManagerCmd2.accesskey;"
+                  oncommand="MsgAccountManager(null);"/>
         <menuitem id="menu_preferences" oncommand="openOptionsDialog()"/>
 #else
 #ifdef XP_MACOSX
         <menuseparator id="prefSep"/>
-        <menuitem id="menu_accountmgr" label="&accountManagerCmd.label;" accesskey="&accountManagerCmd.accesskey;" oncommand="MsgAccountManager(null);"/>
-        <menuitem id="menu_preferences" label="&preferencesCmdMac.label;" key="key_preferencesCmdMac" oncommand="openOptionsDialog()"/>
+        <menuitem id="menu_accountmgr"
+                  label="&accountManagerCmd2.label;"
+                  accesskey="&accountManagerCmd2.accesskey;"
+                  oncommand="MsgAccountManager(null);"/>
+        <menuitem id="menu_preferences"
+                  label="&preferencesCmdMac2.label;"
+                  key="key_preferencesCmdMac"
+                  oncommand="openOptionsDialog()"/>
         <menuitem id="menu_mac_services" label="&servicesMenuMac.label;"/>
         <menuitem id="menu_mac_hide_app" label="&hideThisAppCmdMac.label;" key="key_hideThisAppCmdMac"/>
         <menuitem id="menu_mac_hide_others" label="&hideOtherAppsCmdMac.label;" key="key_hideOtherAppsCmdMac"/>
@@ -2996,7 +2984,7 @@
     <toolbarbutton id="button-getmsg"
                    type="menu-button"
                    class="toolbarbutton-1"
-                   label="&getMsgButton.label;"
+                   label="&getMsgButton1.label;"
                    tooltiptext="&getMsgButton.tooltip;"
                    oncommand="MsgGetMessagesForAccount(event.target._folder)"
                    observes="button_getNewMessages">
@@ -3016,7 +3004,7 @@
                    class="toolbarbutton-1"
                    label="&newMsgButton.label;"
                    tooltiptext="&newMsgButton.tooltip;"
-                   oncommand="MsgNewMessage(event)"/>
+                   command="cmd_newMessage"/>
     <toolbarbutton id="button-reply"
                    class="toolbarbutton-1"
                    label="&replyButton.label;"
@@ -3064,8 +3052,6 @@
                  mode="filing"
                  showRecent="true"
                  showFileHereLabel="true"
-                 fileHereLabel="&fileHereMenu.label;"
-                 fileHereAccessKey="&fileHereMenu.accesskey;"
                  recentLabel="&moveCopyMsgRecentMenu.label;"
                  recentAccessKey="&moveCopyMsgRecentMenu.accesskey;"/>
     </toolbarbutton>
@@ -3243,11 +3229,11 @@
                    command="cmd_tag">
       <menupopup id="button-tagpopup"
                  onpopupshowing="InitMessageTags(this);">
-        <menuitem id="addNewTag"
+        <menuitem id="button-addNewTag"
                   label="&addNewTag.label;"
                   accesskey="&addNewTag.accesskey;"
                   command="cmd_addTag"/>
-        <menuitem id="manageTags"
+        <menuitem id="button-manageTags"
                   label="&manageTags.label;"
                   accesskey="&manageTags.accesskey;"
                   command="cmd_manageTags"/>
@@ -3305,55 +3291,6 @@
 
   <toolbarset id="customToolbars" context="toolbar-context-menu"/>
 </toolbox>
-
-<!-- The msgNotificationBar appears on top of the message and displays
-     information like: junk, contains remote images, or is a suspected phishing
-     URL.
--->
-<deck id="msgNotificationBar" selectedIndex="0" collapsed="true">
-  <hbox id="msgNotificationNoStatus"/>
-
-  <hbox id="phishingBar" class="msgNotificationBar" align="center">
-    <image id="phishingBarImage"/>
-    <vbox flex="1">
-      <description flex="1" class="msgNotificationBarText">&phishingBarMessage2.label;</description>
-      <label id="disablePhishingWarning" class="msgNotificaton-smallText text-link"
-             value="&disablePhishingWarning1.label;" onclick="DisablePhishingWarning();"/>
-      <label id="reportPhishingError" value="&reportPhishingError1.label;" class="msgNotificaton-smallText text-link" collapsed="true"/>
-    </vbox>
-    <button label="&removePhishingBarButton1.label;" oncommand="IgnorePhishingWarning();"/>
-  </hbox>
-
-  <hbox id="junkBar" class="msgNotificationBar" align="center">
-    <image id="junkBarImage"/>
-    <description flex="1" class="msgNotificationBarText">&junkBarMessage2.label;</description>
-    <button label="&junkBarButton1.label;" oncommand="JunkSelectedMessages(false);"/>
-  </hbox>
-
-  <hbox id="remoteContentBar" class="msgNotificationBar" align="center">
-    <image id="remoteContentImage"/>
-    <vbox flex="1">
-      <description class="msgNotificationBarText">&remoteContentMessage2.label;</description>
-      <label id="allowRemoteContentForAuthorDesc" class="msgNotificaton-smallText text-link"
-             crop="end"
-             onclick="allowRemoteContentForSender();"/>
-    </vbox>
-    <button id="remoteContentBarButton" label="&loadRemoteContentButton3.label;"
-            oncommand="LoadMsgWithRemoteContent();"/>
-  </hbox>
-
-  <hbox id="mdnBar" class="msgNotificationBar" align="center">
-    <image id="mdnBarImage"/>
-    <description id="mdnBarMessage" class="msgNotificationBarText" flex="1"/>
-    <button label="&mdnBarIgnoreButton2.label;"
-            accesskey="&mdnBarIgnoreButton2.accesskey;"
-            oncommand="IgnoreMDNResponse();"/>
-    <button label="&mdnBarSendButton2.label;"
-            accesskey="&mdnBarSendButton2.accesskey;"
-            oncommand="SendMDNResponse();"/>
-  </hbox>
-
-</deck>
 
 <statusbar class="chromeclass-status" id="status-bar">
   <hbox insertbefore="unreadMessageCount"  id="statusTextBox" flex="1">

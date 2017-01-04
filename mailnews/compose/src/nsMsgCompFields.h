@@ -9,6 +9,7 @@
 #include "nsIMsgCompFields.h"
 #include "msgCore.h"
 #include "nsIAbCard.h"
+#include "nsIAbDirectory.h"
 #include "nsTArray.h"
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
@@ -16,23 +17,10 @@
 
 struct nsMsgRecipient
 {
-  nsMsgRecipient() : mPreferFormat(nsIAbPreferMailFormat::unknown),
-                     mProcessed(false) {}
-
-  nsMsgRecipient(const nsMsgRecipient &other)
-  {
-    mAddress = other.mAddress;
-    mEmail = other.mEmail;
-    mPreferFormat = other.mPreferFormat;
-    mProcessed = other.mProcessed;
-  }
-
-  ~nsMsgRecipient() {}
-
-  nsString mAddress;
+  nsString mName;
   nsString mEmail;
-  uint32_t mPreferFormat;
-  uint32_t mProcessed;
+  nsCOMPtr<nsIAbCard> mCard;
+  nsCOMPtr<nsIAbDirectory> mDirectory;
 };
 
 /* Note that all the "Get" methods never return NULL (except in case of serious
@@ -42,11 +30,17 @@ struct nsMsgRecipient
 class nsMsgCompFields : public nsIMsgCompFields {
 public:
   nsMsgCompFields();
-  virtual ~nsMsgCompFields();
 
   /* this macro defines QueryInterface, AddRef and Release for this class */
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_FORWARD_MSGISTRUCTUREDHEADERS(mStructuredHeaders->)
+  NS_FORWARD_MSGIWRITABLESTRUCTUREDHEADERS(mStructuredHeaders->)
   NS_DECL_NSIMSGCOMPFIELDS
+
+  // Allow the C++ utility methods for people who use a concrete class instead
+  // of the interfaces.
+  using msgIStructuredHeaders::GetAddressingHeader;
+  using msgIWritableStructuredHeaders::SetAddressingHeader;
 
   typedef enum MsgHeaderID
   {
@@ -60,17 +54,14 @@ public:
     MSG_NEWSGROUPS_HEADER_ID,
     MSG_FOLLOWUP_TO_HEADER_ID,
     MSG_SUBJECT_HEADER_ID,
-    MSG_ATTACHMENTS_HEADER_ID,
     MSG_ORGANIZATION_HEADER_ID,
     MSG_REFERENCES_HEADER_ID,
-    MSG_OTHERRANDOMHEADERS_HEADER_ID,
     MSG_NEWSPOSTURL_HEADER_ID,
     MSG_PRIORITY_HEADER_ID,
     MSG_CHARACTER_SET_HEADER_ID,
     MSG_MESSAGE_ID_HEADER_ID,
     MSG_X_TEMPLATE_HEADER_ID,
     MSG_DRAFT_ID_HEADER_ID,
-    MSG_TEMPORARY_FILES_HEADER_ID,
 
     MSG_MAX_HEADERS   //Must be the last one.
   } MsgHeaderID;
@@ -117,23 +108,10 @@ public:
   nsresult SetSubject(const char *value) {return SetAsciiHeader(MSG_SUBJECT_HEADER_ID, value);}
   const char* GetSubject() {return GetAsciiHeader(MSG_SUBJECT_HEADER_ID);}
 
-  const char* GetAttachments() {
-    NS_ERROR("nsMsgCompFields::GetAttachments is not supported anymore, please use nsMsgCompFields::GetAttachmentsArray");
-    return GetAsciiHeader(MSG_ATTACHMENTS_HEADER_ID);
-    }
-
-  const char* GetTemporaryFiles() {
-    NS_ERROR("nsMsgCompFields::GetTemporaryFiles is not supported anymore, please use nsMsgCompFields::GetAttachmentsArray");
-    return GetAsciiHeader(MSG_TEMPORARY_FILES_HEADER_ID);
-    }
-
   nsresult SetOrganization(const char *value) {return SetAsciiHeader(MSG_ORGANIZATION_HEADER_ID, value);}
   const char* GetOrganization() {return GetAsciiHeader(MSG_ORGANIZATION_HEADER_ID);}
 
   const char* GetReferences() {return GetAsciiHeader(MSG_REFERENCES_HEADER_ID);}
-
-  nsresult SetOtherRandomHeaders(const char *value) {return SetAsciiHeader(MSG_OTHERRANDOMHEADERS_HEADER_ID, value);}
-  const char* GetOtherRandomHeaders() {return GetAsciiHeader(MSG_OTHERRANDOMHEADERS_HEADER_ID);}
 
   const char* GetNewspostUrl() {return GetAsciiHeader(MSG_NEWSPOSTURL_HEADER_ID);}
 
@@ -151,6 +129,7 @@ public:
   bool GetReturnReceipt() {return m_returnReceipt;}
   bool GetDSN() {return m_DSN;}
   bool GetAttachVCard() {return m_attachVCard;}
+  bool GetAttachmentReminder() {return m_attachmentReminder;}
   bool GetForcePlainText() {return m_forcePlainText;}
   bool GetUseMultipartAlternative() {return m_useMultipartAlternative;}
   bool GetBodyIsAsciiOnly() {return m_bodyIsAsciiOnly;}
@@ -163,10 +142,12 @@ public:
                              nsTArray<nsMsgRecipient> &aResult);
 
 protected:
-  char*       m_headers[MSG_MAX_HEADERS];
+  virtual ~nsMsgCompFields();
+  nsCString m_headers[MSG_MAX_HEADERS];
   nsCString   m_body;
   nsCOMArray<nsIMsgAttachment> m_attachments;
   bool        m_attachVCard;
+  bool        m_attachmentReminder;
   bool        m_forcePlainText;
   bool        m_useMultipartAlternative;
   bool        m_returnReceipt;
@@ -178,6 +159,7 @@ protected:
   bool        m_needToCheckCharset;
 
   nsCOMPtr<nsISupports> mSecureCompFields;
+  nsCOMPtr<msgIWritableStructuredHeaders> mStructuredHeaders;
 };
 
 

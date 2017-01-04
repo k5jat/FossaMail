@@ -31,9 +31,8 @@ class nsImapService : public nsIImapService,
 {
 public:
   nsImapService();
-  virtual ~nsImapService();
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIMSGPROTOCOLINFO
   NS_DECL_NSIIMAPSERVICE
   NS_DECL_NSIMSGMESSAGESERVICE
@@ -42,6 +41,7 @@ public:
   NS_DECL_NSICONTENTHANDLER
 
 protected:
+  virtual ~nsImapService();
   char GetHierarchyDelimiter(nsIMsgFolder *aMsgFolder);
 
   nsresult GetFolderName(nsIMsgFolder *aImapFolder, nsACString &aFolderName);

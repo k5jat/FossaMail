@@ -25,13 +25,12 @@ class nsLDAPOperation : public nsILDAPOperation
 {
   public:
 
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSILDAPOPERATION
 
     // constructor & destructor
     //
     nsLDAPOperation();
-    virtual ~nsLDAPOperation();
 
     /**
      * used to break cycles
@@ -39,6 +38,8 @@ class nsLDAPOperation : public nsILDAPOperation
     void Clear();
 
   private:
+    virtual ~nsLDAPOperation();
+
     /**
      * wrapper for ldap_add_ext()
      *

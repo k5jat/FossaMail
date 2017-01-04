@@ -26,6 +26,8 @@ struct mdbOid gAllOfflineOpsTableOID;
 nsMailDatabase::nsMailDatabase() : m_reparse(false)
 {
   m_mdbAllOfflineOpsTable = nullptr;
+  m_offlineOpsRowScopeToken = 0;
+  m_offlineOpsTableKindToken = 0;
 }
 
 nsMailDatabase::~nsMailDatabase()
@@ -35,8 +37,8 @@ nsMailDatabase::~nsMailDatabase()
 // caller passes in upgrading==true if they want back a db even if the db is out of date.
 // If so, they'll extract out the interesting info from the db, close it, delete it, and
 // then try to open the db again, prior to reparsing.
-nsresult nsMailDatabase::Open(nsIFile *aSummaryFile, bool aCreate,
-                              bool aUpgrading)
+nsresult nsMailDatabase::Open(nsMsgDBService* aDBService, nsIFile *aSummaryFile,
+                              bool aCreate, bool aUpgrading)
 {
 #ifdef DEBUG
   nsString leafName;
@@ -45,7 +47,7 @@ nsresult nsMailDatabase::Open(nsIFile *aSummaryFile, bool aCreate,
                      nsCaseInsensitiveStringComparator()))
     NS_ERROR("non summary file passed into open\n");
 #endif
-  return nsMsgDatabase::Open(aSummaryFile, aCreate, aUpgrading);
+  return nsMsgDatabase::Open(aDBService, aSummaryFile, aCreate, aUpgrading);
 }
 
 NS_IMETHODIMP nsMailDatabase::ForceClosed()
@@ -115,10 +117,17 @@ NS_IMETHODIMP nsMailDatabase::GetSummaryValid(bool *aResult)
 NS_IMETHODIMP nsMailDatabase::SetSummaryValid(bool aValid)
 {
   nsMsgDatabase::SetSummaryValid(aValid);
-  nsCOMPtr<nsIMsgPluggableStore> msgStore;
+
   if (!m_folder)
     return NS_ERROR_NULL_POINTER;
 
+  // If this is a virtual folder, there is no storage.
+  bool flag;
+  m_folder->GetFlag(nsMsgFolderFlags::Virtual, &flag);
+  if (flag)
+    return NS_OK;
+
+  nsCOMPtr<nsIMsgPluggableStore> msgStore;
   nsresult rv = m_folder->GetMsgStore(getter_AddRefs(msgStore));
   NS_ENSURE_SUCCESS(rv, rv);
   return msgStore->SetSummaryFileValid(m_folder, this, aValid);
@@ -143,8 +152,8 @@ NS_IMETHODIMP nsMailDatabase::GetOfflineOpForKey(nsMsgKey msgKey, bool create, n
 {
   mdb_bool	hasOid;
   mdbOid		rowObjectId;
-  mdb_err   err;
-  
+  nsresult err;
+
   if (!IMAPOffline)
     IMAPOffline = PR_NewLogModule("IMAPOFFLINE");
   nsresult rv = GetAllOfflineOpsTable();
@@ -317,9 +326,9 @@ public:
   NS_DECL_NSISIMPLEENUMERATOR
 
   nsMsgOfflineOpEnumerator(nsMailDatabase* db);
-  virtual ~nsMsgOfflineOpEnumerator();
 
 protected:
+  virtual ~nsMsgOfflineOpEnumerator();
   nsresult					GetRowCursor();
   nsresult					PrefetchNext();
   nsMailDatabase*              mDB;
@@ -342,7 +351,7 @@ nsMsgOfflineOpEnumerator::~nsMsgOfflineOpEnumerator()
   NS_RELEASE(mDB);
 }
 
-NS_IMPL_ISUPPORTS1(nsMsgOfflineOpEnumerator, nsISimpleEnumerator)
+NS_IMPL_ISUPPORTS(nsMsgOfflineOpEnumerator, nsISimpleEnumerator)
 
 nsresult nsMsgOfflineOpEnumerator::GetRowCursor()
 {
@@ -399,12 +408,6 @@ nsresult nsMsgOfflineOpEnumerator::PrefetchNext()
     mDone = true;
     return rv;
   }
-  // Get key from row.
-  mdbOid outOid;
-  nsMsgKey key = 0;
-  // TODO: Is the key variable unused?
-  if (NS_SUCCEEDED(offlineOpRow->GetOid(mDB->GetEnv(), &outOid)))
-    key = outOid.mOid_Id;
 
   nsIMsgOfflineImapOperation *op = new nsMsgOfflineImapOperation(mDB, offlineOpRow);
   mResultOp = op;

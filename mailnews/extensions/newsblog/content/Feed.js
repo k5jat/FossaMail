@@ -60,6 +60,7 @@ Feed.prototype =
   downloadCallback: null,
   resource: null,
   items: new Array(),
+  itemsStored: 0,
   mFolder: null,
   mInvalidFeed: false,
   mFeedType: null,
@@ -67,15 +68,6 @@ Feed.prototype =
 
   get folder()
   {
-    if (!this.mFolder)
-    {
-      try
-      {
-        this.mFolder = this.server.rootMsgFolder.getChildNamed(this.name);
-      }
-      catch (ex) {}
-    }
-
     return this.mFolder;
   },
 
@@ -86,22 +78,24 @@ Feed.prototype =
 
   get name()
   {
+    // Used for the feed's title in Subcribe dialog and opml export.
     let name = this.title || this.description || this.url;
-    if (!name)
-      throw new Error("Feed.name: couldn't compute name, as feed has no title, " +
-                      "description, or URL.");
+    return name.replace(/[\n\r\t]+/g, " ").replace(/[\x00-\x1F]+/g, "");
+  },
 
-    // Make sure the feed name doesn't have any line breaks, since we're going
-    // to use it as the name of the folder in the filesystem.  This may not
-    // be necessary, since Mozilla's mail code seems to handle other forbidden
-    // characters in filenames and can probably handle these as well.
-    name = name.replace(/[\n\r\t]+/g, " ");
+  get folderName()
+  {
+    if (this.mFolderName)
+      return this.mFolderName;
 
-    // Make sure the feed doesn't end in a period to work around bug 117840.
-    // Remove leading/trailing spaces for bug 547543.
-    name = name.replace(/\.+$/, "").trim();
-
-    return name;
+    // Get a unique sanitized name. Use title or description as a base;
+    // these are mandatory by spec. Length of 80 is plenty.
+    let folderName = (this.title || this.description || "").substr(0,80);
+    let defaultName = FeedUtils.strings.GetStringFromName("ImportFeedsNew");
+    return this.mFolderName = FeedUtils.getSanitizedFolderName(this.server.rootMsgFolder,
+                                                               folderName,
+                                                               defaultName,
+                                                               true);
   },
 
   download: function(aParseItems, aCallback)
@@ -168,8 +162,11 @@ Feed.prototype =
     // Only order what you're going to eat...
     this.request.responseType = "document";
     this.request.overrideMimeType("text/xml");
+    this.request.setRequestHeader("Accept", FeedUtils.REQUEST_ACCEPT);
+    this.request.timeout = FeedUtils.REQUEST_TIMEOUT;
     this.request.onload = this.onDownloaded;
     this.request.onerror = this.onDownloadError;
+    this.request.ontimeout = this.onDownloadError;
     FeedCache.putFeed(this);
     this.request.send(null);
   },
@@ -251,6 +248,19 @@ Feed.prototype =
     FeedCache.removeFeed(aFeed.url);
   },
 
+  onUrlChange: function(aFeed, aOldUrl)
+  {
+    if (!aFeed)
+      return;
+
+    // Simulate a cancel after a url update; next cycle will check the new url.
+    aFeed.mInvalidFeed = true;
+    if (aFeed.downloadCallback)
+      aFeed.downloadCallback.downloaded(aFeed, FeedUtils.kNewsBlogCancel);
+
+    FeedCache.removeFeed(aOldUrl);
+  },
+
   get url()
   {
     let ds = FeedUtils.getSubscriptionsDS(this.server);
@@ -258,7 +268,7 @@ Feed.prototype =
     if (url)
       url = url.QueryInterface(Ci.nsIRDFLiteral).Value;
     else
-      url = this.resource.Value;
+      url = this.resource.ValueUTF8;
 
     return url;
   },
@@ -310,9 +320,6 @@ Feed.prototype =
                 old_lastmodified, aLastModified);
     else
       ds.Assert(this.resource, FeedUtils.DC_LASTMODIFIED, aLastModified, true);
-
-    // Do we need to flush every time this property changes?
-    ds.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
   },
 
   get quickMode ()
@@ -343,6 +350,38 @@ Feed.prototype =
                 aNewQuickMode, true);
   },
 
+  get options ()
+  {
+    let ds = FeedUtils.getSubscriptionsDS(this.server);
+    let options = ds.GetTarget(this.resource, FeedUtils.FZ_OPTIONS, true);
+    if (options)
+      return JSON.parse(options.QueryInterface(Ci.nsIRDFLiteral).Value);
+
+    return null;
+  },
+
+  set options (aOptions)
+  {
+    let newOptions = aOptions ? FeedUtils.newOptions(aOptions) :
+                                FeedUtils._optionsDefault;
+    let ds = FeedUtils.getSubscriptionsDS(this.server);
+    newOptions = FeedUtils.rdf.GetLiteral(JSON.stringify(newOptions));
+    let oldOptions = ds.GetTarget(this.resource, FeedUtils.FZ_OPTIONS, true);
+    if (oldOptions)
+      ds.Change(this.resource, FeedUtils.FZ_OPTIONS, oldOptions, newOptions);
+    else
+      ds.Assert(this.resource, FeedUtils.FZ_OPTIONS, newOptions, true);
+  },
+
+  categoryPrefs: function ()
+  {
+    let categoryPrefsAcct = FeedUtils.getOptionsAcct(this.server).category;
+    if (!this.options)
+      return categoryPrefsAcct;
+
+    return this.options.category;
+  },
+
   get link ()
   {
     let ds = FeedUtils.getSubscriptionsDS(this.server);
@@ -371,9 +410,9 @@ Feed.prototype =
   {
     // Create a feed parser which will parse the feed.
     let parser = new FeedParser();
-    this.itemsToStore = parser.parseFeed(this,
-                                         this.request.responseXML,
-                                         this.request.channel.URI);
+    this.itemsToStore = parser.parseFeed(this, this.request.responseXML);
+    parser = null;
+
     if (this.mInvalidFeed)
     {
       this.request = null;
@@ -449,15 +488,18 @@ Feed.prototype =
       return;
 
     try {
-      this.folder = this.server.rootMsgFolder.
-                                QueryInterface(Ci.nsIMsgLocalMailFolder).
-                                createLocalSubfolder(this.name);
+      this.folder = this.server.rootMsgFolder
+                               .QueryInterface(Ci.nsIMsgLocalMailFolder)
+                               .createLocalSubfolder(this.folderName);
     }
     catch (ex) {
       // An error creating.
-      FeedUtils.log.error("Feed.createFolder: error creating folder - '"+
-                          this.name+"' in parent folder "+
+      FeedUtils.log.info("Feed.createFolder: error creating folder - '"+
+                          this.folderName+"' in parent folder "+
                           this.server.rootMsgFolder.filePath.path + " -- "+ex);
+      // But its remnants are still there, clean up.
+      let xfolder = this.server.rootMsgFolder.getChildNamed(this.folderName);
+      this.server.rootMsgFolder.propagateDelete(xfolder, true, null);
     }
   },
 
@@ -475,8 +517,11 @@ Feed.prototype =
 
     if (!this.itemsToStore || !this.itemsToStore.length)
     {
+      let code = FeedUtils.kNewsBlogSuccess;
       this.createFolder();
-      this.cleanupParsingState(this, FeedUtils.kNewsBlogSuccess);
+      if (!this.folder)
+        code = FeedUtils.kNewsBlogFileError;
+      this.cleanupParsingState(this, code);
       return;
     }
 
@@ -484,6 +529,12 @@ Feed.prototype =
 
     if (item.store())
       this.itemsStored++;
+
+    if (!this.folder)
+    {
+      this.cleanupParsingState(this, FeedUtils.kNewsBlogFileError);
+      return;
+    }
 
     this.itemsToStoreIndex++;
 
@@ -515,7 +566,7 @@ Feed.prototype =
         item.feed.folder.callFilterPlugins(null);
       }
 
-      this.cleanupParsingState(item.feed, FeedUtils.kNewsBlogSuccess);
+      this.cleanupParsingState(this, FeedUtils.kNewsBlogSuccess);
     }
   },
 
@@ -530,11 +581,8 @@ Feed.prototype =
 
     // Flush any feed item changes to disk.
     let ds = FeedUtils.getItemsDS(aFeed.server);
-    ds.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
+    ds.Flush();
     FeedUtils.log.debug("Feed.cleanupParsingState: items stored - " + this.itemsStored);
-
-    if (aFeed.downloadCallback)
-      aFeed.downloadCallback.downloaded(aFeed, aCode);
 
     // Force the xml http request to go away.  This helps reduce some nasty
     // assertions on shut down.
@@ -543,6 +591,9 @@ Feed.prototype =
     this.itemsToStoreIndex = 0;
     this.itemsStored = 0;
     this.storeItemsTimer = null;
+
+    if (aFeed.downloadCallback)
+      aFeed.downloadCallback.downloaded(aFeed, aCode);
   },
 
   // nsITimerCallback

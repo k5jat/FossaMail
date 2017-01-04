@@ -6,6 +6,7 @@
 #ifndef _nsMsgCopy_H_
 #define _nsMsgCopy_H_
 
+#include "mozilla/Attributes.h"
 #include "nscore.h"
 #include "nsIFile.h"
 #include "nsMsgSend.h"
@@ -30,26 +31,26 @@ class CopyListener : public nsIMsgCopyServiceListener
 {
 public:
   CopyListener(void);
-  virtual ~CopyListener(void);
 
   // nsISupports interface
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
 
-  NS_IMETHOD OnStartCopy();
+  NS_IMETHOD OnStartCopy() override;
   
-  NS_IMETHOD OnProgress(uint32_t aProgress, uint32_t aProgressMax);
+  NS_IMETHOD OnProgress(uint32_t aProgress, uint32_t aProgressMax) override;
 
-  NS_IMETHOD SetMessageKey(uint32_t aMessageKey);
+  NS_IMETHOD SetMessageKey(nsMsgKey aMessageKey) override;
+
+  NS_IMETHOD GetMessageId(nsACString& aMessageId) override;
   
-  NS_IMETHOD GetMessageId(nsACString& aMessageId);
-  
-  NS_IMETHOD OnStopCopy(nsresult aStatus);
+  NS_IMETHOD OnStopCopy(nsresult aStatus) override;
 
   NS_IMETHOD SetMsgComposeAndSendObject(nsIMsgSend *obj);
   
   bool                            mCopyInProgress;
 
 private:
+  virtual ~CopyListener();
   nsCOMPtr<nsIMsgSend>       mComposeAndSend;
 };
 
@@ -61,7 +62,6 @@ class nsMsgCopy : public nsIUrlListener
 {
 public:
   nsMsgCopy();
-  virtual ~nsMsgCopy();
 
   // nsISupports interface
   NS_DECL_ISUPPORTS
@@ -101,6 +101,9 @@ public:
   bool                            mIsDraft;
   nsCOMPtr<nsIMsgSend>            mMsgSendObj;
   char                            *mSavePref;
+
+private:
+  virtual ~nsMsgCopy();
 };
 
 // Useful function for the back end...

@@ -22,15 +22,15 @@ class nsSubscribeDataSource : public nsIRDFDataSource, public nsISubscribeDataSo
 
 public:
   nsSubscribeDataSource();
-  virtual ~nsSubscribeDataSource();
 
   nsresult Init();
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIRDFDATASOURCE
   NS_DECL_NSISUBSCRIBEDATASOURCE
 
 private:
+  virtual ~nsSubscribeDataSource();
   nsCOMPtr <nsIRDFResource>      kNC_Child;
   nsCOMPtr <nsIRDFResource>      kNC_Name;    
   nsCOMPtr <nsIRDFResource>      kNC_LeafName;

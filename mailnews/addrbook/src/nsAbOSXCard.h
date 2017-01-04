@@ -6,6 +6,7 @@
 #ifndef nsAbOSXCard_h___
 #define nsAbOSXCard_h___
 
+#include "mozilla/Attributes.h"
 #include "nsAbCardProperty.h"
 
 #define NS_ABOSXCARD_URI_PREFIX NS_ABOSXCARD_PREFIX "://"
@@ -32,14 +33,15 @@ class nsAbOSXCard : public nsAbCardProperty,
 public:
   NS_DECL_ISUPPORTS_INHERITED
     
-  nsresult Update(bool aNotify);
-  nsresult GetURI(nsACString &aURI);
-  nsresult Init(const char *aUri);
+  nsresult Update(bool aNotify) override;
+  nsresult GetURI(nsACString &aURI) override;
+  nsresult Init(const char *aUri) override;
   // this is needed so nsAbOSXUtils.mm can get at nsAbCardProperty
   friend class nsAbOSXUtils;
 private:
   nsCString mURI;
 
+  virtual ~nsAbOSXCard() {}
 };
 
 #endif // nsAbOSXCard_h___

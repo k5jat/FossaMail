@@ -8,6 +8,7 @@
  */
 
 Components.utils.import("resource:///modules/mailServices.js");
+Components.utils.import("resource:///modules/MailUtils.js");
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/PluralForm.jsm");
 
@@ -96,7 +97,10 @@ function UpdateDeleteLabelsFromFolderCommand(folder, command)
   if (command != "cmd_delete")
     return;
 
-  if (folder.server.type == "nntp") {
+  if (folder.getFlag(nsMsgFolderFlags.Virtual)) {
+    goSetMenuValue(command, "valueFolder");
+  }
+  else if (folder.server.type == "nntp") {
     goSetMenuValue(command, "valueNewsgroup");
     goSetAccessKey(command, "valueNewsgroupAccessKey");
   }
@@ -115,6 +119,7 @@ var DefaultController =
       case "cmd_createFilterFromPopup":
       case "cmd_archive":
       case "button_archive":
+      case "cmd_newMessage":
       case "cmd_reply":
       case "button_reply":
       case "cmd_replySender":
@@ -131,6 +136,7 @@ var DefaultController =
       case "cmd_editAsNew":
       case "cmd_createFilterFromMenu":
       case "cmd_delete":
+      case "cmd_cancel":
       case "cmd_deleteFolder":
       case "button_delete":
       case "button_junk":
@@ -157,6 +163,7 @@ var DefaultController =
       case "cmd_viewWideMailLayout":
       case "cmd_viewVerticalMailLayout":
       case "cmd_toggleFolderPane":
+      case "cmd_toggleFolderPaneCols":
       case "cmd_toggleMessagePane":
       case "cmd_viewAllMsgs":
       case "cmd_viewUnreadMsgs":
@@ -243,9 +250,15 @@ var DefaultController =
       case "cmd_downloadSelected":
       case "cmd_synchronizeOffline":
         return MailOfflineMgr.isOnline();
-
-      case "cmd_cancel":
-        return(gFolderDisplay.selectedMessageIsNews);
+      case "cmd_newFolder":
+      case "cmd_newVirtualFolder":
+        return !!gFolderTreeController;
+      case "cmd_goFolder":
+        return !!gFolderTreeView;
+      case "cmd_joinChat":
+      case "cmd_addChatBuddy":
+      case "cmd_chatStatus":
+        return !!chatHandler;
 
       default:
         return false;
@@ -254,11 +267,7 @@ var DefaultController =
 
   isCommandEnabled: function(command)
   {
-    var enabled = new Object();
-    enabled.value = false;
-    var checkStatus = new Object();
-
-    switch ( command )
+    switch (command)
     {
       case "cmd_delete":
         UpdateDeleteCommand();
@@ -269,19 +278,18 @@ var DefaultController =
       case "cmd_shiftDelete":
       case "button_shiftDelete":
         return gFolderDisplay.getCommandStatus(nsMsgViewCommandType.deleteNoTrash);
-      case "cmd_cancel": {
-        let selectedMessages = gFolderDisplay.selectedMessages;
-        return selectedMessages.length == 1 && selectedMessages[0].folder &&
-               selectedMessages[0].folder.server.type == "nntp";
-      }
+      case "cmd_cancel":
+        return gFolderDisplay.selectedCount == 1 &&
+               gFolderDisplay.selectedMessageIsNews;
       case "cmd_deleteFolder":
         var folders = gFolderTreeView.getSelectedFolders();
         if (folders.length == 1) {
-          var folder = folders[0];
-          if (folder.server.type == "nntp")
-            return false; // Just disable the command for news.
-          else
-            return CanDeleteFolder(folder);
+          let folder = folders[0];
+          if (folder.server.type == "nntp") {
+            // Just disable the command for news unless it is a Saved search folder.
+            return folder.getFlag(nsMsgFolderFlags.Virtual);
+          }
+          return CanDeleteFolder(folder);
         }
         return false;
       case "button_junk":
@@ -294,16 +302,12 @@ var DefaultController =
         return gFolderDisplay.getCommandStatus(nsMsgViewCommandType.toggleThreadWatched);
       case "cmd_createFilterFromPopup":
       case "cmd_createFilterFromMenu":
-      {
-        let selectedMessages = gFolderDisplay.selectedMessages;
-        return selectedMessages.length == 1 && selectedMessages[0].folder &&
-               selectedMessages[0].folder.server.canHaveFilters;
-      }
+        return gFolderDisplay.selectedCount == 1 &&
+               gFolderDisplay.selectedMessage.folder &&
+               gFolderDisplay.selectedMessage.folder.server.canHaveFilters;
       case "cmd_openConversation":
-      {
-        return (gFolderDisplay.selectedMessages.length == 1) &&
+        return gFolderDisplay.selectedCount == 1 &&
                gConversationOpener.isSelectedMessageIndexed();
-      }
       case "cmd_saveAsFile":
         return GetNumSelectedMessages() > 0;
       case "cmd_saveAsTemplate":
@@ -364,6 +368,8 @@ var DefaultController =
         if (GetNumSelectedMessages() == 1)
           return gFolderDisplay.getCommandStatus(nsMsgViewCommandType.cmdRequiringMsgBody);
         return false;
+      case "cmd_newMessage":
+      // This enables Write button even without any accounts set up, so users might run into Bug 524863
       case "cmd_printSetup":
       case "cmd_viewAllHeader":
       case "cmd_viewNormalHeader":
@@ -428,13 +434,13 @@ var DefaultController =
       case "cmd_goForward":
       case "cmd_goBack":
         if (gDBView)
-          enabled.value = gDBView.navigateStatus((command == "cmd_goBack" || command == "button_goBack") ? nsMsgNavigationType.back : nsMsgNavigationType.forward);
-        return enabled.value;
+          return gDBView.navigateStatus((command == "cmd_goBack" || command == "button_goBack") ? nsMsgNavigationType.back : nsMsgNavigationType.forward);
+        return false;
       case "cmd_goStartPage":
         return document.getElementById("tabmail").selectedTab.mode.name == "folder" &&
                !IsMessagePaneCollapsed();
       case "cmd_undoCloseTab":
-        return (document.getElementById("tabmail").recentlyClosedTabs.length > 0);               
+        return (document.getElementById("tabmail").recentlyClosedTabs.length > 0);
       case "cmd_markAllRead":
         return IsFolderSelected() && gDBView &&
                gDBView.msgFolder.getNumUnread(false) > 0;
@@ -469,6 +475,7 @@ var DefaultController =
       case "cmd_viewWideMailLayout":
       case "cmd_viewVerticalMailLayout":
       case "cmd_toggleFolderPane":
+      case "cmd_toggleFolderPaneCols":
       case "cmd_toggleMessagePane":
         // this is overridden per-mail tab
         return true;
@@ -564,6 +571,16 @@ var DefaultController =
         return IsFolderSelected() && !IsMessagePaneCollapsed();
       case "cmd_chat":
         return true;
+      case "cmd_newFolder":
+      case "cmd_newVirtualFolder":
+        return !!gFolderTreeController;
+      case "cmd_goFolder":
+        return !!gFolderTreeView;
+      case "cmd_joinChat":
+      case "cmd_addChatBuddy":
+      case "cmd_chatStatus":
+        return !!chatHandler;
+
       default:
         return false;
     }
@@ -572,9 +589,10 @@ var DefaultController =
 
   doCommand: function(command, aTab)
   {
-    // if the user invoked a key short cut then it is possible that we got here for a command which is
-    // really disabled. kick out if the command should be disabled.
-    if (!this.isCommandEnabled(command)) return;
+    // If the user invoked a key short cut then it is possible that we got here
+    // for a command which is really disabled. Kick out if the command should be disabled.
+    if (!this.isCommandEnabled(command))
+      return;
 
     switch ( command )
     {
@@ -590,6 +608,9 @@ var DefaultController =
         break;
       case "cmd_archive":
         MsgArchiveSelectedMessages(null);
+        break;
+      case "cmd_newMessage":
+        MsgNewMessage(null);
         break;
       case "cmd_reply":
         MsgReplyMessage(null);
@@ -635,9 +656,10 @@ var DefaultController =
         if (!gRightMouseButtonSavedSelection)
           gFolderDisplay.hintAboutToDeleteMessages();
         gFolderDisplay.doCommand(nsMsgViewCommandType.deleteMsg);
+        UpdateDeleteToolbarButton();
         break;
       case "cmd_cancel":
-        let message = gFolderDisplay.selectedMessages[0];
+        let message = gFolderDisplay.selectedMessage;
         message.folder.QueryInterface(Components.interfaces.nsIMsgNewsFolder)
                       .cancelMessage(message, msgWindow);
         break;
@@ -646,6 +668,7 @@ var DefaultController =
         MarkSelectedMessagesRead(true);
         gFolderDisplay.hintAboutToDeleteMessages();
         gFolderDisplay.doCommand(nsMsgViewCommandType.deleteNoTrash);
+        UpdateDeleteToolbarButton();
         break;
       case "cmd_deleteFolder":
         gFolderTreeController.deleteFolder();
@@ -725,6 +748,9 @@ var DefaultController =
         break;
       case "cmd_toggleFolderPane":
         MsgToggleFolderPane();
+        break;
+      case "cmd_toggleFolderPaneCols":
+        gFolderTreeView.toggleCols();
         break;
       case "cmd_toggleMessagePane":
         MsgToggleMessagePane();
@@ -919,11 +945,12 @@ var DefaultController =
           MailOfflineMgr.openOfflineAccountSettings();
           break;
       case "cmd_moveToFolderAgain":
-          var folderId = Services.prefs.getCharPref("mail.last_msg_movecopy_target_uri");
+          var folder = MailUtils.getFolderForURI(
+            Services.prefs.getCharPref("mail.last_msg_movecopy_target_uri"));
           if (Services.prefs.getBoolPref("mail.last_msg_movecopy_was_move"))
-            MsgMoveMessage(GetMsgFolderFromUri(folderId));
+            MsgMoveMessage(folder);
           else
-            MsgCopyMessage(GetMsgFolderFromUri(folderId));
+            MsgCopyMessage(folder);
           break;
       case "cmd_selectAll":
         // XXX If the message pane is selected but the tab focused, this ends
@@ -956,6 +983,18 @@ var DefaultController =
         break;
       case "cmd_chat":
         showChatTab();
+        break;
+      case "cmd_newFolder":
+        gFolderTreeController.newFolder();
+        break;
+      case "cmd_newVirtualFolder":
+        gFolderTreeController.newVirtualFolder();
+        break;
+      case "cmd_joinChat":
+        chatHandler.joinChat();
+        break;
+      case "cmd_addChatBuddy":
+        chatHandler.addBuddy();
         break;
     }
   },
@@ -1116,6 +1155,10 @@ function UnloadCommandUpdateHandlers()
 
 function IsSendUnsentMsgsEnabled(unsentMsgsFolder)
 {
+  // If no account has been configured, there are no messages for sending.
+  if (MailServices.accounts.accounts.length == 0)
+    return false;
+
   var msgSendlater =
     Components.classes["@mozilla.org/messengercompose/sendlater;1"]
               .getService(Components.interfaces.nsIMsgSendLater);
@@ -1160,6 +1203,8 @@ function IsPropertiesEnabled(command)
   // when servers are selected it should be "Edit | Properties..."
   if (folder.isServer)
     goSetMenuValue(command, "valueGeneric");
+  else if (folder.getFlag(nsMsgFolderFlags.Virtual))
+    goSetMenuValue(command, "valueFolder");
   else
     goSetMenuValue(command, isNewsURI(folder.URI) ? "valueNewsgroup" : "valueFolder");
 

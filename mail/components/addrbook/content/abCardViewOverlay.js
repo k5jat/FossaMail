@@ -5,6 +5,7 @@
 
 //NOTE: gAddressBookBundle must be defined and set or this Overlay won't work
 
+Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
 var gProfileDirURL;
@@ -290,15 +291,26 @@ function DisplayCardViewPane(realCard)
     var year = card.getProperty("BirthYear", null);
     var dateStr;
     if (day > 0 && day < 32 && month > 0 && month < 13) {
-      var date = new Date(year, month - 1, day);
+      var date;
       // if the year exists, just use Date.toLocaleString
       if (year) {
-        date.setFullYear(year);
-        dateStr = date.toLocaleDateString();
+        // use UTC-based calculations to avoid off-by-one day
+        // due to time zone/dst discontinuity
+        date = new Date(Date.UTC(year, month - 1, day));
+        date.setUTCFullYear(year); // to handle two-digit years properly
+        dateStr = date.toLocaleDateString([], {timeZone: "UTC"});
       }
       // if the year doesn't exist, display Month DD (ex. January 01)
-      else
-        dateStr = date.toLocaleFormat(gAddressBookBundle.getString("dateformat"));
+      else {
+        date = new Date(saneBirthYear(year), month - 1, day);
+        // toLocaleFormat() seems to have a different implementation than
+        // toLocaleDateString() and returns correct results even when not
+        // passing UTC times; besides, it would not support an options
+        // parameter for {timeZone: "UTC"} anyway.
+        dateStr = date.toLocaleFormat(
+          gAddressBookBundle.getString("dateFormatMonthDay")
+        );
+      }
     }
     else if (year)
       dateStr = year;
@@ -464,18 +476,21 @@ function cvSetNodeWithLabel(node, label, text)
 
 function cvSetCityStateZip(node, city, state, zip)
 {
-  var text = "";
+  let text = "";
 
-  if ( city )
-  {
-    text = city;
-    if ( state || zip )
-      text += ", ";
+  if (city && state && zip)
+    text = gAddressBookBundle.getFormattedString("cityAndStateAndZip",
+                                                 [city, state, zip]);
+  else if (city && state && !zip)
+    text = gAddressBookBundle.getFormattedString("cityAndStateNoZip",
+                                                 [city, state]);
+  else if (zip && ((!city && state) || (city && !state)))
+    text = gAddressBookBundle.getFormattedString("cityOrStateAndZip",
+                                                 [city + state, zip]);
+  else {
+    // Only one of the strings is non-empty so contatenating them produces that string.
+    text = city + state + zip;
   }
-  if ( state )
-    text += state + " ";
-  if ( zip )
-    text += zip;
 
   return cvSetNode(node, text);
 }
@@ -504,7 +519,7 @@ function cvAddAddressNodes(node, uri)
       var total = addressList.length;
       if (total > 0) {
         while (node.hasChildNodes()) {
-          node.removeChild(node.lastChild);
+          node.lastChild.remove();
         }
         for (i = 0;  i < total; i++ ) {
           var descNode = document.createElement("description");
@@ -547,13 +562,19 @@ function HandleLink(node, label, value, box, link)
   return visible;
 }
 
-function MapIt(id)
+function OpenURLWithHistory(url)
 {
-  var button = document.getElementById(id);
   try {
+    PlacesUtils.asyncHistory.updatePlaces({
+      uri: Services.io.newURI(url, null, null),
+      visits:  [{
+        visitDate: Date.now() * 1000,
+        transitionType: Components.interfaces.nsINavHistoryService.TRANSITION_LINK
+      }]
+    });
     var messenger = Components.classes["@mozilla.org/messenger;1"].createInstance();
     messenger = messenger.QueryInterface(Components.interfaces.nsIMessenger);
-    messenger.launchExternalURL(button.getAttribute('url'));
+    messenger.launchExternalURL(url);
   } catch (ex) {}
 }
 
@@ -572,14 +593,14 @@ function CreateMapItURL(address1, address2, city, state, zip, country)
   return urlFormat;
 }
 
-// XXX merge with the code in Map It
+function MapIt(id)
+{
+  OpenURLWithHistory(document.getElementById(id).getAttribute('url'));
+}
+
 function openLink(id)
 {
-  try {
-    var messenger = Components.classes["@mozilla.org/messenger;1"].createInstance();
-    messenger = messenger.QueryInterface(Components.interfaces.nsIMessenger);
-    messenger.launchExternalURL(document.getElementById(id).getAttribute("href"));
-  } catch (ex) {}
+  OpenURLWithHistory(document.getElementById(id).getAttribute("href"));
 
   // return false, so we don't load the href in the addressbook window
   return false;

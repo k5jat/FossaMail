@@ -15,6 +15,18 @@
 #include "nsUnicharUtils.h"
 #include "nsIWinTaskbar.h"
 #include "nsISupportsPrimitives.h"
+#include "nsComponentManagerUtils.h"
+#include "nsServiceManagerUtils.h"
+#include "nsIProperties.h"
+#include "nsStringGlue.h"
+
+#ifndef MOZILLA_INTERNAL_API
+/**
+ * The external API expects CaseInsensitiveCompare. Redefine
+ * nsCaseInsensitiveStringComparator() so that Equals works.
+ */
+#define nsCaseInsensitiveStringComparator() CaseInsensitiveCompare
+#endif
 
 #ifdef _WIN32_WINNT
 #undef _WIN32_WINNT
@@ -34,7 +46,7 @@
 
 #define NS_TASKBAR_CONTRACTID "@mozilla.org/windows-taskbar;1"
 
-NS_IMPL_ISUPPORTS2(nsWindowsShellService, nsIWindowsShellService, nsIShellService)
+NS_IMPL_ISUPPORTS(nsWindowsShellService, nsIWindowsShellService, nsIShellService)
 
 static nsresult
 OpenKeyForReading(HKEY aKeyRoot, const nsAString& aKeyName, HKEY* aKey)
@@ -65,12 +77,12 @@ typedef enum {
 
 // APP_REG_NAME_MAIL and APP_REG_NAME_NEWS should be kept in synch with
 // AppRegNameMail and AppRegNameNews in the installer file: defines.nsi.in
-#define APP_REG_NAME_MAIL L"FossaMail"
-#define APP_REG_NAME_NEWS L"FossaMail (News)"
-#define CLS_EML "FossaMailEML"
-#define CLS_MAILTOURL "FossaMail.Url.mailto"
-#define CLS_NEWSURL "FossaMail.Url.news"
-#define CLS_FEEDURL "FossaMail.Url.feed"
+#define APP_REG_NAME_MAIL L"Thunderbird"
+#define APP_REG_NAME_NEWS L"Thunderbird (News)"
+#define CLS_EML "ThunderbirdEML"
+#define CLS_MAILTOURL "Thunderbird.Url.mailto"
+#define CLS_NEWSURL "Thunderbird.Url.news"
+#define CLS_FEEDURL "Thunderbird.Url.feed"
 #define SOP "\\shell\\open\\command"
 #define VAL_OPEN "\"%APPPATH%\" \"%1\""
 #define VAL_MAIL_OPEN "\"%APPPATH%\" -osint -mail \"%1\""
@@ -114,7 +126,7 @@ nsresult
 GetHelperPath(nsAutoString& aPath)
 {
   nsresult rv;
-  nsCOMPtr<nsIProperties> directoryService = 
+  nsCOMPtr<nsIProperties> directoryService =
     do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -232,9 +244,7 @@ nsWindowsShellService::ShortcutMaintenance()
 
 nsresult nsWindowsShellService::Init()
 {
-  nsresult rv;
-
-  PRUnichar appPath[MAX_BUF];
+  char16_t appPath[MAX_BUF];
   if (!::GetModuleFileNameW(0, appPath, MAX_BUF))
     return NS_ERROR_FAILURE;
 
@@ -340,7 +350,7 @@ bool
 nsWindowsShellService::TestForDefault(SETTING aSettings[], int32_t aSize)
 {
   bool isDefault = true;
-  PRUnichar currValue[MAX_BUF];
+  char16_t currValue[MAX_BUF];
   SETTING* end = aSettings + aSize;
   for (SETTING * settings = aSettings; settings < end; ++settings)
   {

@@ -12,6 +12,7 @@
 #include "nsIMsgMailNewsUrl.h"
 #include "nsNewsFolder.h"
 #include "nsMsgFolderFlags.h"
+#include "MailNewsTypes.h"
 #include "prprf.h"
 #include "prsystem.h"
 #include "nsIArray.h"
@@ -73,60 +74,8 @@ static NS_DEFINE_CID(kRDFServiceCID, NS_RDFSERVICE_CID);
 
 #define kNewsSortOffset 9000
 
-#define kSizeUnknown 1
-
 #define NEWS_SCHEME "news:"
 #define SNEWS_SCHEME "snews:"
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-class AsyncAuthMigrator : public nsIMsgAsyncPromptListener {
-public:
-  AsyncAuthMigrator(nsIMsgNewsFolder *folder) : m_folder(folder) {}
-
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIMSGASYNCPROMPTLISTENER
-
-  void EnqueuePrompt();
-
-private:
-  nsCOMPtr<nsIMsgNewsFolder> m_folder;
-};
-
-NS_IMPL_ISUPPORTS1(AsyncAuthMigrator, nsIMsgAsyncPromptListener)
-
-NS_IMETHODIMP AsyncAuthMigrator::OnPromptStart(bool *retval)
-{
-  *retval = true;
-  return m_folder->MigrateLegacyCredentials();
-}
-
-NS_IMETHODIMP AsyncAuthMigrator::OnPromptAuthAvailable()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP AsyncAuthMigrator::OnPromptCanceled()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-void AsyncAuthMigrator::EnqueuePrompt()
-{
-  nsCOMPtr<nsIMsgAsyncPrompter> prompter =
-    do_GetService(NS_MSGASYNCPROMPTER_CONTRACTID);
-
-  // Make up a fake unique key to prevent coalescing of prompts
-  // The address of this object should be sufficient
-  nsAutoCString queueKey;
-  queueKey.AppendInt((int32_t)(uint64_t)this);
-  prompter->QueueAsyncAuthPrompt(queueKey, false, this);
-}
-
-}
-
- 
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,13 +85,13 @@ nsMsgNewsFolder::nsMsgNewsFolder(void) :
      m_downloadMessageForOfflineUse(false), m_downloadingMultipleMessages(false),
      mReadSet(nullptr), mSortOrder(kNewsSortOffset)
 {
-  MOZ_COUNT_CTOR(nsNewsFolder); // double count these for now.
+  MOZ_COUNT_CTOR(nsMsgNewsFolder); // double count these for now.
   mFolderSize = kSizeUnknown;
 }
 
 nsMsgNewsFolder::~nsMsgNewsFolder(void)
 {
-  MOZ_COUNT_DTOR(nsNewsFolder);
+  MOZ_COUNT_DTOR(nsMsgNewsFolder);
   delete mReadSet;
 }
 
@@ -234,10 +183,6 @@ nsMsgNewsFolder::AddNewsgroup(const nsACString &name, const nsACString& setStr,
 
   // cache this for when we open the db
   rv = newsFolder->SetReadSetFromStr(setStr);
-
-  // I don't have a good time to do this, but this is as good as any...
-  nsRefPtr<AsyncAuthMigrator> delayedPrompt(new AsyncAuthMigrator(newsFolder));
-  delayedPrompt->EnqueuePrompt();
 
   rv = folder->SetParent(this);
   NS_ENSURE_SUCCESS(rv,rv);
@@ -516,7 +461,7 @@ NS_IMETHODIMP nsMsgNewsFolder::CreateSubfolder(const nsAString& newsgroupName,
 {
   nsresult rv = NS_OK;
   if (newsgroupName.IsEmpty())
-    return NS_ERROR_FAILURE;
+    return NS_MSG_ERROR_INVALID_FOLDER_NAME;
 
   nsCOMPtr<nsIMsgFolder> child;
   // Create an empty database for this mail folder, set its name from the user
@@ -680,7 +625,7 @@ nsresult nsMsgNewsFolder::AbbreviatePrettyName(nsAString& prettyName, int32_t fu
   int32_t newword = 0;     // == 2 if done with all abbreviated words
 
   fullwords = 0;
-  PRUnichar currentChar;
+  char16_t currentChar;
   for (int32_t i = 1; i < length; i++)
   {
     // this temporary assignment is needed to fix an intel mac compiler bug.
@@ -784,7 +729,7 @@ nsMsgNewsFolder::UpdateSummaryFromNNTPInfo(int32_t oldest, int32_t youngest, int
   return NS_OK;
 }
 
-NS_IMETHODIMP nsMsgNewsFolder::GetExpungedBytesCount(uint32_t *count)
+NS_IMETHODIMP nsMsgNewsFolder::GetExpungedBytesCount(int64_t *count)
 {
   NS_ENSURE_ARG_POINTER(count);
   *count = mExpungedBytes;
@@ -793,7 +738,12 @@ NS_IMETHODIMP nsMsgNewsFolder::GetExpungedBytesCount(uint32_t *count)
 
 NS_IMETHODIMP nsMsgNewsFolder::GetDeletable(bool *deletable)
 {
+  NS_ENSURE_ARG_POINTER(deletable);
+
   *deletable = false;
+  // For legacy reasons, there can be Saved search folders under news accounts.
+  // Allow deleting those.
+  GetFlag(nsMsgFolderFlags::Virtual, deletable);
   return NS_OK;
 }
 
@@ -807,12 +757,18 @@ NS_IMETHODIMP nsMsgNewsFolder::RefreshSizeOnDisk()
   return NS_OK;
 }
 
-NS_IMETHODIMP nsMsgNewsFolder::GetSizeOnDisk(uint32_t *size)
+NS_IMETHODIMP nsMsgNewsFolder::GetSizeOnDisk(int64_t *size)
 {
   NS_ENSURE_ARG_POINTER(size);
 
+  bool isServer = false;
+  nsresult rv = GetIsServer(&isServer);
+  // If this is the rootFolder, return 0 as a safe value.
+  if (NS_FAILED(rv) || isServer)
+    mFolderSize = 0;
+
   // 0 is a valid folder size (meaning empty file with no offline messages),
-  // but 1 is not. So use 1 as a special value meaning no file size was fetched
+  // but 1 is not. So use -1 as a special value meaning no file size was fetched
   // from disk yet.
   if (mFolderSize == kSizeUnknown)
   {
@@ -1214,80 +1170,6 @@ nsresult nsMsgNewsFolder::CreateNewsgroupUrlForSignon(const char *ref,
 }
 
 NS_IMETHODIMP
-nsMsgNewsFolder::MigrateLegacyCredentials()
-{
-  // The original ways that authentication credentials were stored was rather
-  // complicated and messy. We used separate URLs as the "HTTP realm" field to
-  // permit prompting for username and password as separate dialogs. In this
-  // method, we check for this, and store them in the new unified credentials
-  // dialog.
-
-  // Create the URLs that the login manager needs
-  nsString signonUrl;
-  nsresult rv = CreateNewsgroupUrlForSignon(nullptr, signonUrl);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsString usernameUrl;
-  rv = CreateNewsgroupUrlForSignon("username", usernameUrl);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsString passwordUrl;
-  rv = CreateNewsgroupUrlForSignon("password", passwordUrl);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsILoginManager> loginMgr =
-    do_GetService(NS_LOGINMANAGER_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Grab out the saved username
-  uint32_t count = 0;
-  nsILoginInfo **logins = nullptr;
-  rv = loginMgr->FindLogins(&count, signonUrl, EmptyString(), usernameUrl,
-    &logins);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ASSERTION(count <= 1, "Too many usernames?");
-
-  nsString username;
-  if (count > 0)
-  {
-    rv = logins[0]->GetPassword(username);
-    // Remove the saved login
-    loginMgr->RemoveLogin(logins[0]);
-  }
-
-  NS_FREE_XPCOM_ISUPPORTS_POINTER_ARRAY(count, logins);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Do the same things for the password
-  rv = loginMgr->FindLogins(&count, signonUrl, EmptyString(), passwordUrl,
-                            &logins);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ASSERTION(count <= 1, "Too many passwords?");
-
-  nsString password;
-  if (count > 0)
-  {
-    rv = logins[0]->GetPassword(password);
-    loginMgr->RemoveLogin(logins[0]);
-  }
-  NS_FREE_XPCOM_ISUPPORTS_POINTER_ARRAY(count, logins);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // If there is nothing to migrate, then do nothing
-  if (username.IsEmpty() && password.IsEmpty())
-    return NS_OK;
-
-  // Make and add the new logon
-  nsCOMPtr<nsILoginInfo> newLogin = do_CreateInstance(NS_LOGININFO_CONTRACTID);
-  // We need to pass in JS equivalent to "null"; empty ("") isn't good enough
-  nsString voidString;
-  voidString.SetIsVoid(true);
-  newLogin->Init(signonUrl, voidString, signonUrl, username, password,
-    EmptyString(), EmptyString());
-  return loginMgr->AddLogin(newLogin);
-}
-
-NS_IMETHODIMP
 nsMsgNewsFolder::GetAuthenticationCredentials(nsIMsgWindow *aMsgWindow,
     bool mayPrompt, bool mustPrompt, bool *validCredentials)
 {
@@ -1359,7 +1241,7 @@ nsMsgNewsFolder::GetAuthenticationCredentials(nsIMsgWindow *aMsgWindow,
     {
       // Format the prompt text strings
       nsString promptTitle, promptText;
-      bundle->GetStringFromName(NS_LITERAL_STRING("enterUserPassTitle").get(),
+      bundle->GetStringFromName(MOZ_UTF16("enterUserPassTitle"),
         getter_Copies(promptTitle));
 
       nsString serverName;
@@ -1376,16 +1258,16 @@ nsMsgNewsFolder::GetAuthenticationCredentials(nsIMsgWindow *aMsgWindow,
       bool singleSignon = true;
       nntpServer->GetSingleSignon(&singleSignon);
 
-      const PRUnichar *params[2];
+      const char16_t *params[2];
       params[0] = mName.get();
       params[1] = serverName.get();
       if (singleSignon)
         bundle->FormatStringFromName(
-          NS_LITERAL_STRING("enterUserPassServer").get(),
+          MOZ_UTF16("enterUserPassServer"),
           &params[1], 1, getter_Copies(promptText));
       else
         bundle->FormatStringFromName(
-          NS_LITERAL_STRING("enterUserPassGroup").get(),
+          MOZ_UTF16("enterUserPassGroup"),
           params, 2, getter_Copies(promptText));
 
       // Fill the signon url for the dialog
@@ -1394,9 +1276,9 @@ nsMsgNewsFolder::GetAuthenticationCredentials(nsIMsgWindow *aMsgWindow,
       NS_ENSURE_SUCCESS(rv, rv);
 
       // Prefill saved username/password
-      PRUnichar *uniGroupUsername = ToNewUnicode(
+      char16_t *uniGroupUsername = ToNewUnicode(
         NS_ConvertASCIItoUTF16(mGroupUsername));
-      PRUnichar *uniGroupPassword = ToNewUnicode(
+      char16_t *uniGroupPassword = ToNewUnicode(
         NS_ConvertASCIItoUTF16(mGroupPassword));
 
       // Prompt for the dialog
@@ -1730,9 +1612,10 @@ NS_IMETHODIMP nsMsgNewsFolder::DownloadAllForOffline(nsIUrlListener *listener, n
       bool hasMore;
       while (NS_SUCCEEDED(rv = enumerator->HasMoreElements(&hasMore)) && hasMore)
       {
-        nsCOMPtr <nsIMsgDBHdr> pHeader;
-        rv = enumerator->GetNext(getter_AddRefs(pHeader));
+        nsCOMPtr <nsISupports> supports;
+        rv = enumerator->GetNext(getter_AddRefs(supports));
         NS_ASSERTION(NS_SUCCEEDED(rv), "nsMsgDBEnumerator broken");
+        nsCOMPtr <nsIMsgDBHdr> pHeader = do_QueryInterface(supports);
         if (pHeader && NS_SUCCEEDED(rv))
         {
           bool shouldStoreMsgOffline = false;

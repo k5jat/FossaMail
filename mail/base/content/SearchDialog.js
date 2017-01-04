@@ -299,10 +299,8 @@ function onResetSearch(event) {
 
 function updateSearchFolderPicker(folder)
 {
-  SetFolderPicker(folder.URI, gFolderPicker.id);
-
   gCurrentFolder = folder;
-  gFolderPicker.firstChild._setCssSelectors(folder, gFolderPicker);
+  gFolderPicker.menupopup.selectFolder(folder);
 
   var searchOnline = document.getElementById("checkSearchOnline");
   // We will hide and disable the search online checkbox if we are offline, or
@@ -456,7 +454,7 @@ function AddSubFoldersToURI(folder)
  *  folder body may be searched, we ignore whether autosync is enabled,
  *  figuring that after the user manually syncs, they would still expect that
  *  body searches would work.
- *  
+ *
  * The available search capabilities also depend on whether the user is
  *  currently online or offline. Although that is also checked by the server,
  *  we do it ourselves because we have a more complex response to offline
@@ -490,7 +488,7 @@ function GetScopeForFolder(folder)
     case "news":
       // News has four offline scopes, depending on whether junk and body
       // are available.
-      let hasJunk = 
+      let hasJunk =
         folder.getInheritedStringProperty("dobayes.mailnews@mozilla.org#junk")
                == "true";
       if (hasJunk && hasBody)
@@ -572,8 +570,8 @@ function MoveMessageInSearch(destFolder)
   if (destUri.length == 0)
     destUri = destFolder.getAttribute('file-uri');
 
-  let destMsgFolder = GetMsgFolderFromUri(destUri).QueryInterface(
-                        Components.interfaces.nsIMsgFolder);
+  let destMsgFolder = MailUtils.getFolderForURI(destUri)
+    .QueryInterface(Components.interfaces.nsIMsgFolder);
 
   gFolderDisplay.hintAboutToDeleteMessages();
   gFolderDisplay.doCommandWithFolder(nsMsgViewCommandType.moveMessages,
@@ -587,7 +585,7 @@ function OpenInFolder()
 
 function saveAsVirtualFolder()
 {
-  var searchFolderURIs = window.arguments[0].folder.URI;
+  var searchFolderURIs = gCurrentFolder.URI;
 
   var searchSubfolders = document.getElementById("checkSearchSubFolders").checked;
   if (gCurrentFolder && (searchSubfolders || gCurrentFolder.isServer || gCurrentFolder.noSelect))
@@ -603,8 +601,7 @@ function saveAsVirtualFolder()
   var dialog = window.openDialog("chrome://messenger/content/virtualFolderProperties.xul", "",
                                  "chrome,titlebar,modal,centerscreen",
                                  {folder: window.arguments[0].folder,
-                                  searchTerms: toXPCOMArray(getSearchTerms(),
-                                                            Components.interfaces.nsISupportsArray),
+                                  searchTerms: getSearchTerms(),
                                   searchFolderURIs: searchFolderURIs,
                                   searchOnline: doOnlineSearch});
 }

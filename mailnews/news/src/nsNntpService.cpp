@@ -5,7 +5,6 @@
 
 #include "msgCore.h"    // precompiled header...
 #include "nntpCore.h"
-#include "nsISupportsObsolete.h"
 #include "nsMsgNewsCID.h"
 #include "nsINntpUrl.h"
 #include "nsIMsgNewsFolder.h"
@@ -68,17 +67,9 @@ nsNntpService::~nsNntpService()
   // do nothing
 }
 
-NS_IMPL_THREADSAFE_ADDREF(nsNntpService)
-NS_IMPL_THREADSAFE_RELEASE(nsNntpService)
-
-NS_IMPL_QUERY_INTERFACE7(nsNntpService,
-                         nsINntpService,
-                         nsIMsgMessageService,
-                         nsIProtocolHandler,
-                         nsIMsgProtocolInfo,
-                         ICOMMANDLINEHANDLER,
-                         nsIMsgMessageFetchPartService,
-                         nsIContentHandler)
+NS_IMPL_ISUPPORTS(nsNntpService, nsINntpService, nsIMsgMessageService,
+  nsIProtocolHandler, nsIMsgProtocolInfo, nsICommandLineHandler,
+  nsIMsgMessageFetchPartService, nsIContentHandler)
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // nsIMsgMessageService support
@@ -839,8 +830,6 @@ nsNntpService::PostMessage(nsIFile *aFileToPost, const char *newsgroupsNames, co
 
   NS_ENSURE_ARG(*newsgroupsNames);
 
-  NS_LOCK_INSTANCE();
-
   nsresult rv;
 
   nsCOMPtr <nsINntpUrl> nntpUrl = do_CreateInstance(NS_NNTPURL_CONTRACTID, &rv);
@@ -877,8 +866,6 @@ nsNntpService::PostMessage(nsIFile *aFileToPost, const char *newsgroupsNames, co
 
   if (_retval)
     rv = CallQueryInterface(nntpUrl, _retval);
-
-  NS_UNLOCK_INSTANCE();
 
   return rv;
 }
@@ -1094,7 +1081,6 @@ NS_IMETHODIMP nsNntpService::GetNewNews(nsINntpIncomingServer *nntpServer, const
 {
   NS_ENSURE_ARG_POINTER(uri);
 
-  NS_LOCK_INSTANCE();
   nsresult rv = NS_OK;
 
   nsCOMPtr<nsIMsgIncomingServer> server;
@@ -1129,8 +1115,6 @@ NS_IMETHODIMP nsNntpService::GetNewNews(nsINntpIncomingServer *nntpServer, const
     rv = NS_ERROR_FAILURE;
   }
 
-
-  NS_UNLOCK_INSTANCE();
   return rv;
 }
 
@@ -1240,12 +1224,28 @@ NS_IMETHODIMP nsNntpService::NewURI(const nsACString &aSpec,
 
 NS_IMETHODIMP nsNntpService::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 {
+  return NewChannel2(aURI, nullptr, _retval);
+}
+
+NS_IMETHODIMP nsNntpService::NewChannel2(nsIURI *aURI,
+                                         nsILoadInfo *aLoadInfo,
+                                         nsIChannel **_retval)
+{
   NS_ENSURE_ARG_POINTER(aURI);
   nsresult rv = NS_OK;
   nsCOMPtr<nsINntpIncomingServer> server;
   rv = GetServerForUri(aURI, getter_AddRefs(server));
   NS_ENSURE_SUCCESS(rv, rv);
-  return server->GetNntpChannel(aURI, nullptr, _retval);
+
+  nsCOMPtr<nsIChannel> channel;
+  rv = server->GetNntpChannel(aURI, nullptr, getter_AddRefs(channel));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = channel->SetLoadInfo(aLoadInfo);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  channel.forget(_retval);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

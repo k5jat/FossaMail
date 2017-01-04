@@ -15,7 +15,7 @@
 #include "nsServiceManagerUtils.h"
 #include "mozilla/Services.h"
 
-NS_IMPL_ISUPPORTS1(nsMsgProcessReport, nsIMsgProcessReport)
+NS_IMPL_ISUPPORTS(nsMsgProcessReport, nsIMsgProcessReport)
 
 nsMsgProcessReport::nsMsgProcessReport()
 {
@@ -53,13 +53,13 @@ NS_IMETHODIMP nsMsgProcessReport::SetError(nsresult aError)
 }
 
 /* attribute wstring message; */
-NS_IMETHODIMP nsMsgProcessReport::GetMessage(PRUnichar * *aMessage)
+NS_IMETHODIMP nsMsgProcessReport::GetMessage(char16_t * *aMessage)
 {
   NS_ENSURE_ARG_POINTER(aMessage);
   *aMessage = ToNewUnicode(mMessage);
   return NS_OK;
 }
-NS_IMETHODIMP nsMsgProcessReport::SetMessage(const PRUnichar * aMessage)
+NS_IMETHODIMP nsMsgProcessReport::SetMessage(const char16_t * aMessage)
 {
   mMessage = aMessage;
   return NS_OK;
@@ -76,7 +76,7 @@ NS_IMETHODIMP nsMsgProcessReport::Reset()
 }
 
 
-NS_IMPL_ISUPPORTS1(nsMsgSendReport, nsIMsgSendReport)
+NS_IMPL_ISUPPORTS(nsMsgSendReport, nsIMsgSendReport)
 
 nsMsgSendReport::nsMsgSendReport()
 {
@@ -183,7 +183,7 @@ NS_IMETHODIMP nsMsgSendReport::SetError(int32_t process, nsresult newError, bool
 }
 
 /* void setMessage (in long process, in wstring message, in boolean overwriteMessage); */
-NS_IMETHODIMP nsMsgSendReport::SetMessage(int32_t process, const PRUnichar *message, bool overwriteMessage)
+NS_IMETHODIMP nsMsgSendReport::SetMessage(int32_t process, const char16_t *message, bool overwriteMessage)
 {
   if (process < process_Current || process > SEND_LAST_PROCESS)
     return NS_ERROR_ILLEGAL_VALUE;
@@ -286,7 +286,8 @@ NS_IMETHODIMP nsMsgSendReport::DisplayReport(nsIPrompt *prompt, bool showErrorOn
         //Ignore, don't need to repeat ourself.
         break;
       default:
-        nsMsgGetMessageByID(currError, currMessage);
+        const char16_t* errorString = errorStringNameForErrorCode(currError);
+        nsMsgGetMessageByName(errorString, currMessage);
         break;
     }
   }
@@ -301,45 +302,47 @@ NS_IMETHODIMP nsMsgSendReport::DisplayReport(nsIPrompt *prompt, bool showErrorOn
       return NS_OK;
     }
 
-    bundle->GetStringFromID(NS_MSG_SEND_ERROR_TITLE, getter_Copies(dialogTitle));
+    bundle->GetStringFromName(MOZ_UTF16("sendMessageErrorTitle"),
+                              getter_Copies(dialogTitle));
 
-    nsresult preStrId = NS_ERROR_SEND_FAILED;
+    const char16_t* preStrName = MOZ_UTF16("sendFailed");
     bool askToGoBackToCompose = false;
     switch (mCurrentProcess)
     {
       case process_BuildMessage :
-        preStrId = NS_ERROR_SEND_FAILED;
+        preStrName = MOZ_UTF16("sendFailed");
         askToGoBackToCompose = false;
         break;
       case process_NNTP :
-        preStrId = NS_ERROR_SEND_FAILED;
+        preStrName = MOZ_UTF16("sendFailed");
         askToGoBackToCompose = false;
         break;
       case process_SMTP :
         bool nntpProceeded;
         mProcessReport[process_NNTP]->GetProceeded(&nntpProceeded);
         if (nntpProceeded)
-          preStrId = NS_ERROR_SEND_FAILED_BUT_NNTP_OK;
+          preStrName = MOZ_UTF16("sendFailedButNntpOk");
         else
-          preStrId = NS_ERROR_SEND_FAILED;
+          preStrName = MOZ_UTF16("sendFailed");
         askToGoBackToCompose = false;
         break;
       case process_Copy:
-        preStrId = NS_MSG_FAILED_COPY_OPERATION;
+        preStrName = MOZ_UTF16("failedCopyOperation");
         askToGoBackToCompose = (mDeliveryMode == nsIMsgCompDeliverMode::Now);
         break;
       case process_FCC:
-        preStrId = NS_MSG_FAILED_COPY_OPERATION;
+        preStrName = MOZ_UTF16("failedCopyOperation");
         askToGoBackToCompose = (mDeliveryMode == nsIMsgCompDeliverMode::Now);
         break;
     }
-    bundle->GetStringFromID(NS_ERROR_GET_CODE(preStrId), getter_Copies(dialogMessage));
+    bundle->GetStringFromName(preStrName, getter_Copies(dialogMessage));
 
     //Do we already have an error message?
     if (!askToGoBackToCompose && currMessage.IsEmpty())
     {
       //we don't have an error description but we can put a generic explanation
-      bundle->GetStringFromID(NS_MSG_GENERIC_FAILURE_EXPLANATION, getter_Copies(currMessage));
+      bundle->GetStringFromName(MOZ_UTF16("genericFailureExplanation"),
+                                getter_Copies(currMessage));
     }
 
     if (!currMessage.IsEmpty())
@@ -348,7 +351,7 @@ NS_IMETHODIMP nsMsgSendReport::DisplayReport(nsIPrompt *prompt, bool showErrorOn
       if (!currMessage.Equals(dialogMessage))
       {
         if (!dialogMessage.IsEmpty())
-          dialogMessage.Append(PRUnichar('\n'));
+          dialogMessage.Append(char16_t('\n'));
         dialogMessage.Append(currMessage);
       }
     }
@@ -357,7 +360,8 @@ NS_IMETHODIMP nsMsgSendReport::DisplayReport(nsIPrompt *prompt, bool showErrorOn
     {
       bool oopsGiveMeBackTheComposeWindow = true;
       nsString text1;
-      bundle->GetStringFromID(NS_MSG_ASK_TO_COMEBACK_TO_COMPOSE, getter_Copies(text1));
+      bundle->GetStringFromName(MOZ_UTF16("returnToComposeWindowQuestion"),
+                                getter_Copies(text1));
       if (!dialogMessage.IsEmpty())
         dialogMessage.AppendLiteral("\n");
       dialogMessage.Append(text1);
@@ -370,49 +374,50 @@ NS_IMETHODIMP nsMsgSendReport::DisplayReport(nsIPrompt *prompt, bool showErrorOn
   }
   else
   {
-    int32_t titleID;
-    nsresult preStrId;
+    const char16_t* title;
+    const char16_t* messageName;
 
     switch (mDeliveryMode)
     {
       case nsIMsgCompDeliverMode::Later:
-        titleID = NS_MSG_SENDLATER_ERROR_TITLE;
-        preStrId = NS_MSG_UNABLE_TO_SEND_LATER;
+        title = MOZ_UTF16("sendLaterErrorTitle");
+        messageName = MOZ_UTF16("unableToSendLater");
         break;
 
       case nsIMsgCompDeliverMode::AutoSaveAsDraft:
       case nsIMsgCompDeliverMode::SaveAsDraft:
-        titleID = NS_MSG_SAVE_DRAFT_TITLE;
-        preStrId = NS_MSG_UNABLE_TO_SAVE_DRAFT;
+        title = MOZ_UTF16("saveDraftErrorTitle");
+        messageName = MOZ_UTF16("unableToSaveDraft");
         break;
 
       case nsIMsgCompDeliverMode::SaveAsTemplate:
-        titleID = NS_MSG_SAVE_TEMPLATE_TITLE;
-        preStrId = NS_MSG_UNABLE_TO_SAVE_TEMPLATE;
+        title = MOZ_UTF16("saveTemplateErrorTitle");
+        messageName = MOZ_UTF16("unableToSaveTemplate");
         break;
 
       default:
-        /* This should never happend! */
-        titleID = NS_MSG_SEND_ERROR_TITLE;
-        preStrId = NS_ERROR_SEND_FAILED;
+        /* This should never happen! */
+        title = MOZ_UTF16("sendMessageErrorTitle");
+        messageName = MOZ_UTF16("sendFailed");
         break;
     }
 
-    bundle->GetStringFromID(titleID, getter_Copies(dialogTitle));
-    bundle->GetStringFromID(NS_ERROR_GET_CODE(preStrId),
-                            getter_Copies(dialogMessage));
+    bundle->GetStringFromName(title, getter_Copies(dialogTitle));
+    bundle->GetStringFromName(messageName,
+                              getter_Copies(dialogMessage));
 
     //Do we have an error message...
     if (currMessage.IsEmpty())
     {
       //we don't have an error description but we can put a generic explanation
-      bundle->GetStringFromID(NS_MSG_GENERIC_FAILURE_EXPLANATION, getter_Copies(currMessage));
+      bundle->GetStringFromName(MOZ_UTF16("genericFailureExplanation"),
+                                getter_Copies(currMessage));
     }
 
     if (!currMessage.IsEmpty())
     {
       if (!dialogMessage.IsEmpty())
-        dialogMessage.Append(PRUnichar('\n'));
+        dialogMessage.Append(char16_t('\n'));
       dialogMessage.Append(currMessage);
     }
     nsMsgDisplayMessageByString(prompt, dialogMessage.get(), dialogTitle.get());

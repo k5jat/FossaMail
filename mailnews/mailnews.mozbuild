@@ -3,17 +3,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-mailnews_dirs = []
-mailnews_static_dirs = []
-
-mailnews_dirs += ['../mozilla/xpfe/components/autocomplete']
-
 if CONFIG['MOZ_LDAP_XPCOM']:
-    mailnews_static_dirs += ['../ldap/sdk']
-    mailnews_dirs += ['../ldap/xpcom']
+    DIRS += [
+        '/ldap',
+        '/ldap/xpcom',
+    ]
 
 if CONFIG['MOZ_MORK']:
-    mailnews_dirs += ['../db']
+    DIRS += ['/db']
 
-mailnews_dirs += ['../mailnews']
+DIRS += ['/mailnews']
 

@@ -21,7 +21,6 @@ class nsMsgFilterService : public nsIMsgFilterService
 
 public:
   nsMsgFilterService();
-  virtual ~nsMsgFilterService();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMSGFILTERSERVICE
@@ -32,10 +31,12 @@ public:
   nsresult BackUpFilterFile(nsIFile *aFilterFile, nsIMsgWindow *aMsgWindow);
   nsresult AlertBackingUpFilterFile(nsIMsgWindow *aMsgWindow);
   nsresult ThrowAlertMsg(const char*aMsgName, nsIMsgWindow *aMsgWindow);
-  nsresult GetStringFromBundle(const char *aMsgName, PRUnichar **aResult);
+  nsresult GetStringFromBundle(const char *aMsgName, char16_t **aResult);
   nsresult GetFilterStringBundle(nsIStringBundle **aBundle);
 
 protected:
+  virtual ~nsMsgFilterService();
+
   nsCOMArray<nsIMsgFilterCustomAction> mCustomActions; // defined custom action list
   nsCOMArray<nsIMsgSearchCustomTerm> mCustomTerms; // defined custom term list
 

@@ -5,6 +5,7 @@
 #ifndef __nsRssIncomingServer_h
 #define __nsRssIncomingServer_h
 
+#include "mozilla/Attributes.h"
 #include "nsIRssIncomingServer.h"
 #include "nsILocalMailIncomingServer.h"
 #include "nsMsgIncomingServer.h"
@@ -23,18 +24,18 @@ public:
     NS_DECL_NSILOCALMAILINCOMINGSERVER
     NS_DECL_NSIMSGFOLDERLISTENER
 
-    NS_IMETHOD GetOfflineSupportLevel(int32_t *aSupportLevel);
-    NS_IMETHOD GetSupportsDiskSpace(bool *aSupportsDiskSpace);
-    NS_IMETHOD GetAccountManagerChrome(nsAString& aResult);
-    NS_IMETHOD PerformBiff(nsIMsgWindow *aMsgWindow);
-    NS_IMETHOD GetServerRequiresPasswordForBiff(bool *aServerRequiresPasswordForBiff);
-    NS_IMETHOD GetCanSearchMessages(bool *canSearchMessages);
-    NS_IMETHOD GetSortOrder(int32_t* aSortOrder);
+    NS_IMETHOD GetOfflineSupportLevel(int32_t *aSupportLevel) override;
+    NS_IMETHOD GetSupportsDiskSpace(bool *aSupportsDiskSpace) override;
+    NS_IMETHOD GetAccountManagerChrome(nsAString& aResult) override;
+    NS_IMETHOD PerformBiff(nsIMsgWindow *aMsgWindow) override;
+    NS_IMETHOD GetServerRequiresPasswordForBiff(bool *aServerRequiresPasswordForBiff) override;
+    NS_IMETHOD GetCanSearchMessages(bool *canSearchMessages) override;
+    NS_IMETHOD GetSortOrder(int32_t* aSortOrder) override;
 
     nsRssIncomingServer();
-    virtual ~nsRssIncomingServer();
 protected:
-    nsresult FolderChanged(nsIMsgFolder *aFolder, bool aUnsubscribe);
+    virtual ~nsRssIncomingServer();
+    nsresult FolderChanged(nsIMsgFolder *aFolder, nsIMsgFolder *aOrigFolder, const char *aAction);
     nsresult FillInDataSourcePath(const nsAString& aDataSourceName, nsIFile ** aLocation);
     static nsrefcnt gInstanceCount;
 };

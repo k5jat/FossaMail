@@ -7,7 +7,8 @@
   -moz-image-region: rect(1px 35px 17px 19px) !important;
 }
 
-#calendar-tab-button {
+#calendar-tab-button,
+#button-newmsg #newMsgButton-calendar-menuitem {
   list-style-image: url(chrome://lightning/skin/mode-switch-icons-aero.png);
   -moz-image-region: rect(0px 16px 16px 0px);
 }
@@ -18,7 +19,8 @@
   -moz-image-region: rect(16px 16px 32px 0px);
 }
 
-#task-tab-button {
+#task-tab-button,
+#button-newmsg #newMsgButton-task-menuitem {
   list-style-image: url(chrome://lightning/skin/mode-switch-icons-aero.png);
   -moz-image-region: rect(0px 32px 16px 16px);
 }
@@ -29,20 +31,55 @@
   -moz-image-region: rect(16px 32px 32px 16px);
 }
 
-#button-newmsg #newMsgButton-calendar-menuitem,
-#button-newmsg #newMsgButton-task-menuitem,
 #calendar-show-todaypane-panel > #calendar-status-todaypane-button > stack > .toolbarbutton-icon-begin {
   list-style-image: url(chrome://calendar/skin/toolbar-small-aero.png);
 }
 
-@media (-moz-windows-compositor) {
-  #tabbar-toolbar:not(:-moz-lwtheme-darktext) #calendar-tab-button,
-  #tabbar-toolbar:not(:-moz-lwtheme-darktext) #task-tab-button {
-    list-style-image: url(chrome://lightning/skin/mode-switch-icons-inverted.png);
-  }
+#tabs-toolbar[brighttext] #calendar-tab-button,
+#tabs-toolbar[brighttext] #task-tab-button {
+  list-style-image: url(chrome://lightning/skin/mode-switch-icons-inverted.png);
 }
 
-#tabbar-toolbar:-moz-lwtheme-brighttext #calendar-tab-button,
-#tabbar-toolbar:-moz-lwtheme-brighttext #task-tab-button {
-  list-style-image: url(chrome://lightning/skin/mode-switch-icons-inverted.png);
+/* ::: imip button icons ::: */
+.imipAcceptRecurrencesButton,
+.imipAcceptButton {
+  list-style-image: url(chrome://lightning/skin/imip-aero.png);
+  -moz-image-region: rect(0px 16px 16px 0px);
+}
+
+.imipDeclineRecurrencesButton,
+.imipDeclineButton {
+  list-style-image: url(chrome://lightning/skin/imip-aero.png);
+  -moz-image-region: rect(0px 32px 16px 16px);
+}
+
+.imipTentativeRecurrencesButton,
+.imipTentativeButton {
+  list-style-image: url(chrome://lightning/skin/imip-aero.png);
+  -moz-image-region: rect(1px 48px 17px 32px);
+}
+
+.imipDetailsButton {
+  list-style-image: url(chrome://calendar/skin/toolbar-aero.png);
+  -moz-image-region: rect(1px 143px 17px 126px);
+}
+
+.imipAddButton {
+  list-style-image: url(chrome://calendar/skin/toolbar-aero.png);
+  -moz-image-region: rect(2px 35px 18px 17px);
+}
+
+.imipUpdateButton {
+  list-style-image: url(chrome://calendar/skin/toolbar-aero.png);
+  -moz-image-region: rect(1px 17px 17px 1px);
+}
+
+.imipDeleteButton {
+  list-style-image: url(chrome://calendar/skin/toolbar-aero.png);
+  -moz-image-region: rect(1px 107px 17px 91px);
+}
+
+.imipReconfirmButton {
+  list-style-image: url(chrome://calendar/skin/tasks-actions-aero.png);
+  -moz-image-region: rect(1px 53px 17px 37px);
 }

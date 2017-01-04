@@ -6,6 +6,7 @@
 #ifndef _nsMsgSpecialViews_H_
 #define _nsMsgSpecialViews_H_
 
+#include "mozilla/Attributes.h"
 #include "nsMsgThreadedDBView.h"
 
 class nsMsgThreadsWithUnreadDBView : public nsMsgThreadedDBView
@@ -13,14 +14,14 @@ class nsMsgThreadsWithUnreadDBView : public nsMsgThreadedDBView
 public:
   nsMsgThreadsWithUnreadDBView();
   virtual ~nsMsgThreadsWithUnreadDBView();
-  virtual const char * GetViewName(void) {return "ThreadsWithUnreadView"; }
-  NS_IMETHOD CloneDBView(nsIMessenger *aMessengerInstance, nsIMsgWindow *aMsgWindow, nsIMsgDBViewCommandUpdater *aCommandUpdater, nsIMsgDBView **_retval);
-  NS_IMETHOD GetViewType(nsMsgViewTypeValue *aViewType);
+  virtual const char * GetViewName(void) override {return "ThreadsWithUnreadView"; }
+  NS_IMETHOD CloneDBView(nsIMessenger *aMessengerInstance, nsIMsgWindow *aMsgWindow, nsIMsgDBViewCommandUpdater *aCommandUpdater, nsIMsgDBView **_retval) override;
+  NS_IMETHOD GetViewType(nsMsgViewTypeValue *aViewType) override;
   NS_IMETHOD GetNumMsgsInView(int32_t *aNumMsgs);
 
-virtual bool WantsThisThread(nsIMsgThread *threadHdr);
+virtual bool WantsThisThread(nsIMsgThread *threadHdr) override;
 protected:
-  virtual nsresult AddMsgToThreadNotInView(nsIMsgThread *threadHdr, nsIMsgDBHdr *msgHdr, bool ensureListed);
+  virtual nsresult AddMsgToThreadNotInView(nsIMsgThread *threadHdr, nsIMsgDBHdr *msgHdr, bool ensureListed) override;
   uint32_t m_totalUnwantedMessagesInView;
 };
 
@@ -28,13 +29,13 @@ class nsMsgWatchedThreadsWithUnreadDBView : public nsMsgThreadedDBView
 {
 public:
   nsMsgWatchedThreadsWithUnreadDBView ();
-  NS_IMETHOD GetViewType(nsMsgViewTypeValue *aViewType);
-  NS_IMETHOD CloneDBView(nsIMessenger *aMessengerInstance, nsIMsgWindow *aMsgWindow, nsIMsgDBViewCommandUpdater *aCommandUpdater, nsIMsgDBView **_retval);
+  NS_IMETHOD GetViewType(nsMsgViewTypeValue *aViewType) override;
+  NS_IMETHOD CloneDBView(nsIMessenger *aMessengerInstance, nsIMsgWindow *aMsgWindow, nsIMsgDBViewCommandUpdater *aCommandUpdater, nsIMsgDBView **_retval) override;
   NS_IMETHOD GetNumMsgsInView(int32_t *aNumMsgs);
-  virtual const char * GetViewName(void) {return "WatchedThreadsWithUnreadView"; }
-  virtual bool WantsThisThread(nsIMsgThread *threadHdr);
+  virtual const char * GetViewName(void) override {return "WatchedThreadsWithUnreadView"; }
+  virtual bool WantsThisThread(nsIMsgThread *threadHdr) override;
 protected:
-  virtual nsresult AddMsgToThreadNotInView(nsIMsgThread *threadHdr, nsIMsgDBHdr *msgHdr, bool ensureListed);
+  virtual nsresult AddMsgToThreadNotInView(nsIMsgThread *threadHdr, nsIMsgDBHdr *msgHdr, bool ensureListed) override;
   uint32_t m_totalUnwantedMessagesInView;
 
 };

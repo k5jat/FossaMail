@@ -29,6 +29,8 @@ public:
   NS_DECL_NSIMSGCOMPUTILS
 
   nsMsgCompUtils();
+
+private:
   virtual ~nsMsgCompUtils();
 };
 
@@ -67,10 +69,9 @@ nsresult    mime_sanity_check_fields (
                             const char * /*organization*/,
                             const char * /*other_random_headers*/);
 
-char        *mime_generate_headers (nsMsgCompFields *fields,
-                                    const char *charset,
-                                    nsMsgDeliverMode deliver_mode,
-                                    nsIPrompt * aPrompt, nsresult *status);
+nsresult mime_generate_headers(nsIMsgCompFields *fields,
+                               nsMsgDeliverMode deliver_mode,
+                               msgIWritableStructuredHeaders *headers);
 
 char        *mime_make_separator(const char *prefix);
 char        *mime_gen_content_id(uint32_t aPartNum, const char *aEmailAddress);
@@ -107,7 +108,7 @@ bool        mime_type_needs_charset (const char *type);
 char        *msg_make_filename_qtext(const char *srcText, bool stripCRLFs);
 
 // Rip apart the URL and extract a reasonable value for the `real_name' slot.
-void        msg_pick_real_name (nsMsgAttachmentHandler *attachment, const PRUnichar *proposedName, const char *charset);
+void        msg_pick_real_name (nsMsgAttachmentHandler *attachment, const char16_t *proposedName, const char *charset);
 
 //
 // Informational calls...

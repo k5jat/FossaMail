@@ -54,15 +54,7 @@ nsMsgMailNewsUrl::~nsMsgMailNewsUrl()
   PR_FREEIF(m_errorMessage);
 }
   
-NS_IMPL_THREADSAFE_ADDREF(nsMsgMailNewsUrl)
-NS_IMPL_THREADSAFE_RELEASE(nsMsgMailNewsUrl)
-
-NS_INTERFACE_MAP_BEGIN(nsMsgMailNewsUrl)
-   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIMsgMailNewsUrl)
-   NS_INTERFACE_MAP_ENTRY(nsIMsgMailNewsUrl)
-   NS_INTERFACE_MAP_ENTRY(nsIURL)
-   NS_INTERFACE_MAP_ENTRY(nsIURI)
-NS_INTERFACE_MAP_END_THREADSAFE
+NS_IMPL_ISUPPORTS(nsMsgMailNewsUrl, nsIMsgMailNewsUrl, nsIURL, nsIURI)
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Begin nsIMsgMailNewsUrl specific support
@@ -120,13 +112,11 @@ nsresult nsMsgMailNewsUrl::UnRegisterListener(nsIUrlListener *aUrlListener)
 {
   NS_ENSURE_ARG_POINTER(aUrlListener);
 
-  int32_t index = mUrlListeners.IndexOf(aUrlListener);
   // Due to the way mailnews is structured, some listeners attempt to remove
   // themselves twice. This may in fact be an error in the coding, however
   // if they didn't do it as they do currently, then they could fail to remove
   // their listeners.
-  if (index != -1)
-    mUrlListeners.RemoveElementAt(index);
+  mUrlListeners.RemoveElement(aUrlListener);
 
   return NS_OK;
 }
@@ -628,7 +618,7 @@ NS_IMETHODIMP nsMsgMailNewsUrl::GetFileExtension(nsACString &aFileExtension)
 {
   if (!mAttachmentFileName.IsEmpty())
   {
-    int32_t pos = mAttachmentFileName.RFindChar(PRUnichar('.'));
+    int32_t pos = mAttachmentFileName.RFindChar(char16_t('.'));
     if (pos > 0)
       aFileExtension = Substring(mAttachmentFileName, pos + 1 /* skip the '.' */);
     return NS_OK;
@@ -762,9 +752,9 @@ public:
   NS_DECL_NSISTREAMLISTENER
 
   nsMsgSaveAsListener(nsIFile *aFile, bool addDummyEnvelope);
-  virtual ~nsMsgSaveAsListener();
   nsresult SetupMsgWriteStream(nsIFile *aFile, bool addDummyEnvelope);
 protected:
+  virtual ~nsMsgSaveAsListener();
   nsCOMPtr<nsIOutputStream> m_outputStream;
   nsCOMPtr<nsIFile> m_outputFile;
   bool m_addDummyEnvelope;
@@ -774,7 +764,7 @@ protected:
 
 };
 
-NS_IMPL_ISUPPORTS2(nsMsgSaveAsListener,
+NS_IMPL_ISUPPORTS(nsMsgSaveAsListener,
                    nsIStreamListener,
                    nsIRequestObserver)
 

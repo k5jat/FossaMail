@@ -3,12 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsISupports.idl"
-#include "nsIMsgAttachment.idl"
-#include "nsISimpleEnumerator.idl"
+#include "msgIStructuredHeaders.idl"
 
-[scriptable, uuid(bb793677-87c1-4125-b929-252bd9177794)]
-interface nsIMsgCompFields : nsISupports {
+interface nsIMsgAttachment;
+interface nsISimpleEnumerator;
+
+/**
+ * A collection of headers and other attributes for building a mail message.
+ */
+[scriptable, uuid(4d251187-8213-467a-90f7-f8f330f59085)]
+interface nsIMsgCompFields : msgIWritableStructuredHeaders {
 
   attribute AString from;
   attribute AString replyTo;
@@ -44,8 +48,8 @@ interface nsIMsgCompFields : nsISupports {
   attribute boolean useMultipartAlternative;
   attribute boolean bodyIsAsciiOnly;
   attribute boolean forceMsgEncoding;
-
-  attribute AString otherRandomHeaders;
+  /// Status of manually-activated attachment reminder.
+  attribute boolean attachmentReminder;
 
   /**
    * Beware that when setting this property, your body must be properly wrapped,
@@ -53,13 +57,6 @@ interface nsIMsgCompFields : nsISupports {
    * and "\n" on Linux and OSX.
    */
   attribute AString body;
-
-  /**
-   * temporaryFiles
-   *
-   * @OBSOLETE, DO NOT USE ANYMORE
-   */
-  attribute string  temporaryFiles;
 
   readonly attribute nsISimpleEnumerator attachments;
   void addAttachment(in nsIMsgAttachment attachment);
@@ -80,9 +77,6 @@ interface nsIMsgCompFields : nsISupports {
                        [array, size_is(aLength), retval] out wstring aResult);
 
   void ConvertBodyToPlainText();
-
-  // Check if the composing mail headers can be converted to a mail charset.
-  boolean checkCharsetConversion(out string fallbackCharset);
 
   /**
    * Indicates whether we need to check if the current |DocumentCharset|

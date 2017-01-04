@@ -3,11 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef MOZ_LOGGING
-// sorry, this has to be before the pre-compiled header
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif
-
 #include "msgCore.h"
 #include "nsSmtpProtocol.h"
 #include "nscore.h"
@@ -15,7 +10,6 @@
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
 #include "nsISocketTransport.h"
-#include "nsIMsgHeaderParser.h"
 #include "nsIMsgMailNewsUrl.h"
 #include "nsMsgBaseCID.h"
 #include "nsMsgCompCID.h"
@@ -44,7 +38,9 @@
 #include "nsIMsgWindow.h"
 #include "MailNewsTypes2.h" // for nsMsgSocketType and nsMsgAuthMethod
 #include "nsIIDNService.h"
+#include "mozilla/mailnews/MimeHeaderParser.h"
 #include "mozilla/Services.h"
+#include "nsINetAddr.h"
 
 #ifndef XP_UNIX
 #include <stdarg.h>
@@ -53,6 +49,8 @@
 #undef PostMessage // avoid to collision with WinUser.h
 
 static PRLogModuleInfo *SMTPLogModule = nullptr;
+
+using namespace mozilla::mailnews;
 
 /* the output_buffer_size must be larger than the largest possible line
  * 2000 seems good for news
@@ -70,7 +68,7 @@ static PRLogModuleInfo *SMTPLogModule = nullptr;
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 /* based on in NET_ExplainErrorDetails in mkmessag.c */
-nsresult nsExplainErrorDetails(nsISmtpUrl * aSmtpUrl, nsresult code, ...)
+nsresult nsExplainErrorDetails(nsISmtpUrl * aSmtpUrl, nsresult aCode, ...)
 {
   NS_ENSURE_ARG(aSmtpUrl);
 
@@ -80,43 +78,46 @@ nsresult nsExplainErrorDetails(nsISmtpUrl * aSmtpUrl, nsresult code, ...)
   aSmtpUrl->GetPrompt(getter_AddRefs(dialog));
   NS_ENSURE_TRUE(dialog, NS_ERROR_FAILURE);
 
-  PRUnichar *  msg;
+  char16_t *  msg;
   nsString eMsg;
   nsCOMPtr<nsIStringBundleService> bundleService =
     mozilla::services::GetStringBundleService();
   NS_ENSURE_TRUE(bundleService, NS_ERROR_UNEXPECTED);
   nsCOMPtr<nsIStringBundle> bundle;
-  nsresult rv = bundleService->CreateBundle("chrome://messenger/locale/messengercompose/composeMsgs.properties", getter_AddRefs(bundle));
+  nsresult rv = bundleService->CreateBundle(
+    "chrome://messenger/locale/messengercompose/composeMsgs.properties",
+    getter_AddRefs(bundle));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  va_start (args, code);
+  va_start (args, aCode);
 
-  switch (code)
+  const char16_t* exitString;
+  switch (aCode)
   {
     case NS_ERROR_ILLEGAL_LOCALPART:
-      bundle->GetStringFromName(
-        NS_LITERAL_STRING("errorIllegalLocalPart").get(),
-        getter_Copies(eMsg));
+      bundle->GetStringFromName(MOZ_UTF16("errorIllegalLocalPart"),
+                                getter_Copies(eMsg));
       msg = nsTextFormatter::vsmprintf(eMsg.get(), args);
       break;
-
-      case NS_ERROR_SMTP_SERVER_ERROR:
-      case NS_ERROR_TCP_READ_ERROR:
-      case NS_ERROR_SMTP_TEMP_SIZE_EXCEEDED:
-      case NS_ERROR_SMTP_PERM_SIZE_EXCEEDED_1:
-      case NS_ERROR_SMTP_PERM_SIZE_EXCEEDED_2:
-      case NS_ERROR_SENDING_FROM_COMMAND:
-      case NS_ERROR_SENDING_RCPT_COMMAND:
-      case NS_ERROR_SENDING_DATA_COMMAND:
-      case NS_ERROR_SENDING_MESSAGE:
-      case NS_ERROR_SMTP_GREETING:
-         bundle->GetStringFromID(NS_ERROR_GET_CODE(code), getter_Copies(eMsg));
-         msg = nsTextFormatter::vsmprintf(eMsg.get(), args);
-         break;
-      default:
-         bundle->GetStringFromID(NS_ERROR_GET_CODE(NS_ERROR_COMMUNICATIONS_ERROR), getter_Copies(eMsg));
-         msg = nsTextFormatter::smprintf(eMsg.get(), code);
-         break;
+    case NS_ERROR_SMTP_SERVER_ERROR:
+    case NS_ERROR_TCP_READ_ERROR:
+    case NS_ERROR_SMTP_TEMP_SIZE_EXCEEDED:
+    case NS_ERROR_SMTP_PERM_SIZE_EXCEEDED_1:
+    case NS_ERROR_SMTP_PERM_SIZE_EXCEEDED_2:
+    case NS_ERROR_SENDING_FROM_COMMAND:
+    case NS_ERROR_SENDING_RCPT_COMMAND:
+    case NS_ERROR_SENDING_DATA_COMMAND:
+    case NS_ERROR_SENDING_MESSAGE:
+    case NS_ERROR_SMTP_GREETING:
+      exitString = errorStringNameForErrorCode(aCode);
+      bundle->GetStringFromName(exitString, getter_Copies(eMsg));
+      msg = nsTextFormatter::vsmprintf(eMsg.get(), args);
+      break;
+    default:
+      NS_WARNING("falling to default error code");
+      bundle->GetStringFromName(MOZ_UTF16("communicationsError"), getter_Copies(eMsg));
+      msg = nsTextFormatter::smprintf(eMsg.get(), aCode);
+      break;
   }
 
   if (msg)
@@ -170,7 +171,7 @@ nsresult nsExplainErrorDetails(nsISmtpUrl * aSmtpUrl, nsresult code, ...)
  */
 /* caller must free the return buffer */
 static char *
-esmtp_value_encode(char *addr)
+esmtp_value_encode(const char *addr)
 {
   char *buffer = (char *) PR_Malloc(512); /* esmtp ORCPT allow up to 500 chars encoded addresses */
   char *bp = buffer, *bpEnd = buffer+500;
@@ -205,11 +206,8 @@ esmtp_value_encode(char *addr)
 // END OF TEMPORARY HARD CODED FUNCTIONS
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-NS_IMPL_ADDREF_INHERITED(nsSmtpProtocol, nsMsgAsyncWriteProtocol)
-NS_IMPL_RELEASE_INHERITED(nsSmtpProtocol, nsMsgAsyncWriteProtocol)
-
-NS_INTERFACE_MAP_BEGIN(nsSmtpProtocol)
-NS_INTERFACE_MAP_END_INHERITING(nsMsgAsyncWriteProtocol)
+NS_IMPL_ISUPPORTS_INHERITED(nsSmtpProtocol, nsMsgAsyncWriteProtocol,
+                            msgIOAuth2ModuleListener)
 
 nsSmtpProtocol::nsSmtpProtocol(nsIURI * aURL)
     : nsMsgAsyncWriteProtocol(aURL)
@@ -219,7 +217,6 @@ nsSmtpProtocol::nsSmtpProtocol(nsIURI * aURL)
 nsSmtpProtocol::~nsSmtpProtocol()
 {
   // free our local state
-  PR_Free(m_addressCopy);
   PR_Free(m_dataBuf);
   delete m_lineStreamBuffer;
 }
@@ -259,13 +256,7 @@ void nsSmtpProtocol::Initialize(nsIURI * aURL)
     m_previousResponseCode = 0;
     m_continuationResponse = -1;
     m_tlsEnabled = false;
-    m_addressCopy = nullptr;
-    m_addresses = nullptr;
     m_addressesLeft = 0;
-
-#ifdef UNREADY_CODE
-    m_totalAmountWritten = 0;
-#endif /* UNREADY_CODE */
 
     m_sendDone = false;
 
@@ -289,14 +280,28 @@ void nsSmtpProtocol::Initialize(nsIURI * aURL)
         smtpServer->GetAuthMethod(&authMethod);
         smtpServer->GetSocketType(&m_prefSocketType);
         smtpServer->GetHelloArgument(getter_Copies(m_helloArgument));
+
+        // Query for OAuth2 support. If the SMTP server preferences don't allow
+        // for OAuth2, then don't carry around the OAuth2 module any longer
+        // since we won't need it.
+        mOAuth2Support = do_CreateInstance(MSGIOAUTH2MODULE_CONTRACTID);
+        if (mOAuth2Support)
+        {
+          bool supportsOAuth = false;
+          mOAuth2Support->InitFromSmtp(smtpServer, &supportsOAuth);
+          if (!supportsOAuth)
+            mOAuth2Support = nullptr;
+        }
     }
     InitPrefAuthMethods(authMethod);
 
-#if defined(PR_LOGGING)
     nsAutoCString hostName;
+    int32_t port = 0;
+
+    aURL->GetPort(&port);
     aURL->GetAsciiHost(hostName);
+
     PR_LOG(SMTPLogModule, PR_LOG_ALWAYS, ("SMTP Connecting to: %s", hostName.get()));
-#endif
 
     // When we are making a secure connection, we need to make sure that we
     // pass an interface requestor down to the socket transport so that PSM can
@@ -306,19 +311,27 @@ void nsSmtpProtocol::Initialize(nsIURI * aURL)
     if (smtpUrl)
         smtpUrl->GetNotificationCallbacks(getter_AddRefs(callbacks));
 
+    nsCOMPtr<nsIProxyInfo> proxyInfo;
+    rv = MsgExamineForProxy(this, getter_AddRefs(proxyInfo));
+    if (NS_FAILED(rv)) proxyInfo = nullptr;
+
     if (m_prefSocketType == nsMsgSocketType::SSL)
-        rv = OpenNetworkSocket(aURL, "ssl", callbacks);
+        rv = OpenNetworkSocketWithInfo(hostName.get(), port, "ssl", proxyInfo,
+            callbacks);
     else if (m_prefSocketType != nsMsgSocketType::plain)
     {
-        rv = OpenNetworkSocket(aURL, "starttls", callbacks);
+        rv = OpenNetworkSocketWithInfo(hostName.get(), port, "starttls",
+            proxyInfo, callbacks);
         if (NS_FAILED(rv) && m_prefSocketType == nsMsgSocketType::trySTARTTLS)
         {
             m_prefSocketType = nsMsgSocketType::plain;
-            rv = OpenNetworkSocket(aURL, nullptr, callbacks);
+            rv = OpenNetworkSocketWithInfo(hostName.get(), port, nullptr,
+                proxyInfo, callbacks);
         }
     }
     else
-        rv = OpenNetworkSocket(aURL, nullptr, callbacks);
+        rv = OpenNetworkSocketWithInfo(hostName.get(), port, nullptr, proxyInfo,
+            callbacks);
 }
 
 void nsSmtpProtocol::AppendHelloArgument(nsACString& aResult)
@@ -435,7 +448,7 @@ NS_IMETHODIMP nsSmtpProtocol::OnStopRequest(nsIRequest *request, nsISupports *ct
 // End of nsIStreamListenerSupport
 //////////////////////////////////////////////////////////////////////////////////////////////
 
-void nsSmtpProtocol::UpdateStatus(int32_t aStatusID)
+void nsSmtpProtocol::UpdateStatus(const char16_t* aStatusName)
 {
   if (m_statusFeedback)
   {
@@ -446,12 +459,12 @@ void nsSmtpProtocol::UpdateStatus(int32_t aStatusID)
     nsresult rv = bundleService->CreateBundle("chrome://messenger/locale/messengercompose/composeMsgs.properties", getter_AddRefs(bundle));
     if (NS_FAILED(rv)) return;
     nsString msg;
-    bundle->GetStringFromID(aStatusID, getter_Copies(msg));
+    bundle->GetStringFromName(aStatusName, getter_Copies(msg));
     UpdateStatusWithString(msg.get());
   }
 }
 
-void nsSmtpProtocol::UpdateStatusWithString(const PRUnichar * aStatusString)
+void nsSmtpProtocol::UpdateStatusWithString(const char16_t * aStatusString)
 {
   if (m_statusFeedback && aStatusString)
     m_statusFeedback->ShowStatusString(nsDependentString(aStatusString));
@@ -603,17 +616,9 @@ nsresult nsSmtpProtocol::SendHeloResponse(nsIInputStream * inputStream, uint32_t
     return(NS_ERROR_COULD_NOT_GET_USERS_MAIL_ADDRESS);
   }
 
-  nsCOMPtr<nsIMsgHeaderParser> parser = do_GetService(NS_MAILNEWS_MIME_HEADER_PARSER_CONTRACTID);
   nsCString fullAddress;
-  if (parser)
-  {
-    // pass nullptr for the name, since we just want the email.
-    //
-    // seems a little weird that we are passing in the emailAddress
-    // when that's the out parameter
-    parser->MakeFullAddressString(nullptr, emailAddress.get(),
-                                  getter_Copies(fullAddress));
-  }
+  // Quote the email address before passing it to the SMTP server.
+  MakeMimeAddress(EmptyCString(), emailAddress, fullAddress);
 
   buffer = "MAIL FROM:<";
   buffer += fullAddress;
@@ -769,6 +774,10 @@ nsresult nsSmtpProtocol::SendEhloResponse(nsIInputStream * inputStream, uint32_t
           if (responseLine.Find(NS_LITERAL_CSTRING("EXTERNAL"),
                                 CaseInsensitiveCompare) >= 0)
             SetFlag(SMTP_AUTH_EXTERNAL_ENABLED);
+
+          if (responseLine.Find(NS_LITERAL_CSTRING("XOAUTH2"),
+                                CaseInsensitiveCompare) >= 0)
+            SetFlag(SMTP_AUTH_OAUTH2_ENABLED);
         }
         else if (StringBeginsWith(responseLine, NS_LITERAL_CSTRING("SIZE"), nsCaseInsensitiveCStringComparator()))
         {
@@ -787,7 +796,7 @@ nsresult nsSmtpProtocol::SendEhloResponse(nsIInputStream * inputStream, uint32_t
         nsresult rv =
 #endif
         nsExplainErrorDetails(m_runningURL,
-                      NS_ERROR_SMTP_PERM_SIZE_EXCEEDED_1, m_sizelimit);
+                              NS_ERROR_SMTP_PERM_SIZE_EXCEEDED_1, m_sizelimit);
         NS_ASSERTION(NS_SUCCEEDED(rv), "failed to explain SMTP error");
 
         m_urlErrorState = NS_ERROR_BUT_DONT_SHOW_ALERT;
@@ -859,6 +868,9 @@ void nsSmtpProtocol::InitPrefAuthMethods(int32_t authMethodPrefValue)
     case nsMsgAuthMethod::GSSAPI:
       m_prefAuthMethods = SMTP_AUTH_GSSAPI_ENABLED;
       break;
+    case nsMsgAuthMethod::OAuth2:
+      m_prefAuthMethods = SMTP_AUTH_OAUTH2_ENABLED;
+      break;
     case nsMsgAuthMethod::secure:
       m_prefAuthMethods = SMTP_AUTH_CRAM_MD5_ENABLED |
           SMTP_AUTH_GSSAPI_ENABLED |
@@ -876,9 +888,15 @@ void nsSmtpProtocol::InitPrefAuthMethods(int32_t authMethodPrefValue)
           SMTP_AUTH_LOGIN_ENABLED | SMTP_AUTH_PLAIN_ENABLED |
           SMTP_AUTH_CRAM_MD5_ENABLED | SMTP_AUTH_GSSAPI_ENABLED |
           SMTP_AUTH_NTLM_ENABLED | SMTP_AUTH_MSN_ENABLED |
+          SMTP_AUTH_OAUTH2_ENABLED |
           SMTP_AUTH_EXTERNAL_ENABLED;
       break;
   }
+
+  // Only enable OAuth2 support if we can do the lookup.
+  if ((m_prefAuthMethods & SMTP_AUTH_OAUTH2_ENABLED) && !mOAuth2Support)
+    m_prefAuthMethods &= ~SMTP_AUTH_OAUTH2_ENABLED;
+
   NS_ASSERTION(m_prefAuthMethods != 0, "SMTP:InitPrefAuthMethods() failed");
 }
 
@@ -910,6 +928,8 @@ nsresult nsSmtpProtocol::ChooseAuthMethod()
     m_currentAuthMethod = SMTP_AUTH_NTLM_ENABLED;
   else if (SMTP_AUTH_MSN_ENABLED & availCaps)
     m_currentAuthMethod = SMTP_AUTH_MSN_ENABLED;
+  else if (SMTP_AUTH_OAUTH2_ENABLED & availCaps)
+    m_currentAuthMethod = SMTP_AUTH_OAUTH2_ENABLED;
   else if (SMTP_AUTH_PLAIN_ENABLED & availCaps)
     m_currentAuthMethod = SMTP_AUTH_PLAIN_ENABLED;
   else if (SMTP_AUTH_LOGIN_ENABLED & availCaps)
@@ -1015,6 +1035,10 @@ nsresult nsSmtpProtocol::ProcessAuth()
            m_currentAuthMethod == SMTP_AUTH_MSN_ENABLED)
   {
     m_nextState = SMTP_SEND_AUTH_LOGIN_STEP0;
+  }
+  else if (m_currentAuthMethod == SMTP_AUTH_OAUTH2_ENABLED)
+  {
+    m_nextState = SMTP_AUTH_OAUTH2_STEP;
   }
   else // All auth methods failed
   {
@@ -1411,7 +1435,7 @@ nsresult nsSmtpProtocol::AuthLoginStep2()
       PR_LOG(SMTPLogModule, PR_LOG_DEBUG, ("NTLM/MSN auth, step 2"));
       nsAutoCString response;
       rv = DoNtlmStep2(m_responseText, response);
-      PR_snprintf(buffer, sizeof(buffer), "%.256s" CRLF, response.get());
+      PR_snprintf(buffer, sizeof(buffer), "%.509s" CRLF, response.get());
     }
     else if (m_currentAuthMethod == SMTP_AUTH_PLAIN_ENABLED ||
              m_currentAuthMethod == SMTP_AUTH_LOGIN_ENABLED)
@@ -1433,6 +1457,56 @@ nsresult nsSmtpProtocol::AuthLoginStep2()
 
   // XXX -1 is not a valid nsresult
   return static_cast<nsresult>(-1);
+}
+
+nsresult nsSmtpProtocol::AuthOAuth2Step1()
+{
+  MOZ_ASSERT(mOAuth2Support, "Can't do anything without OAuth2 support");
+
+  nsresult rv = mOAuth2Support->Connect(true, this);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  m_nextState = SMTP_SUSPENDED;
+  return NS_OK;
+}
+
+nsresult nsSmtpProtocol::OnSuccess(const nsACString &aAccessToken)
+{
+  MOZ_ASSERT(mOAuth2Support, "Can't do anything without OAuth2 support");
+
+  nsCString base64Str;
+  mOAuth2Support->BuildXOAuth2String(base64Str);
+
+  // Send the AUTH XOAUTH2 command, and then siphon us back to the regular
+  // authentication login stream.
+  nsAutoCString buffer;
+  buffer.AppendLiteral("AUTH XOAUTH2 ");
+  buffer += base64Str;
+  buffer += CRLF;
+  nsresult rv = SendData(buffer.get(), true);
+  if (NS_FAILED(rv))
+  {
+    m_nextState = SMTP_ERROR_DONE;
+  }
+  else
+  {
+    m_nextState = SMTP_RESPONSE;
+    m_nextStateAfterResponse = SMTP_AUTH_LOGIN_RESPONSE;
+  }
+
+  SetFlag(SMTP_PAUSE_FOR_READ);
+
+  ProcessProtocolState(nullptr, nullptr, 0, 0);
+  return NS_OK;
+}
+
+nsresult nsSmtpProtocol::OnFailure(nsresult aError)
+{
+  PR_LOG(SMTPLogModule, PR_LOG_DEBUG, ("OAuth2 login error %08x",
+    (uint32_t)aError));
+  m_urlErrorState = aError;
+  m_nextState = SMTP_ERROR_DONE;
+  return ProcessProtocolState(nullptr, nullptr, 0, 0);
 }
 
 
@@ -1482,15 +1556,16 @@ nsresult nsSmtpProtocol::SendMailResponse()
   bool requestOnNever = false;
   rv = prefBranch->GetBoolPref("mail.dsn.request_never_on", &requestOnNever);
 
+  nsCString &address = m_addresses[m_addressesLeft - 1];
   if (TestFlag(SMTP_EHLO_DSN_ENABLED) && requestDSN && (requestOnSuccess || requestOnFailure || requestOnDelay || requestOnNever))
     {
-      char *encodedAddress = esmtp_value_encode(m_addresses);
+      char *encodedAddress = esmtp_value_encode(address.get());
       nsAutoCString dsnBuffer;
 
       if (encodedAddress)
       {
         buffer = "RCPT TO:<";
-        buffer += m_addresses;
+        buffer += address;
         buffer += "> NOTIFY=";
 
         if (requestOnNever)
@@ -1522,7 +1597,7 @@ nsresult nsSmtpProtocol::SendMailResponse()
     else
     {
       buffer = "RCPT TO:<";
-      buffer += m_addresses;
+      buffer += address;
       buffer += ">";
       buffer += CRLF;
     }
@@ -1551,17 +1626,22 @@ nsresult nsSmtpProtocol::SendRecipientResponse()
     else
       errorcode = NS_ERROR_SENDING_RCPT_COMMAND;
 
-    rv = nsExplainErrorDetails(m_runningURL, errorcode,
-                               m_responseText.get(), m_addresses);
+    if (errorcode == NS_ERROR_SENDING_RCPT_COMMAND) {
+      rv = nsExplainErrorDetails(
+        m_runningURL, errorcode, NS_ConvertUTF8toUTF16(m_responseText).get(),
+        NS_ConvertUTF8toUTF16(m_addresses[m_addressesLeft - 1]).get());
+    } else {
+      rv = nsExplainErrorDetails(m_runningURL, errorcode,
+                                 m_responseText.get(),
+                                 m_addresses[m_addressesLeft - 1].get());
+    }
+
     NS_ASSERTION(NS_SUCCEEDED(rv), "failed to explain SMTP error");
 
     m_urlErrorState = NS_ERROR_BUT_DONT_SHOW_ALERT;
     return(NS_ERROR_SENDING_RCPT_COMMAND);
   }
 
-  /* take the address we sent off the list (move the pointer to just
-     past the terminating null.) */
-  m_addresses += PL_strlen (m_addresses) + 1;
   if (--m_addressesLeft > 0)
   {
     // more senders to RCPT to
@@ -1605,7 +1685,9 @@ nsresult nsSmtpProtocol::SendDataResponse()
 
   if (m_responseCode != 354)
   {
-    nsresult rv = nsExplainErrorDetails(m_runningURL, NS_ERROR_SENDING_DATA_COMMAND, m_responseText.get());
+    nsresult rv = nsExplainErrorDetails(m_runningURL,
+                                        NS_ERROR_SENDING_DATA_COMMAND,
+                                        m_responseText.get());
     NS_ASSERTION(NS_SUCCEEDED(rv), "failed to explain SMTP error");
 
     m_urlErrorState = NS_ERROR_BUT_DONT_SHOW_ALERT;
@@ -1617,7 +1699,7 @@ nsresult nsSmtpProtocol::SendDataResponse()
   m_nextState = SMTP_SEND_POST_DATA;
   ClearFlag(SMTP_PAUSE_FOR_READ);   /* send data directly */
 
-  UpdateStatus(SMTP_DELIV_MAIL);
+  UpdateStatus(MOZ_UTF16("smtpDeliveringMail"));
 
   {
 //      m_runningURL->GetBodySize(&m_totalMessageSize);
@@ -1640,7 +1722,7 @@ void nsSmtpProtocol::SendMessageInFile()
   // for now, we are always done at this point..we aren't making multiple calls
   // to post data...
 
-  UpdateStatus(SMTP_DELIV_MAIL);
+  UpdateStatus(MOZ_UTF16("smtpDeliveringMail"));
   m_nextState = SMTP_RESPONSE;
   m_nextStateAfterResponse = SMTP_SEND_MESSAGE_RESPONSE;
 }
@@ -1676,14 +1758,16 @@ nsresult nsSmtpProtocol::SendMessageResponse()
 {
   if((m_responseCode/10 != 25))
   {
-    nsresult rv = nsExplainErrorDetails(m_runningURL, NS_ERROR_SENDING_MESSAGE, m_responseText.get());
+    nsresult rv = nsExplainErrorDetails(m_runningURL,
+                                        NS_ERROR_SENDING_MESSAGE,
+                                        m_responseText.get());
     NS_ASSERTION(NS_SUCCEEDED(rv), "failed to explain SMTP error");
 
     m_urlErrorState = NS_ERROR_BUT_DONT_SHOW_ALERT;
     return(NS_ERROR_SENDING_MESSAGE);
   }
 
-  UpdateStatus(SMTP_PROGRESS_MAILSENT);
+  UpdateStatus(MOZ_UTF16("smtpMailSent"));
 
   /* else */
   return SendQuit();
@@ -1737,117 +1821,85 @@ nsresult nsSmtpProtocol::LoadUrl(nsIURI * aURL, nsISupports * aConsumer )
     m_nextState = SMTP_RESPONSE;
     m_nextStateAfterResponse = SMTP_EXTN_LOGIN_RESPONSE;
 
-    nsCOMPtr<nsIMsgHeaderParser> parser =
-      do_GetService(NS_MAILNEWS_MIME_HEADER_PARSER_CONTRACTID);
-    if (parser)
+    // compile a minimal list of valid target addresses by
+    // - looking only at mailboxes
+    // - dropping addresses with invalid localparts (until we implement RFC 6532)
+    // - using ACE for IDN domainparts
+    // - stripping duplicates
+    nsCString addresses;
+    m_runningURL->GetRecipients(getter_Copies(addresses));
+
+    ExtractEmails(EncodedHeader(addresses), UTF16ArrayAdapter<>(m_addresses));
+
+    nsCOMPtr<nsIIDNService> converter = do_GetService(NS_IDNSERVICE_CONTRACTID);
+    addresses.Truncate();
+    uint32_t count = m_addresses.Length();
+    for (uint32_t i = 0; i < count; i++)
     {
-      // compile a minimal list of valid target addresses by
-      // - looking only at mailboxes
-      // - dropping addresses with invalid localparts (until we implement RfC 5336)
-      // - using ACE for IDN domainparts
-      // - stripping duplicates
-      nsCString addresses;
-      m_runningURL->GetRecipients(getter_Copies(addresses));
-
-      nsCString mailboxes;
-      parser->ExtractHeaderAddressMailboxes(addresses, mailboxes);
-
-      nsCOMPtr<nsIIDNService> converter = do_GetService(NS_IDNSERVICE_CONTRACTID);
-      addresses.Truncate();
-      const char *i = mailboxes.get();
-      const char *start = i;           // first character of the current address
-      const char *lastAt = nullptr;    // last @ character in the current address
-      const char *firstEvil = nullptr; // first illegal character in the current address
-      bool done = !*i;
-      while (!done)
+      const char *start = m_addresses[i].get();
+      // Location of the @ character
+      const char *lastAt = nullptr;
+      const char *ch = start;
+      for (; *ch; ch++)
       {
-        done = !*i; // eos?
-        if (done || *i == ',')
+        if (*ch == '@')
+          lastAt = ch;
+        // Check for first illegal character (outside 0x09,0x20-0x7e)
+        else if ((*ch < ' ' || *ch > '~') && (*ch != '\t'))
         {
-          // validate the just parsed address
-          if (firstEvil)
-          {
-            // Fortunately, we will always have an @ in each mailbox address.
-            // We try to fix illegal character in the domain part by converting
-            // that to ACE. Illegal characters in the local part are not fixable
-            // (which charset would it be anyway?), hence we error out in that
-            // case as well.
-            nsresult rv = NS_ERROR_FAILURE; // anything but NS_OK
-            if (lastAt && firstEvil > lastAt)
-            {
-              // illegal char in the domain part, hence use ACE
-              nsAutoCString domain;
-              domain.Assign(lastAt + 1, i - lastAt - 1);
-              rv = converter->ConvertUTF8toACE(domain, domain);
-              if (NS_SUCCEEDED(rv))
-              {
-                addresses.Append(start, lastAt - start + 1);
-                addresses.Append(domain);
-                if (!done)
-                  addresses.Append(',');
-              }
-            }
-            if (NS_FAILED(rv))
-            {
-              // throw an error, including the broken address
-              m_nextState = SMTP_ERROR_DONE;
-              ClearFlag(SMTP_PAUSE_FOR_READ);
-              addresses.Assign(start, i - start + 1);
-              // Unfortunately, nsExplainErrorDetails will show the error above
-              // the mailnews main window, because we don't necessarily get
-              // passed down a compose window - we might be sending in the
-              // background!
-              rv = nsExplainErrorDetails(m_runningURL, NS_ERROR_ILLEGAL_LOCALPART, addresses.get());
-              NS_ASSERTION(NS_SUCCEEDED(rv), "failed to explain illegal localpart");
-              m_urlErrorState = NS_ERROR_BUT_DONT_SHOW_ALERT;
-              return NS_ERROR_BUT_DONT_SHOW_ALERT;
-            }
-          }
-          else
-          {
-            // no invalid characters, so just copy the address
-            addresses.Append(start, i - start + 1);
-          }
-          // reset parsing
-          start = i + 1;
-          lastAt = nullptr;
-          firstEvil = nullptr;
+          break;
         }
-        else if (*i == '@')
-        {
-          // always remember the last one
-          lastAt = i;
-        }
-        else if (!firstEvil)
-        {
-          // check for first illegal character
-          // strictly adhering to RfC 5322, we deny everything but 0x09,0x20-0x7e
-          if ((*i < ' ' || *i > '~') && (*i != '\t'))
-            firstEvil = i;
-        }
-        ++i;
       }
-
-      // final cleanup
-      nsCString addrs1;
-      char *addrs2 = nullptr;
-      m_addressesLeft = 0;
-      parser->RemoveDuplicateAddresses(addresses, EmptyCString(), addrs1);
-      if (!addrs1.IsEmpty())
-        parser->ParseHeaderAddresses(addrs1.get(), nullptr, &addrs2, &m_addressesLeft);
-
-      // hmm no addresses to send message to...
-      if (m_addressesLeft == 0 || !addrs2)
+      // validate the just parsed address
+      if (*ch || m_addresses[i].IsEmpty())
       {
-        m_nextState = SMTP_ERROR_DONE;
-        ClearFlag(SMTP_PAUSE_FOR_READ);
-        m_urlErrorState = NS_MSG_NO_RECIPIENTS;
-        return NS_MSG_NO_RECIPIENTS;
+        // Fortunately, we will always have an @ in each mailbox address.
+        // We try to fix illegal character in the domain part by converting
+        // that to ACE. Illegal characters in the local part are not fixable
+        // (which charset would it be anyway?), hence we error out in that
+        // case as well.
+        nsresult rv = NS_ERROR_FAILURE; // anything but NS_OK
+        if (lastAt)
+        {
+          // Illegal char in the domain part, hence use ACE
+          nsAutoCString domain;
+          domain.Assign(lastAt + 1);
+          rv = converter->ConvertUTF8toACE(domain, domain);
+          if (NS_SUCCEEDED(rv))
+          {
+            m_addresses[i].SetLength(lastAt - start + 1);
+            m_addresses[i] += domain;
+          }
+        }
+        if (NS_FAILED(rv))
+        {
+          // Throw an error, including the broken address
+          m_nextState = SMTP_ERROR_DONE;
+          ClearFlag(SMTP_PAUSE_FOR_READ);
+          // Unfortunately, nsExplainErrorDetails will show the error above
+          // the mailnews main window, because we don't necessarily get
+          // passed down a compose window - we might be sending in the
+          // background!
+          rv = nsExplainErrorDetails(m_runningURL,
+                                     NS_ERROR_ILLEGAL_LOCALPART, start);
+          NS_ASSERTION(NS_SUCCEEDED(rv), "failed to explain illegal localpart");
+          m_urlErrorState = NS_ERROR_BUT_DONT_SHOW_ALERT;
+          return NS_ERROR_BUT_DONT_SHOW_ALERT;
+        }
       }
+    }
 
-      m_addressCopy = addrs2; // zero-delimited list of mailboxes
-      m_addresses = m_addressCopy;
-    } // if parser
+    // final cleanup
+    m_addressesLeft = m_addresses.Length();
+
+    // hmm no addresses to send message to...
+    if (m_addressesLeft == 0)
+    {
+      m_nextState = SMTP_ERROR_DONE;
+      ClearFlag(SMTP_PAUSE_FOR_READ);
+      m_urlErrorState = NS_MSG_NO_RECIPIENTS;
+      return NS_MSG_NO_RECIPIENTS;
+    }
   } // if post message
 
   return nsMsgProtocol::LoadUrl(aURL, aConsumer);
@@ -1947,6 +1999,10 @@ nsresult nsSmtpProtocol::ProcessProtocolState(nsIURI * url, nsIInputStream * inp
         status = AuthLoginStep2();
         break;
 
+      case SMTP_AUTH_OAUTH2_STEP:
+        status = AuthOAuth2Step1();
+        break;
+
 
       case SMTP_SEND_MAIL_RESPONSE:
         if (inputStream == nullptr)
@@ -2003,6 +2059,12 @@ nsresult nsSmtpProtocol::ProcessProtocolState(nsIURI * url, nsIInputStream * inp
         // smtp is a one time use connection so kill it if we get here...
         nsMsgAsyncWriteProtocol::CloseSocket();
         return NS_OK; /* final end */
+
+      // This state means we're going into an async loop and waiting for
+      // something (say auth) to happen. ProcessProtocolState will be
+      // retriggered when necessary.
+      case SMTP_SUSPENDED:
+        return NS_OK;
 
       default: /* should never happen !!! */
         m_nextState = SMTP_ERROR_DONE;
@@ -2064,7 +2126,7 @@ nsSmtpProtocol::GetPassword(nsCString &aPassword)
     nsAutoString hostnameUTF16;
     CopyASCIItoUTF16(hostname, hostnameUTF16);
 
-    const PRUnichar *formatStrings[] =
+    const char16_t *formatStrings[] =
     {
       hostnameUTF16.get(),
       usernameUTF16.get()
@@ -2080,7 +2142,7 @@ nsSmtpProtocol::GetPassword(nsCString &aPassword)
  * is the username.
  */
 nsresult
-nsSmtpProtocol::PromptForPassword(nsISmtpServer *aSmtpServer, nsISmtpUrl *aSmtpUrl, const PRUnichar **formatStrings, nsACString &aPassword)
+nsSmtpProtocol::PromptForPassword(nsISmtpServer *aSmtpServer, nsISmtpUrl *aSmtpUrl, const char16_t **formatStrings, nsACString &aPassword)
 {
   nsCOMPtr<nsIStringBundleService> stringService =
     mozilla::services::GetStringBundleService();
@@ -2093,11 +2155,11 @@ nsSmtpProtocol::PromptForPassword(nsISmtpServer *aSmtpServer, nsISmtpUrl *aSmtpU
   nsString passwordPromptString;
   if(formatStrings[1])
     rv = composeStringBundle->FormatStringFromName(
-      NS_LITERAL_STRING("smtpEnterPasswordPromptWithUsername").get(),
+      MOZ_UTF16("smtpEnterPasswordPromptWithUsername"),
       formatStrings, 2, getter_Copies(passwordPromptString));
   else
     rv = composeStringBundle->FormatStringFromName(
-      NS_LITERAL_STRING("smtpEnterPasswordPrompt").get(),
+      MOZ_UTF16("smtpEnterPasswordPrompt"),
       formatStrings, 1, getter_Copies(passwordPromptString));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2107,7 +2169,7 @@ nsSmtpProtocol::PromptForPassword(nsISmtpServer *aSmtpServer, nsISmtpUrl *aSmtpU
 
   nsString passwordTitle;
   rv = composeStringBundle->GetStringFromName(
-    NS_LITERAL_STRING("smtpEnterPasswordPromptTitle").get(),
+    MOZ_UTF16("smtpEnterPasswordPromptTitle"),
     getter_Copies(passwordTitle));
   NS_ENSURE_SUCCESS(rv,rv);
 
@@ -2148,7 +2210,7 @@ nsSmtpProtocol::GetUsernamePassword(nsACString &aUsername,
     rv = smtpServer->GetHostname(hostname);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    const PRUnichar *formatStrings[] =
+    const char16_t *formatStrings[] =
     {
       NS_ConvertASCIItoUTF16(hostname).get(),
       nullptr

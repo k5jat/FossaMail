@@ -42,9 +42,10 @@ using namespace mozilla;
 // Also, our default primary sort
 #define GENERATED_NAME_COLUMN_ID "GeneratedName" 
 
-NS_IMPL_ISUPPORTS4(nsAbView, nsIAbView, nsITreeView, nsIAbListener, nsIObserver)
+NS_IMPL_ISUPPORTS(nsAbView, nsIAbView, nsITreeView, nsIAbListener, nsIObserver)
 
 nsAbView::nsAbView() : mInitialized(false),
+                       mIsAllDirectoryRootView(false),
                        mSuppressSelectionChange(false),
                        mSuppressCountChange(false),
                        mGeneratedNameFormat(0)
@@ -185,10 +186,61 @@ NS_IMETHODIMP nsAbView::SetView(nsIAbDirectory *aAddressBook,
     NS_ASSERTION(NS_SUCCEEDED(rv), "remove card failed\n");
   }
 
-  mDirectory = aAddressBook;
+  // We replace all cards so any sorting is no longer valid.
+  mSortColumn.AssignLiteral("");
+  mSortDirection.AssignLiteral("");
 
-  rv = EnumerateCards();
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCString uri;
+  aAddressBook->GetURI(uri);
+  int32_t searchBegin = uri.FindChar('?');
+  nsCString searchQuery(Substring(uri, searchBegin));
+  // This is a special case, a workaround basically, to just have all ABs.
+  if (searchQuery.EqualsLiteral("?")) {
+    searchQuery.AssignLiteral("");
+  }
+
+  if (Substring(uri, 0, searchBegin).EqualsLiteral(kAllDirectoryRoot)) {
+    mIsAllDirectoryRootView = true;
+    // We have special request case to search all addressbooks, so we need
+    // to iterate over all addressbooks.
+    // Since the request is for all addressbooks, the URI must have been
+    // passed with an extra '?'. We still check it for sanity and trim it here.
+    if (searchQuery.Find("??") != kNotFound)
+      searchQuery = Substring(searchQuery, 1);
+
+    nsCOMPtr<nsIAbManager> abManager(do_GetService(NS_ABMANAGER_CONTRACTID,
+                                                   &rv));
+    NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsISimpleEnumerator> enumerator;
+    rv = abManager->GetDirectories(getter_AddRefs(enumerator));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    bool hasMore = false;
+    nsCOMPtr<nsISupports> support;
+    nsCOMPtr<nsIAbDirectory> directory;
+    while (NS_SUCCEEDED(enumerator->HasMoreElements(&hasMore)) && hasMore) {
+      rv = enumerator->GetNext(getter_AddRefs(support));
+      NS_ENSURE_SUCCESS(rv, rv);
+      directory = do_QueryInterface(support, &rv);
+
+      // If, for some reason, we are unable to get a directory, we continue.
+      if (NS_FAILED(rv))
+        continue;
+
+      // Get appropriate directory with search query.
+      nsCString uri;
+      directory->GetURI(uri);
+      rv = abManager->GetDirectory(uri + searchQuery, getter_AddRefs(directory));
+      mDirectory = directory;
+      rv = EnumerateCards();
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+  } else {
+    mIsAllDirectoryRootView = false;
+    mDirectory = aAddressBook;
+    rv = EnumerateCards();
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   NS_NAMED_LITERAL_STRING(generatedNameColumnId, GENERATED_NAME_COLUMN_ID);
 
@@ -212,7 +264,7 @@ NS_IMETHODIMP nsAbView::SetView(nsIAbDirectory *aAddressBook,
   else
     actualSortColumn = aSortColumn;
 
-  rv = SortBy(actualSortColumn.get(), PromiseFlatString(aSortDirection).get());
+  rv = SortBy(actualSortColumn.get(), PromiseFlatString(aSortDirection).get(), false);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mAbViewListener = aAbViewListener;
@@ -305,10 +357,10 @@ NS_IMETHODIMP nsAbView::GetCellProperties(int32_t row, nsITreeColumn* col, nsASt
   if (mCards.Count() <= row)
     return NS_OK;
 
-  const PRUnichar* colID;
+  const char16_t* colID;
   col->GetIdConst(&colID);
   // "G" == "GeneratedName"
-  if (colID[0] != PRUnichar('G'))
+  if (colID[0] != char16_t('G'))
     return NS_OK;
 
   nsIAbCard *card = ((AbCard *)(mCards.ElementAt(row)))->card;
@@ -402,19 +454,28 @@ NS_IMETHODIMP nsAbView::GetCellValue(int32_t row, nsITreeColumn* col, nsAString&
   return NS_OK;
 }
 
-nsresult nsAbView::GetCardValue(nsIAbCard *card, const PRUnichar *colID,
+nsresult nsAbView::GetCardValue(nsIAbCard *card, const char16_t *colID,
                                 nsAString &_retval)
 {
+  if (nsString(colID).EqualsLiteral("addrbook")) {
+    nsCString dirID;
+    nsresult rv = card->GetDirectoryId(dirID);
+    if (NS_SUCCEEDED(rv))
+      CopyUTF8toUTF16(Substring(dirID, dirID.FindChar('&') + 1), _retval);
+
+    return rv;
+  }
+
   // "G" == "GeneratedName", "_P" == "_PhoneticName"
   // else, standard column (like PrimaryEmail and _AimScreenName)
-  if (colID[0] == PRUnichar('G'))
+  if (colID[0] == char16_t('G'))
     return card->GenerateName(mGeneratedNameFormat, mABBundle, _retval);
 
-  if (colID[0] == PRUnichar('_') && colID[1] == PRUnichar('P'))
+  if (colID[0] == char16_t('_') && colID[1] == char16_t('P'))
     // Use LN/FN order for the phonetic name
     return card->GeneratePhoneticName(true, _retval);
 
-  if (!NS_strcmp(colID, NS_LITERAL_STRING("ChatName").get()))
+  if (!NS_strcmp(colID, MOZ_UTF16("ChatName")))
     return card->GenerateChatName(_retval);
 
   nsresult rv = card->GetPropertyAsAString(NS_ConvertUTF16toUTF8(colID).get(), _retval);
@@ -448,7 +509,7 @@ nsresult nsAbView::RefreshTree()
   if (mSortColumn.EqualsLiteral(GENERATED_NAME_COLUMN_ID) ||
       mSortColumn.EqualsLiteral(kPriEmailProperty) ||
       mSortColumn.EqualsLiteral(kPhoneticNameColumn)) {
-    rv = SortBy(mSortColumn.get(), mSortDirection.get());
+    rv = SortBy(mSortColumn.get(), mSortDirection.get(), true);
   }
   else {
     rv = InvalidateTree(ALL_ROWS);
@@ -467,7 +528,7 @@ NS_IMETHODIMP nsAbView::GetCellText(int32_t row, nsITreeColumn* col, nsAString& 
   NS_ENSURE_TRUE(row >= 0 && row < mCards.Count(), NS_ERROR_UNEXPECTED);
 
   nsIAbCard *card = ((AbCard *)(mCards.ElementAt(row)))->card;
-  const PRUnichar* colID;
+  const char16_t* colID;
   col->GetIdConst(&colID);
   return GetCardValue(card, colID, _retval);
 }
@@ -533,17 +594,17 @@ NS_IMETHODIMP nsAbView::SetCellText(int32_t row, nsITreeColumn* col, const nsASt
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP nsAbView::PerformAction(const PRUnichar *action)
+NS_IMETHODIMP nsAbView::PerformAction(const char16_t *action)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP nsAbView::PerformActionOnRow(const PRUnichar *action, int32_t row)
+NS_IMETHODIMP nsAbView::PerformActionOnRow(const char16_t *action, int32_t row)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP nsAbView::PerformActionOnCell(const PRUnichar *action, int32_t row, nsITreeColumn* col)
+NS_IMETHODIMP nsAbView::PerformActionOnCell(const char16_t *action, int32_t row, nsITreeColumn* col)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -570,7 +631,7 @@ NS_IMETHODIMP nsAbView::GetCardFromRow(int32_t row, nsIAbCard **aCard)
 
 typedef struct SortClosure
 {
-  const PRUnichar *colID;
+  const char16_t *colID;
   int32_t factor;
   nsAbView *abView;
 } SortClosure;
@@ -589,7 +650,7 @@ inplaceSortCallback(const void *data1, const void *data2, void *privateData)
   // PrimaryEmail. Use the last primary key as the secondary key.
   //
   // "Pr" to distinguish "PrimaryEmail" from "PagerNumber"
-  if (closure->colID[0] == PRUnichar('P') && closure->colID[1] == PRUnichar('r')) {
+  if (closure->colID[0] == char16_t('P') && closure->colID[1] == char16_t('r')) {
     sortValue = closure->abView->CompareCollationKeys(card1->secondaryCollationKey,card1->secondaryCollationKeyLen,card2->secondaryCollationKey,card2->secondaryCollationKeyLen);
     if (sortValue)
       return sortValue * closure->factor;
@@ -605,11 +666,11 @@ inplaceSortCallback(const void *data1, const void *data2, void *privateData)
   }
 }
 
-static void SetSortClosure(const PRUnichar *sortColumn, const PRUnichar *sortDirection, nsAbView *abView, SortClosure *closure)
+static void SetSortClosure(const char16_t *sortColumn, const char16_t *sortDirection, nsAbView *abView, SortClosure *closure)
 {
   closure->colID = sortColumn;
   
-  if (sortDirection && !NS_strcmp(sortDirection, NS_LITERAL_STRING("descending").get()))
+  if (sortDirection && !NS_strcmp(sortDirection, MOZ_UTF16("descending")))
     closure->factor = DESCENDING_SORT_FACTOR;
   else 
     closure->factor = ASCENDING_SORT_FACTOR;
@@ -618,59 +679,55 @@ static void SetSortClosure(const PRUnichar *sortColumn, const PRUnichar *sortDir
   return;
 }
 
-NS_IMETHODIMP nsAbView::SortBy(const PRUnichar *colID, const PRUnichar *sortDir)
+NS_IMETHODIMP nsAbView::SortBy(const char16_t *colID, const char16_t *sortDir, bool aResort = false)
 {
   nsresult rv;
 
   int32_t count = mCards.Count();
 
   nsAutoString sortColumn;
-  if (!colID) 
-    sortColumn = NS_LITERAL_STRING(GENERATED_NAME_COLUMN_ID).get();  // default sort
+  if (!colID)
+    sortColumn = NS_LITERAL_STRING(GENERATED_NAME_COLUMN_ID);  // default sort column
   else
     sortColumn = colID;
 
-  int32_t i;
-  // This function does not optimize for the case when sortColumn and sortDirection
-  // are identical since the last call, the caller is responsible optimizing
-  // for that case
+  nsAutoString sortDirection;
+  if (!sortDir)
+    sortDirection = NS_LITERAL_STRING("ascending");  // default direction
+  else
+    sortDirection = sortDir;
 
-  // If we are sorting by how we are already sorted,
-  // and just the sort direction changes, just reverse
-  //
-  // Note, we'll call SortBy() with the existing sort column and the
-  // existing sort direction, and that needs to do a complete resort.
-  // For example, we do that when the PREF_MAIL_ADDR_BOOK_LASTNAMEFIRST changes
-  if (!NS_strcmp(mSortColumn.get(),sortColumn.get()) && NS_strcmp(mSortDirection.get(), sortDir)) {
-    int32_t halfPoint = count / 2;
-    for (i=0; i < halfPoint; i++) {
-      // Swap the elements.
-      void *ptr1 = mCards.ElementAt(i);
-      void *ptr2 = mCards.ElementAt(count - i - 1);
-      mCards.ReplaceElementAt(ptr2, i);
-      mCards.ReplaceElementAt(ptr1, count - i - 1);
+  if (mSortColumn.Equals(sortColumn) && !aResort) {
+    if (mSortDirection.Equals(sortDir)) {
+      // If sortColumn and sortDirection are identical since the last call, do nothing.
+      return NS_OK;
+    } else {
+      // If we are sorting by how we are already sorted,
+      // and just the sort direction changes, just reverse.
+      int32_t halfPoint = count / 2;
+      for (int32_t i = 0; i < halfPoint; i++) {
+        // Swap the elements.
+        void *ptr1 = mCards.ElementAt(i);
+        void *ptr2 = mCards.ElementAt(count - i - 1);
+        mCards.ReplaceElementAt(ptr2, i);
+        mCards.ReplaceElementAt(ptr1, count - i - 1);
+      }
+      mSortDirection = sortDir;
     }
-
-    mSortDirection = sortDir;
   }
   else {
     // Generate collation keys
-    for (i=0; i < count; i++) {
+    for (int32_t i = 0; i < count; i++) {
       AbCard *abcard = (AbCard *)(mCards.ElementAt(i));
 
       rv = GenerateCollationKeysForCard(sortColumn.get(), abcard);
       NS_ENSURE_SUCCESS(rv,rv);
     }
 
-    nsAutoString sortDirection;
-    if (!sortDir)
-      sortDirection = NS_LITERAL_STRING("ascending").get();  // default direction
-    else
-      sortDirection = sortDir;
-
+    // We need to do full sort.
     SortClosure closure;
     SetSortClosure(sortColumn.get(), sortDirection.get(), this, &closure);
-    
+
     nsCOMPtr<nsIMutableArray> selectedCards = do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -720,7 +777,7 @@ int32_t nsAbView::CompareCollationKeys(uint8_t *key1, uint32_t len1, uint8_t *ke
   return result;
 }
 
-nsresult nsAbView::GenerateCollationKeysForCard(const PRUnichar *colID, AbCard *abcard)
+nsresult nsAbView::GenerateCollationKeysForCard(const char16_t *colID, AbCard *abcard)
 {
   nsresult rv;
   nsString value;
@@ -762,18 +819,61 @@ nsresult nsAbView::GenerateCollationKeysForCard(const PRUnichar *colID, AbCard *
   return rv;
 }
 
+// A helper method currently returns true if the directory is an LDAP.
+// We can tweak this to return true for all Remote Address Books where the
+// search is asynchronous.
+bool isDirectoryRemote(nsCOMPtr<nsIAbDirectory> aDir)
+{
+  nsCString uri;
+  aDir->GetURI(uri);
+  return (uri.Find("moz-abldapdirectory") != kNotFound);
+}
+
+// A helper method to get the query string for nsIAbDirectory.
+nsCString getQuery(nsCOMPtr<nsIAbDirectory> aDir)
+{
+  nsCString uri;
+  aDir->GetURI(uri);
+  int32_t searchBegin = uri.FindChar('?');
+  if (searchBegin == kNotFound)
+    return EmptyCString();
+
+  return nsCString(Substring(uri, searchBegin));
+}
+
 NS_IMETHODIMP nsAbView::OnItemAdded(nsISupports *parentDir, nsISupports *item)
 {
   nsresult rv;
-  nsCOMPtr <nsIAbDirectory> directory = do_QueryInterface(parentDir,&rv);
+  nsCOMPtr <nsIAbDirectory> directory = do_QueryInterface(parentDir, &rv);
   NS_ENSURE_SUCCESS(rv,rv);
 
-  if (directory.get() == mDirectory.get()) {
+  bool isRemote = isDirectoryRemote(directory);
+  // If the search is performed on All Address books, its possible that the LDAP
+  // results start coming when mDirectory has changed (LDAP search works in an
+  // asynchronous manner).
+  // Since the listeners are being added to all nsAbView instances, we need to
+  // make sure that all the views aren't updated by the listeners.
+  bool isDirectoryQuery = false;
+  bool isMDirectoryQuery = false;
+  // See if current parent directory to which the item is added is a query
+  // directory.
+  directory->GetIsQuery(&isDirectoryQuery);
+  // Get the query string for the directory in Advanced AB Search window.
+  nsCString directoryQuery(getQuery(directory));
+  // See if the selected directory in Address book main window is a query
+  // directory.
+  mDirectory->GetIsQuery(&isMDirectoryQuery);
+  // Get the query string for the selected directory in the main AB window.
+  nsCString mDirectoryQuery(getQuery(mDirectory));
+  if ((mIsAllDirectoryRootView && isRemote &&
+       isDirectoryQuery && isMDirectoryQuery &&
+       directoryQuery.Equals(mDirectoryQuery)) ||
+      directory.get() == mDirectory.get()) {
     nsCOMPtr <nsIAbCard> addedCard = do_QueryInterface(item);
     if (addedCard) {
       // Malloc these from an arena
       AbCard *abcard = (AbCard *) PR_Calloc(1, sizeof(struct AbCard));
-      if (!abcard) 
+      if (!abcard)
         return NS_ERROR_OUT_OF_MEMORY;
 
       abcard->card = addedCard;
@@ -790,7 +890,7 @@ NS_IMETHODIMP nsAbView::OnItemAdded(nsISupports *parentDir, nsISupports *item)
   return rv;
 }
 
-NS_IMETHODIMP nsAbView::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
+NS_IMETHODIMP nsAbView::Observe(nsISupports *aSubject, const char *aTopic, const char16_t *someData)
 {
   if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
     if (nsDependentString(someData).EqualsLiteral(PREF_MAIL_ADDR_BOOK_LASTNAMEFIRST)) {
@@ -939,7 +1039,7 @@ int32_t nsAbView::FindIndexForCard(nsIAbCard *card)
   return CARD_NOT_FOUND;
 }
 
-NS_IMETHODIMP nsAbView::OnItemPropertyChanged(nsISupports *item, const char *property, const PRUnichar *oldValue, const PRUnichar *newValue)
+NS_IMETHODIMP nsAbView::OnItemPropertyChanged(nsISupports *item, const char *property, const char16_t *oldValue, const char16_t *newValue)
 {
   nsresult rv;
 
@@ -1205,13 +1305,13 @@ NS_IMETHODIMP nsAbView::SwapFirstNameLastName()
           {
             nsString dnLnFn;
             nsString dnFnLn;
-            const PRUnichar *nameString[2];
-            const PRUnichar *formatString;
+            const char16_t *nameString[2];
+            const char16_t *formatString;
 
             // The format should stays the same before/after we swap the names
             formatString = displayNameLastnamefirst ?
-                              NS_LITERAL_STRING("lastFirstFormat").get() :
-                              NS_LITERAL_STRING("firstLastFormat").get();
+                              MOZ_UTF16("lastFirstFormat") :
+                              MOZ_UTF16("firstLastFormat");
 
             // Generate both ln/fn and fn/ln combination since we need both later
             // to check to see if the current display name was edited

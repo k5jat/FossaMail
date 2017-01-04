@@ -3,10 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG
-#endif
-
 #include <unistd.h>    // for link(), used in spool-file locking
 
 #include "prenv.h"
@@ -109,7 +105,7 @@ nsMovemailService::~nsMovemailService()
 {}
 
 
-NS_IMPL_ISUPPORTS2(nsMovemailService,
+NS_IMPL_ISUPPORTS(nsMovemailService,
                    nsIMovemailService,
                    nsIMsgProtocolInfo)
 
@@ -127,7 +123,7 @@ nsMovemailService::CheckForNewMail(nsIUrlListener * aUrlListener,
 
 void
 nsMovemailService::Error(const char* errorCode,
-                         const PRUnichar **params,
+                         const char16_t **params,
                          uint32_t length)
 {
   if (!mMsgWindow) return;
@@ -171,7 +167,7 @@ SpoolLock::SpoolLock(nsACString *aSpoolName, int aSeconds,
   if (!ObtainSpoolLock(aSeconds)) {
     NS_ConvertUTF8toUTF16 lockFile(mSpoolName);
     lockFile.AppendLiteral(LOCK_SUFFIX);
-    const PRUnichar* params[] = { lockFile.get() };
+    const char16_t* params[] = { lockFile.get() };
     mOwningService->Error("movemailCantCreateLock", params, 1);
     return;
   }
@@ -183,7 +179,7 @@ SpoolLock::~SpoolLock() {
   if (mLocked && !YieldSpoolLock()) {
     NS_ConvertUTF8toUTF16 lockFile(mSpoolName);
     lockFile.AppendLiteral(LOCK_SUFFIX);
-    const PRUnichar* params[] = { lockFile.get() };
+    const char16_t* params[] = { lockFile.get() };
     mOwningService->Error("movemailCantDeleteLock", params, 1);
   }
   mServer->SetServerBusy(false);
@@ -437,7 +433,7 @@ nsMovemailService::GetNewMail(nsIMsgWindow *aMsgWindow,
   }
 
   NS_ConvertUTF8toUTF16 wideSpoolPath(spoolPath);
-  const PRUnichar* spoolPathString[] = { wideSpoolPath.get() };
+  const char16_t* spoolPathString[] = { wideSpoolPath.get() };
 
   // Create an input stream for the spool file
   nsCOMPtr<nsIFile> spoolFile;
@@ -507,9 +503,6 @@ nsMovemailService::GetNewMail(nsIMsgWindow *aMsgWindow,
       bool reusable;
       rv = msgStore->GetNewMsgOutputStream(inbox, getter_AddRefs(newHdr),
                                            &reusable, getter_AddRefs(outputStream));
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      nsCOMPtr<nsIInputStream> inputStream = do_QueryInterface(outputStream, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
 
       rv = newMailParser->Init(serverFolder, inbox,

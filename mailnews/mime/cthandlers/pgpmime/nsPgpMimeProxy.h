@@ -30,7 +30,7 @@ class nsPgpMimeProxy : public nsIPgpMimeProxy,
                        public nsIInputStream
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIPGPMIMEPROXY
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSISTREAMLISTENER
@@ -38,13 +38,13 @@ public:
   NS_DECL_NSIINPUTSTREAM
 
   nsPgpMimeProxy();
-  virtual ~nsPgpMimeProxy();
 
   // Define a Create method to be used with a factory:
   static NS_METHOD
   Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
 protected:
+  virtual ~nsPgpMimeProxy();
   bool                          mInitialized;
   nsCOMPtr<nsIStreamListener>   mDecryptor;
 
@@ -61,5 +61,8 @@ protected:
 
   nsresult Finalize();
 };
+
+#define MimeEncryptedPgpClassInitializer(ITYPE,CSUPER) \
+  { MimeEncryptedClassInitializer(ITYPE,CSUPER) }
 
 #endif

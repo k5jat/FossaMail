@@ -7,6 +7,7 @@ XPIDL_SOURCES += [
     'MailNewsTypes2.idl',
     'mozINewMailListener.idl',
     'mozINewMailNotificationService.idl',
+    'msgIOAuth2Module.idl',
     'nsICopyMessageListener.idl',
     'nsICopyMsgStreamListener.idl',
     'nsIFolderListener.idl',
@@ -61,7 +62,7 @@ XPIDL_SOURCES += [
     'nsMsgMessageFlags.idl',
 ]
 
-MODULE = 'msgbase'
+XPIDL_MODULE = 'msgbase'
 
 EXPORTS += [
     'MailNewsTypes.h',

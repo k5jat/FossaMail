@@ -7,11 +7,11 @@
 
 #include "msgCore.h" // for pre-compiled headers
 #include "nsCOMPtr.h"
+#include "nsNullPrincipal.h"
 #include <stdio.h>
 #include "nscore.h"
 #include "nsIFactory.h"
 #include "nsISupports.h"
-#include "comi18n.h"
 #include "prmem.h"
 #include "plstr.h"
 #include "nsIComponentManager.h"
@@ -29,7 +29,7 @@
 #include "nsIMsgProgress.h"
 #include "nsMsgUtils.h"
 
-NS_IMPL_ISUPPORTS7(nsURLFetcher,
+NS_IMPL_ISUPPORTS(nsURLFetcher,
                    nsIURLFetcher,
                    nsIStreamListener,
                    nsIRequestObserver,
@@ -317,9 +317,20 @@ nsURLFetcher::FireURLRequest(nsIURI *aURL, nsIFile *localFile, nsIOutputStream *
   nsCOMPtr<nsIURILoader> pURILoader (do_GetService(NS_URI_LOADER_CONTRACTID));
   NS_ENSURE_TRUE(pURILoader, NS_ERROR_FAILURE);
 
+  nsCOMPtr<nsIPrincipal> nullPrincipal =
+    do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIChannel> channel;
-  NS_ENSURE_SUCCESS(NS_NewChannel(getter_AddRefs(channel), aURL, nullptr, nullptr, this), NS_ERROR_FAILURE);
- 
+  rv = NS_NewChannel(getter_AddRefs(channel),
+                     aURL,
+                     nullPrincipal,
+                     nsILoadInfo::SEC_NORMAL,
+                     nsIContentPolicy::TYPE_OTHER,
+                     nullptr, // aLoadGroup
+                     this); // aCallbacks
+  NS_ENSURE_SUCCESS(rv, rv);
+
   return pURILoader->OpenURI(channel, false, this);
 }
 
@@ -383,7 +394,7 @@ NS_IMETHODIMP
 nsURLFetcher::OnStatusChange(nsIWebProgress* aWebProgress,
                              nsIRequest* aRequest,
                              nsresult aStatus,
-                             const PRUnichar* aMessage)
+                             const char16_t* aMessage)
 {
   NS_NOTREACHED("notification excluded in AddProgressListener(...)");
   return NS_OK;
@@ -403,7 +414,7 @@ nsURLFetcher::OnSecurityChange(nsIWebProgress *aWebProgress,
  * Stream consumer used for handling special content type like multipart/x-mixed-replace
  */
 
-NS_IMPL_ISUPPORTS2(nsURLFetcherStreamConsumer, nsIStreamListener, nsIRequestObserver)
+NS_IMPL_ISUPPORTS(nsURLFetcherStreamConsumer, nsIStreamListener, nsIRequestObserver)
 
 nsURLFetcherStreamConsumer::nsURLFetcherStreamConsumer(nsURLFetcher* urlFetcher) :
   mURLFetcher(urlFetcher)

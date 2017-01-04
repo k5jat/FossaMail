@@ -35,7 +35,10 @@ extern MimeInlineTextHTMLSanitizedClass mimeInlineTextHTMLSanitizedClass;
 
 struct MimeInlineTextHTMLSanitized {
   MimeInlineTextHTML    html;
-  nsString             *complete_buffer;  // Gecko parser expects wide strings
+  nsString             *complete_buffer;  // Goanna parser expects wide strings
 };
+
+#define MimeInlineTextHTMLSanitizedClassInitializer(ITYPE,CSUPER) \
+  { MimeInlineTextHTMLClassInitializer(ITYPE,CSUPER) }
 
 #endif /* _MIMETHPL_H_ */
