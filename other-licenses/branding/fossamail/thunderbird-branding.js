@@ -57,5 +57,3 @@ pref("mailnews.headers.showSender", true); //more details for security
 // Misc.
 pref("mail.provider.enabled", false); // no need for provisioning when no account given
 pref("mail.cloud_files.enabled", false); // disabled provisioning, biased for a very short list of providers
-
-

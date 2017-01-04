@@ -217,7 +217,7 @@ pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.description", "chrome://
 
 pref("lightweightThemes.update.enabled", true);
 
-pref("xpinstall.whitelist.add", "addons.mozilla.org");
+pref("xpinstall.whitelist.add", "addons.mozilla.org,addons.palemoon.org,www.fossamail.org");
 
 pref("general.smoothScroll", true);
 #ifdef UNIX_BUT_NOT_MAC
@@ -436,7 +436,7 @@ pref("alerts.slideIncrementTime", 50);
 pref("alerts.totalOpenTime", 10000);
 
 // analyze urls in mail messages for scams
-pref("mail.phishing.detection.enabled", true);
+pref("mail.phishing.detection.enabled", false);
 // If phishing detection is enabled, allow fine grained control
 // of the local, static tests
 pref("mail.phishing.detection.ipaddresses", true);
@@ -461,7 +461,7 @@ pref("mail.tabs.loadInBackground", true);
 pref("mail.tabs.tabMinWidth", 100);
 pref("mail.tabs.tabMaxWidth", 210);
 pref("mail.tabs.tabClipWidth", 140);
-pref("mail.tabs.autoHide", false);
+pref("mail.tabs.autoHide", true);
 pref("mail.tabs.closeWindowWithLastTab", true);
 
 // Where to show tab close buttons:
@@ -536,7 +536,7 @@ pref("mail.compose.big_attachments.insert_notification", true);
 
 // Set this to false to prevent instrumentation from happening, e.g., user
 // has opted out, or an enterprise wants to disable it from the git go.
-pref("mail.instrumentation.askUser", true);
+pref("mail.instrumentation.askUser", false);
 pref("mail.instrumentation.userOptedIn", false);
 pref("mail.instrumentation.postUrl", "https://www.mozilla.org/instrumentation");
 // not sure how this will be formatted - would be nice to make it extensible.
@@ -735,10 +735,8 @@ pref("dom.ipc.plugins.enabled", true);
 pref("dom.ipc.plugins.nativeCursorSupport", true);
 #endif
 
-// plugin finder service url
-pref("pfs.datasource.url", "https://pfs.mozilla.org/plugins/PluginFinderService.
-php?mimetype=%PLUGIN_MIMETYPE%&appID=%APP_ID%&appVersion=%APP_VERSION%&clientOS=
-%CLIENT_OS%&chromeLocale=%CHROME_LOCALE%&appRelease=%APP_RELEASE%");
+// plugin finder service url -- no longer used
+pref("pfs.datasource.url", "");
 
 // By default we show an infobar message when pages require plugins that are
 // outdated.
@@ -825,7 +823,7 @@ pref("mail.chat.play_sound.type", 0);
 pref("mail.chat.play_sound.url", "");
 
 // BigFiles
-pref("mail.cloud_files.enabled", true);
+pref("mail.cloud_files.enabled", false);
 pref("mail.cloud_files.inserted_urls.footer.link", "http://www.getthunderbird.com");
 pref("mail.cloud_files.learn_more_url", "https://support.mozillamessaging.com/kb/filelink-large-attachments");
 
@@ -850,15 +848,14 @@ pref("mail.pgpmime.addon_url", "https://addons.mozilla.org/thunderbird/addon/eni
 
 // If set to true, Thunderbird will collapse the main menu for new profiles
 // (or, more precisely, profiles that start with no accounts created).
-pref("mail.main_menu.collapse_by_default", true);
+pref("mail.main_menu.collapse_by_default", false);
 
 // If set to true, when saving a message to a file, use underscore
 // instead of space in the file name.
 pref("mail.save_msg_filename_underscores_for_space", false);
 
 // Disable cache v2 since migration has not been done, it is pending in bug 1021843.
-pref("browser.cache.use_new_backend",       0);
-pref("browser.cache.use_new_backend_temp",  false);
+pref("browser.cache.backend",       0);
 
 // calendar promotion status
 pref("mail.calendar-integration.opt-out", false);
