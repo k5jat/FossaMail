@@ -395,17 +395,10 @@
 ; spellchecker (may not be present)
 @RESPATH@/components/spellchecker.xpt
 
-; misson control, autoconfig
+; mission control, autoconfig
 @RESPATH@/defaults/autoconfig/platform.js
 @RESPATH@/defaults/autoconfig/prefcalls.js
 @RESPATH@/components/autoconfig.xpt
-
-; Phishing Protection
-@RESPATH@/components/nsUrlClassifierListManager.js
-@RESPATH@/components/nsUrlClassifierHashCompleter.js
-@RESPATH@/components/nsUrlClassifierLib.js
-@RESPATH@/components/nsURLClassifier.manifest
-@RESPATH@/components/url-classifier.xpt
 
 ; Address Book autocomplete
 @RESPATH@/components/nsAbAutoCompleteMyDomain.js
