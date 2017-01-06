@@ -15,7 +15,7 @@ DIST_FILES = install.rdf app.ini
 
 # Lighting version number
 THUNDERBIRD_VERSION := $(shell cat $(topsrcdir)/mail/config/version.txt)
-SEAMONKEY_VERSION := $(shell cat $(topsrcdir)/suite/config/version.txt)
+SEAMONKEY_VERSION := $(shell cat $(topsrcdir)/mail/config/version.txt)
 LIGHTNING_VERSION := $(shell $(PYTHON) $(srcdir)/build/makeversion.py $(word 1,$(MOZ_PKG_VERSION) $(THUNDERBIRD_VERSION)))
 GDATA_VERSION := $(shell $(PYTHON) $(topsrcdir)/calendar/providers/gdata/makeversion.py $(LIGHTNING_VERSION))
 
