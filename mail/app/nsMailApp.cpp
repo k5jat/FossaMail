@@ -172,6 +172,8 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
     }
     // xreDirectory already has a refcount from NS_NewLocalFile
     appData->xreDirectory = xreDirectory;
+    // Strip vendor from app profile
+    appData->vendor = nullptr;
     result = XRE_main(argc, argv, appData, 0);
     XRE_FreeAppData(appData);
   } else {
@@ -191,6 +193,8 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
     SetStrongPtr(appData.directory, static_cast<nsIFile*>(greDir.get()));
     // xreDirectory already has a refcount from NS_NewLocalFile
     appData.xreDirectory = xreDirectory;
+    // Strip vendor from app profile
+    appData.vendor = nullptr;
 
     result = XRE_main(argc, argv, &appData, mainFlags);
   }
