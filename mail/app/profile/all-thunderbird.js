@@ -473,11 +473,7 @@ pref("mail.tabs.closeWindowWithLastTab", true);
 pref("mail.tabs.closeButtons", 1);
 
 // Allow the tabs to be in the titlebar on supported systems
-#ifdef UNIX_BUT_NOT_MAC
 pref("mail.tabs.drawInTitlebar", false);
-#else
-pref("mail.tabs.drawInTitlebar", true);
-#endif
 
 // The breakpad report server to link to in about:crashes
 pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
@@ -658,10 +654,10 @@ pref("browser.tabs.loadDivertedInBackground", false);
 pref("browser.chrome.site_icons", true);
 pref("browser.chrome.favicons", true);
 
-// Enable places by default as we want to store global history for visited links
+// Disable places by default as we don't want to store global history
 // Below we define reasonable defaults as copied from Firefox so that we have
-// something sensible.
-pref("places.history.enabled", true);
+// something sensible should an extension wish to enable this.
+pref("places.history.enabled", false);
 
 // With places disabled by default, the default growth increment is set to zero
 // as it would otherwise default to 10MB as the minimum space occupied by the
@@ -782,7 +778,7 @@ pref("gfx.direct2d.disabled", true);
 // Account provisioner.
 pref("mail.provider.providerList", "https://broker-live.mozillamessaging.com/provider/list");
 pref("mail.provider.suggestFromName", "https://broker-live.mozillamessaging.com/provider/suggest");
-pref("mail.provider.enabled", true);
+pref("mail.provider.enabled", false);
 
 // Pointer to the default engine name.
 pref("browser.search.defaultenginename", "chrome://messenger-region/locale/region.properties");
@@ -825,7 +821,7 @@ pref("mail.chat.play_sound.url", "");
 
 // BigFiles
 pref("mail.cloud_files.enabled", false);
-pref("mail.cloud_files.inserted_urls.footer.link", "http://www.getthunderbird.com");
+pref("mail.cloud_files.inserted_urls.footer.link", "");
 pref("mail.cloud_files.learn_more_url", "https://support.mozillamessaging.com/kb/filelink-large-attachments");
 
 // Ignore threads

@@ -41,7 +41,7 @@
     <hbox id="clientBox">
       <vbox id="leftBox" flex="1"/>
       <vbox id="rightBox" flex="1">
-#expand <label id="version">__MOZ_APP_VERSION__</label>
+#expand <label id="version">Version: __MOZ_APP_VERSION__</label>
         <label id="distribution" class="text-blurb"/>
         <label id="distributionId" class="text-blurb"/>
 
@@ -112,22 +112,14 @@
             &channel.description.start;<label id="currentChannel"/>&channel.description.end;
           </description>
 #endif
-          <vbox id="experimental" hidden="true">
-            <description class="text-blurb" id="warningDesc">
-              &warningDesc.version;
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-              &warningDesc.telemetryDesc;
-#endif
-            </description>
-            <description class="text-blurb" id="communityExperimentalDesc">
-              &community.exp.start;<label class="text-link" href="http://www.mozilla.org/">&community.exp.mozillaLink;</label>&community.exp.middle;<label class="text-link" href="about:credits">&community.exp.creditsLink;</label>&community.exp.end;
-            </description>
-          </vbox>
           <description class="text-blurb" id="communityDesc">
-            &community.start2;<label class="text-link" onclick="openURL('http://www.mozilla.org/');" oncommand="openUILink(this.getAttribute('href'), event);">&community.mozillaLink;</label>&community.middle2;<label class="text-link" onclick="openAboutTab('about:credits');">&community.creditsLink;</label>&community.end3;
+            FossaMail is published by <label class="text-link" onclick="openURL('http://www.moonchildproductions.info/');" oncommand="openUILink(this.getAttribute('href'), event);">Moonchild Productions</label> and created by <label class="text-link" onclick="openAboutTab('about:credits');">a global community</label> working together to make the internet better.
           </description>
           <description class="text-blurb" id="contributeDesc">
-            &helpus.start;<label class="text-link" onclick="openUILink(this.getAttribute('href'), event)" href="https://sendto.mozilla.org/page/contribute/givenow-seq?source=thunderbird_about">&helpus.donateLink;</label>&helpus.middle;<label class="text-link" onclick="openUILink(this.getAttribute('href'), event)" href="http://www.mozilla.org/contribute/" >&helpus.getInvolvedLink;</label>&helpus.end;
+            We believe that the Internet should be open, public and available to everyone without any restrictions.
+          </description>
+          <description class="text-blurb" id="contributeDesc2">
+            Sound interesting? <label class="text-link" onclick="openURL('http://www.mozilla.org/contribute/');">Get involved</label>!
           </description>
        </vbox>
      </vbox>
@@ -136,7 +128,7 @@
       <hbox pack="center">
         <label class="text-link bottom-link" onclick="openAboutTab('about:license');">&bottomLinks.license;</label>
         <label class="text-link bottom-link" onclick="openAboutTab('about:rights');">&bottomLinks.rights;</label>
-        <label class="text-link bottom-link" onclick="openURL('https://www.mozilla.org/en-US/thunderbird/legal/privacy/');">&bottomLinks.privacy;</label>
+        <label class="text-link bottom-link" onclick="openURL('http://www.fossamail.org/');">On the web</label>
       </hbox>
       <description id="trademark">
         <label class="trademark-label">&trademarkInfo.part1;</label>
