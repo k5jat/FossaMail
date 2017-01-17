@@ -207,13 +207,13 @@ treechildren::-moz-tree-cell-text(folderNameCol, specialFolder-Inbox, newMessage
 treechildren::-moz-tree-cell-text(folderNameCol, isServer-true, biffState-NewMail, selected),
 treechildren::-moz-tree-cell-text(folderNameCol, newMessages-true, selected),
 treechildren::-moz-tree-cell-text(folderNameCol, specialFolder-Inbox, newMessages-true, selected) {
-  color: -moz-CellHighlightText;
+  color: -moz-hyperlinktext;
 }
 
 treechildren::-moz-tree-cell-text(folderNameCol, isServer-true, biffState-NewMail, selected, focus),
 treechildren::-moz-tree-cell-text(folderNameCol, newMessages-true, selected, focus),
 treechildren::-moz-tree-cell-text(folderNameCol, specialFolder-Inbox, newMessages-true, selected, focus) {
-  color: HighlightText;
+  color: -moz-hyperlinktext;
 }
 
 treechildren::-moz-tree-cell-text(closed, subfoldersHaveUnreadMessages-true) {
