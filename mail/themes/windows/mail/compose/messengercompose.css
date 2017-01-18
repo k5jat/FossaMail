@@ -19,7 +19,6 @@
 #attachmentBucket {
   width: 15em;
   min-width: 15em;
-  margin-bottom: 2px;
 }
 
 /* ::::: primary toolbar buttons ::::: */
@@ -329,15 +328,6 @@ toolbar[iconsize="small"] #button-print[disabled="true"] {
   background-color: transparent;
 }
 
-#attachments-box {
-  padding-top: 6px;
-}
-
-#attachmentBucketSize:-moz-system-metric(windows-default-theme),
-#attachmentBucketCount:-moz-system-metric(windows-default-theme) {
-  padding-bottom: 1px;
-}
-
 #attachmentBucketSize {
   opacity: 0.5; /* lower contrast */
   -moz-padding-end: 1px;
@@ -386,10 +376,6 @@ toolbar[iconsize="small"] #button-print[disabled="true"] {
   background-color: ThreeDFace;
 }
 
-#subjectLabel {
-  margin-top: -1px;
-}
-
 #msgSubject {
   margin-bottom: 4px;
 }
@@ -414,13 +400,6 @@ treechildren::-moz-tree-image(remote-err) {
   list-style-image: url("chrome://messenger/skin/addressbook/icons/remote-addrbook-error.png");
 }
 
-treechildren::-moz-tree-image(subscribed-news) {
-  -moz-margin-start: 2px;
-  -moz-margin-end: 3px;
-  list-style-image: url("chrome://messenger/skin/icons/folder.png");
-  -moz-image-region: rect(0 160px 16px 144px);
-}
-
 /* ::::: addressing widget ::::: */
 
 .autocomplete-treebody::-moz-tree-cell-text(comment) {
@@ -433,12 +412,15 @@ treechildren::-moz-tree-image(subscribed-news) {
   width: 0;
   border: none;
   background-color: transparent;
-  margin-top: 0;
-  margin-bottom: 0;
 }
 
 #addressingWidget listboxbody {
   margin: 1px 0;
+}
+
+#textcol-addressingWidget {
+  border: 1px solid threedshadow;
+  background-color: -moz-field;
 }
 
 .addressingWidgetItem,
@@ -448,89 +430,32 @@ treechildren::-moz-tree-image(subscribed-news) {
   color: inherit !important;
 }
 
-.textbox-addressingWidget,
-.dummy-row-cell:not(:first-child) {
-  margin-bottom: 2px !important;
-  padding: 2px !important;
-  transition: border .2s, background-color .2s;
-}
-
-@media (-moz-windows-default-theme) {
-  .dummy-row-cell:not(:first-child) {
-    border: 1px solid transparent !important;
-    border-bottom-color: ThreeDShadow !important;
-  }
-
-  .textbox-addressingWidget,
-  .textbox-addressingWidget:hover,
-  .textbox-addressingWidget[focused="true"] {
-    background-color: -moz-field;
-    border-color: ThreeDShadow !important;
-  }
-}
-
-@media not all and (-moz-windows-default-theme) {
-  .dummy-row-cell:not(:first-child) {
-    border: 2px solid transparent !important;
-    -moz-border-bottom-colors: ThreeDShadow ThreeDHighlight !important;
-  }
-
-  .textbox-addressingWidget,
-  .textbox-addressingWidget:hover,
-  .textbox-addressingWidget[focused="true"] {
-    background-color: -moz-field;
-    -moz-border-top-colors: ThreeDShadow ThreeDHighlight !important;
-    -moz-border-right-colors: ThreeDShadow ThreeDHighlight !important;
-    -moz-border-bottom-colors: ThreeDShadow ThreeDHighlight !important;
-    -moz-border-left-colors: ThreeDShadow ThreeDHighlight !important;
-  }
+.addressingWidgetCell {
+  border-bottom: 1px solid #CACAFF;
+  padding: 0px;
 }
 
 .addressingWidgetCell:first-child,
 .dummy-row-cell:first-child {
-  border-bottom-color: transparent;
+  border-bottom: none;
+}
+
+.person-icon {
+  margin: 0 3px;
+  list-style-image: url("chrome://messenger/skin/addressbook/icons/abcard.png");
 }
 
 .aw-menulist {
   -moz-binding: url("chrome://messenger/content/messengercompose/menulistCompactBindings.xml#menulist-compact");
-  -moz-appearance: none;
-  -moz-box-align: center;
-  -moz-box-pack: center;
+  -moz-appearance: menulist;
   -moz-box-align: stretch;
-  margin: 0 1px 2px;
+  margin: 1px 0;
   -moz-margin-start: 7px;
   list-style-image: none;
-  background-color: rgba(128, 128, 128, .1);
-  border: 1px solid ThreeDShadow;
-  color: ButtonText;
-  list-style-image: url("chrome://global/skin/arrow/arrow-dn.gif");
-  transition: background-color .25s ease-in;
-}
-
-.aw-menulist:hover {
-  background-color: -moz-field;
-}
-
-.aw-menulist[disabled="true"] {
-  list-style-image: url("chrome://global/skin/arrow/arrow-dn-dis.gif");
-}
-
-.aw-menulist:-moz-window-inactive {
-  opacity: .7;
-}
-
-.aw-menulist > .menulist-dropmarker {
-  -moz-appearance: none;
-  border: none;
-  background-color: transparent;
 }
 
 .aw-menulist > .menulist-label-box {
   margin: 0;
-}
-
-.aw-menulist:-moz-focusring:not([open="true"]) > .menulist-label-box {
-  border: 1px dotted;
 }
 
 /* set the dropmarker at the beginning of the aw-menulist */
@@ -550,21 +475,17 @@ treechildren::-moz-tree-image(subscribed-news) {
 
 .aw-menulist > .menulist-label-box > .menulist-label {
   margin: 0 1px !important;
-  text-align: end;
 }
 
 /* ::::: format toolbar ::::: */
 
 #FormatToolbox {
-  -moz-appearance: none;
   border-top-width: 0;
-  background-color: transparent;
+  background-color: -moz-Dialog;
 }
 
 #FormatToolbar {
-  -moz-appearance: none;
-  background-color: transparent;
-  border-bottom-width: 0;
+  border-top: 1px solid ThreeDHighlight !important;
 }
 
 toolbarbutton.formatting-button {
