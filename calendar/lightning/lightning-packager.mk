@@ -39,7 +39,7 @@ ifdef DOWNLOAD_HOST
 # run where we can't influence the download location. Fake it from the env vars
 # we have
 BUILD_NR=$(shell echo $(POST_UPLOAD_CMD) | sed -n -e 's/.*-n \([0-9]*\).*/\1/p')
-CANDIDATE_NR=$(if $(LIGHTNING_VERSION),$(LIGHTNING_VERSION),$(XPI_VERSION))
+CANDIDATE_NR=$(XPI_VERSION)
 EN_US_BINARY_URL=http://$(DOWNLOAD_HOST)/pub/calendar/lightning/candidates/$(CANDIDATE_NR)-candidates/build$(BUILD_NR)/$(MOZ_PKG_PLATFORM)
 else
 EN_US_BINARY_URL = $(error You must set EN_US_BINARY_URL)
