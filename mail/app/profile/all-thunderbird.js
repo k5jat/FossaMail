@@ -857,6 +857,3 @@ pref("mail.save_msg_filename_underscores_for_space", false);
 
 // Disable cache v2 since migration has not been done, it is pending in bug 1021843.
 pref("browser.cache.backend",       0);
-
-// calendar promotion status
-pref("mail.calendar-integration.opt-out", false);
