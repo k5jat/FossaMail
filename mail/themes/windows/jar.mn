@@ -6,18 +6,6 @@ classic.jar:
   skin/classic/editor/icons/img-align-left.gif                (editor/img-align-left.gif)
   skin/classic/editor/icons/img-align-middle.gif              (editor/img-align-middle.gif)
 
-# ATTENTION! ATTENTION! ATTENTION! ATTENTION! ATTENTION! ATTENTION! ATTENTION!
-# ATTENTION! ATTENTION! ATTENTION! ATTENTION! ATTENTION! ATTENTION! ATTENTION!
-#
-# If you add a new file here, you'll need to add it to the aero section at the
-# bottom of this file, too. If you do not, people using Windows prior to Vista
-# will be able to enjoy your additions, but people using Vista and above will
-# not.
-#
-# ATTENTION! ATTENTION! ATTENTION! ATTENTION! ATTENTION! ATTENTION! ATTENTION!
-# ATTENTION! ATTENTION! ATTENTION! ATTENTION! ATTENTION! ATTENTION! ATTENTION!
-
-% skin communicator classic/1.0 %skin/classic/communicator/ os=WINNT osversion<99
 % skin communicator classic/1.0 %skin/classic/communicator/ os!=WINNT
   skin/classic/communicator/communicator.css                       (mail/communicator.css)
   skin/classic/communicator/smileys.css                            (mail/smileys.css)
@@ -37,7 +25,6 @@ classic.jar:
   skin/classic/communicator/icons/smileys/smiley-innocent.png      (mail/icons/smiley-innocent.png)
   skin/classic/communicator/icons/smileys/smiley-cry.png           (mail/icons/smiley-cry.png)
   skin/classic/communicator/icons/smileys/smiley-sealed.png        (mail/icons/smiley-sealed.png)
-% skin messenger classic/1.0 %skin/classic/messenger/ os=WINNT osversion<99
 % skin messenger classic/1.0 %skin/classic/messenger/ os!=WINNT
 * skin/classic/messenger/primaryToolbar.css                   (mail/primaryToolbar.css)
   skin/classic/messenger/aboutSupport.css                     (mail/aboutSupport.css)
@@ -276,7 +263,6 @@ classic.jar:
   skin/classic/messenger/icons/xp-pin-grey.png                (mail/icons/xp-pin-grey.png)
   skin/classic/messenger/icons/xp-pin-red.png                 (mail/icons/xp-pin-red.png)
   skin/classic/messenger/tagbg.png                            (mail/tagbg.png)
-% skin messenger-newsblog classic/1.0 %skin/classic/messenger-newsblog/ os=WINNT osversion<99
 % skin messenger-newsblog classic/1.0 %skin/classic/messenger-newsblog/ os!=WINNT
   skin/classic/messenger-newsblog/feed-subscriptions.css      (mail/newsblog/feed-subscriptions.css)
   skin/classic/messenger-newsblog/icons/rss-feed.png          (mail/newsblog/rss-feed.png)
@@ -300,7 +286,7 @@ classic.jar:
   skin/classic/messenger/shared/addressbook.css               (../shared/mail/addressbook.css)
   skin/classic/messenger/shared/accountProvisioner.css        (../shared/mail/accountProvisioner.css)
 #ifdef XP_WIN
-% skin communicator classic/1.0 %skin/classic/aero/communicator/ os=WINNT osversion>=99
+% skin communicator classic/1.0 %skin/classic/aero/communicator/ os=WINNT
   skin/classic/aero/communicator/communicator.css                       (mail/communicator.css)
   skin/classic/aero/communicator/smileys.css                            (mail/smileys.css)
   skin/classic/aero/communicator/icons/smileys/smiley-smile.png         (mail/icons/smiley-smile-aero.png)
@@ -319,7 +305,7 @@ classic.jar:
   skin/classic/aero/communicator/icons/smileys/smiley-innocent.png      (mail/icons/smiley-innocent-aero.png)
   skin/classic/aero/communicator/icons/smileys/smiley-cry.png           (mail/icons/smiley-cry-aero.png)
   skin/classic/aero/communicator/icons/smileys/smiley-sealed.png        (mail/icons/smiley-sealed-aero.png)
-% skin messenger classic/1.0 %skin/classic/aero/messenger/ os=WINNT osversion>=99
+% skin messenger classic/1.0 %skin/classic/aero/messenger/ os=WINNT
 * skin/classic/aero/messenger/primaryToolbar.css                   (mail/primaryToolbar-aero.css)
   skin/classic/aero/messenger/aboutSupport.css                     (mail/aboutSupport.css)
   skin/classic/aero/messenger/accountCentral.css                   (mail/accountCentral.css)
@@ -564,7 +550,7 @@ classic.jar:
   skin/classic/aero/messenger/icons/chat-toolbar-inverted.png      (mail/icons/chat-toolbar-aero-inverted.png)
   skin/classic/aero/messenger/icons/status.png                     (mail/icons/status-aero.png)
   skin/classic/aero/messenger/icons/status-small.png               (mail/icons/status-small-aero.png)
-% skin messenger-newsblog classic/1.0 %skin/classic/aero/messenger-newsblog/ os=WINNT osversion>=99
+% skin messenger-newsblog classic/1.0 %skin/classic/aero/messenger-newsblog/ os=WINNT
   skin/classic/aero/messenger-newsblog/feed-subscriptions.css      (mail/newsblog/feed-subscriptions.css)
   skin/classic/aero/messenger-newsblog/icons/rss-feed.png          (mail/newsblog/rss-feed.png)
   skin/classic/aero/messenger-newsblog/icons/server-rss.png        (mail/newsblog/server-rss-aero.png)
